@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, Server, Globe, Zap, Bell, AlertTriangle,
-  LayoutDashboard, FileText, BarChart3, Bot, Settings,
+  LayoutDashboard, FileText, BarChart3, Bot, Settings, CalendarDays,
   ChevronLeft, Search, Command
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ const navItems = [
   { label: "Dashboards", icon: LayoutDashboard, path: "/dashboards" },
   { label: "Logs", icon: FileText, path: "/logs" },
   { label: "Reports", icon: BarChart3, path: "/reports" },
+  { label: "On-call", icon: CalendarDays, path: "/oncall" },
 ];
 
 const bottomItems = [

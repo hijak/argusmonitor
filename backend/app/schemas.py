@@ -543,6 +543,48 @@ class AgentHeartbeatResponse(BaseModel):
     recorded_at: datetime
     action: Optional[AgentActionOut] = None
 
+
+class OnCallTeamCreate(BaseModel):
+    name: str
+    timezone: str = "UTC"
+    description: Optional[str] = None
+
+
+class OnCallTeamOut(BaseModel):
+    id: UUID
+    name: str
+    timezone: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OnCallShiftCreate(BaseModel):
+    team_id: UUID
+    person_name: str
+    email: Optional[str] = None
+    start_at: datetime
+    end_at: datetime
+    escalation_level: int = 1
+    notes: Optional[str] = None
+
+
+class OnCallShiftOut(BaseModel):
+    id: UUID
+    team_id: UUID
+    person_name: str
+    email: Optional[str] = None
+    start_at: datetime
+    end_at: datetime
+    escalation_level: int
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
 # --- Overview ---
 
 class OverviewStats(BaseModel):

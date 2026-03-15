@@ -161,6 +161,14 @@ export const api = {
       body: JSON.stringify({ run_id: runId }),
     }),
 
+  // On-call
+  listOnCallTeams: () => request<any[]>("/oncall/teams"),
+  createOnCallTeam: (data: any) =>
+    request<any>("/oncall/teams", { method: "POST", body: JSON.stringify(data) }),
+  listOnCallShifts: (teamId?: string) => request<any[]>(`/oncall/shifts${teamId ? `?team_id=${encodeURIComponent(teamId)}` : ""}`),
+  createOnCallShift: (data: any) =>
+    request<any>("/oncall/shifts", { method: "POST", body: JSON.stringify(data) }),
+
   // Settings - Profile
   getProfile: () => request<any>("/settings/profile"),
   updateProfile: (data: { name?: string; email?: string }) =>

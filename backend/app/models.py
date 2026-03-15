@@ -361,3 +361,29 @@ class AgentAction(Base):
     completed_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OnCallTeam(Base):
+    __tablename__ = "oncall_teams"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    name = Column(String(255), nullable=False, unique=True, index=True)
+    timezone = Column(String(100), nullable=False, default="UTC")
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OnCallShift(Base):
+    __tablename__ = "oncall_shifts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    team_id = Column(UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    person_name = Column(String(255), nullable=False, index=True)
+    email = Column(String(255))
+    start_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    end_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    escalation_level = Column(Integer, nullable=False, default=1)
+    notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

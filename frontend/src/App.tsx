@@ -18,6 +18,7 @@ import DashboardViewPage from "./pages/DashboardViewPage";
 import LogsPage from "./pages/LogsPage";
 import ReportsPage from "./pages/ReportsPage";
 import AIAssistantPage from "./pages/AIAssistantPage";
+import OnCallPage from "./pages/OnCallPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import { Activity } from "lucide-react";
@@ -65,6 +66,7 @@ function AuthenticatedRoutes() {
         <Route path="/logs" element={<LogsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/ai" element={<AIAssistantPage />} />
+        <Route path="/oncall" element={<OnCallPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
