@@ -9,7 +9,8 @@ from app.database import async_session, engine, Base
 from app.models import (
     User, Host, HostMetric, Service, Transaction, TransactionStep,
     TransactionRun, TransactionRunStep, AlertRule, AlertInstance,
-    Incident, IncidentEvent, LogEntry, Dashboard, Monitor
+    Incident, IncidentEvent, LogEntry, Dashboard, Monitor,
+    NotificationChannel, Integration, UserPreference,
 )
 from app.auth import hash_password
 
@@ -295,6 +296,33 @@ async def seed():
         ]
         for dd in dashboards_data:
             db.add(Dashboard(**dd))
+
+        # --- Notification Channels ---
+        notif_channels = [
+            {"name": "Ops Team Email", "type": "email", "enabled": True, "config": {"recipients": ["ops@example.com", "oncall@example.com"], "min_severity": "warning"}},
+            {"name": "#alerts Slack Channel", "type": "slack", "enabled": True, "config": {"channel": "#alerts", "note": "Configure webhook in Slack settings"}},
+            {"name": "PagerDuty Escalation", "type": "pagerduty", "enabled": True, "config": {"integration_key": "PLACEHOLDER", "severity_map": {"critical": "critical", "warning": "warning"}}},
+            {"name": "Webhook - StatusPage", "type": "webhook", "enabled": False, "config": {"url": "https://statuspage.example.com/api/incidents", "method": "POST"}},
+        ]
+        for nc in notif_channels:
+            db.add(NotificationChannel(**nc))
+
+        # --- Integrations ---
+        integrations_data = [
+            {"name": "Slack", "type": "slack", "status": "connected", "config": {"workspace": "example-workspace", "default_channel": "#monitoring"}},
+            {"name": "PagerDuty", "type": "pagerduty", "status": "connected", "config": {"subdomain": "example", "service_count": 3}},
+            {"name": "Jira", "type": "jira", "status": "disconnected", "config": {"instance_url": "https://example.atlassian.net"}},
+            {"name": "GitHub", "type": "github", "status": "disconnected", "config": {"org": "example-org"}},
+            {"name": "Webhook - Custom", "type": "webhook", "status": "connected", "config": {"url": "https://api.example.com/webhooks/argus", "events": ["alert.fired", "incident.created"]}},
+            {"name": "Microsoft Teams", "type": "teams", "status": "disconnected", "config": {}},
+            {"name": "OpsGenie", "type": "opsgenie", "status": "disconnected", "config": {}},
+        ]
+        for integ in integrations_data:
+            db.add(Integration(**integ))
+
+        # --- User Preferences ---
+        await db.flush()
+        db.add(UserPreference(user_id=admin.id, theme="dark", timezone="UTC", date_format="YYYY-MM-DD"))
 
         # --- Monitors ---
         monitors_data = [

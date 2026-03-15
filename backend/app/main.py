@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import engine, Base
 from app.routers import auth, hosts, services, monitors, transactions, alerts, incidents, logs, dashboards, overview, ai
+from app.routers import settings as settings_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ app.include_router(incidents.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(dashboards.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
+app.include_router(settings_router.router, prefix="/api")
 
 
 @app.get("/api/health")

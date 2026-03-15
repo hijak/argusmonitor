@@ -274,6 +274,56 @@ class Dashboard(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    prefix = Column(String(12), nullable=False)
+    key_hash = Column(String(255), nullable=False)
+    last_used = Column(DateTime(timezone=True))
+    expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+class NotificationChannel(Base):
+    __tablename__ = "notification_channels"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    name = Column(String(255), nullable=False)
+    type = Column(String(50), nullable=False)  # email, slack, pagerduty, webhook, teams
+    enabled = Column(Boolean, default=True)
+    config = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Integration(Base):
+    __tablename__ = "integrations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    name = Column(String(255), nullable=False)
+    type = Column(String(50), nullable=False)  # slack, pagerduty, jira, github, webhook, teams, opsgenie
+    status = Column(String(50), default="disconnected")  # connected, disconnected, error
+    config = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    theme = Column(String(20), default="dark")
+    timezone = Column(String(100), default="UTC")
+    date_format = Column(String(50), default="YYYY-MM-DD")
+    compact_mode = Column(Boolean, default=False)
+    default_dashboard_id = Column(UUID(as_uuid=True))
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class AIChatMessage(Base):
     __tablename__ = "ai_chat_messages"
 

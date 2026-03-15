@@ -142,4 +142,46 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ run_id: runId }),
     }),
+
+  // Settings - Profile
+  getProfile: () => request<any>("/settings/profile"),
+  updateProfile: (data: { name?: string; email?: string }) =>
+    request<any>("/settings/profile", { method: "PUT", body: JSON.stringify(data) }),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    request<any>("/settings/profile/password", { method: "POST", body: JSON.stringify(data) }),
+
+  // Settings - API Keys
+  listApiKeys: () => request<any[]>("/settings/api-keys"),
+  createApiKey: (name: string) =>
+    request<any>("/settings/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteApiKey: (id: string) =>
+    request<void>(`/settings/api-keys/${id}`, { method: "DELETE" }),
+
+  // Settings - Notifications
+  listNotificationChannels: () => request<any[]>("/settings/notifications"),
+  createNotificationChannel: (data: any) =>
+    request<any>("/settings/notifications", { method: "POST", body: JSON.stringify(data) }),
+  updateNotificationChannel: (id: string, data: any) =>
+    request<any>(`/settings/notifications/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteNotificationChannel: (id: string) =>
+    request<void>(`/settings/notifications/${id}`, { method: "DELETE" }),
+  testNotificationChannel: (id: string) =>
+    request<any>(`/settings/notifications/${id}/test`, { method: "POST" }),
+
+  // Settings - Integrations
+  listIntegrations: () => request<any[]>("/settings/integrations"),
+  createIntegration: (data: any) =>
+    request<any>("/settings/integrations", { method: "POST", body: JSON.stringify(data) }),
+  updateIntegration: (id: string, data: any) =>
+    request<any>(`/settings/integrations/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteIntegration: (id: string) =>
+    request<void>(`/settings/integrations/${id}`, { method: "DELETE" }),
+
+  // Settings - Preferences
+  getPreferences: () => request<any>("/settings/preferences"),
+  updatePreferences: (data: any) =>
+    request<any>("/settings/preferences", { method: "PUT", body: JSON.stringify(data) }),
+
+  // Settings - Agents
+  listAgents: () => request<any[]>("/settings/agents"),
 };

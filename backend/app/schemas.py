@@ -394,6 +394,95 @@ class AIExplainFailureRequest(BaseModel):
     run_id: UUID
 
 
+# --- Settings ---
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+class ApiKeyCreate(BaseModel):
+    name: str
+
+class ApiKeyOut(BaseModel):
+    id: UUID
+    name: str
+    prefix: str
+    last_used: Optional[datetime]
+    expires_at: Optional[datetime]
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+class ApiKeyCreated(ApiKeyOut):
+    key: str
+
+class NotificationChannelCreate(BaseModel):
+    name: str
+    type: str
+    config: dict[str, Any] = {}
+
+class NotificationChannelUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    config: Optional[dict[str, Any]] = None
+
+class NotificationChannelOut(BaseModel):
+    id: UUID
+    name: str
+    type: str
+    enabled: bool
+    config: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+class IntegrationCreate(BaseModel):
+    name: str
+    type: str
+    config: dict[str, Any] = {}
+
+class IntegrationUpdate(BaseModel):
+    name: Optional[str] = None
+    status: Optional[str] = None
+    config: Optional[dict[str, Any]] = None
+
+class IntegrationOut(BaseModel):
+    id: UUID
+    name: str
+    type: str
+    status: str
+    config: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+class UserPreferenceOut(BaseModel):
+    theme: str
+    timezone: str
+    date_format: str
+    compact_mode: bool
+    default_dashboard_id: Optional[UUID] = None
+
+class UserPreferenceUpdate(BaseModel):
+    theme: Optional[str] = None
+    timezone: Optional[str] = None
+    date_format: Optional[str] = None
+    compact_mode: Optional[bool] = None
+    default_dashboard_id: Optional[UUID] = None
+
+class AgentOut(BaseModel):
+    id: UUID
+    name: str
+    ip_address: Optional[str]
+    agent_version: Optional[str]
+    status: str
+    os: Optional[str]
+    last_seen: Optional[datetime]
+    model_config = {"from_attributes": True}
+
 # --- Overview ---
 
 class OverviewStats(BaseModel):
