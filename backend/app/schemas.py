@@ -520,6 +520,7 @@ class AgentActionOut(BaseModel):
     id: UUID
     kind: str
     status: str
+    session_id: Optional[UUID] = None
     params: dict[str, Any] = {}
     result: dict[str, Any] = {}
     error_text: Optional[str] = None

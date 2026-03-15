@@ -351,6 +351,7 @@ class AgentAction(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="CASCADE"), nullable=False, index=True)
     requested_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("ai_chat_sessions.id", ondelete="SET NULL"), index=True)
     kind = Column(String(100), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="pending", index=True)  # pending, running, completed, failed
     params = Column(JSON, default=dict)

@@ -64,6 +64,8 @@ export default function AIAssistantPage() {
     queryKey: ["ai-history", selectedSessionId],
     queryFn: () => api.aiHistory(selectedSessionId || undefined),
     enabled: sessions.length > 0 || !!selectedSessionId,
+    refetchInterval: selectedSessionId ? 5000 : false,
+    refetchIntervalInBackground: true,
   });
 
   const createSessionMutation = useMutation({

@@ -197,6 +197,7 @@ async def chat(
             action = AgentAction(
                 host_id=host.id,
                 requested_by_user_id=user.id,
+                session_id=session.id,
                 kind=action_payload["kind"],
                 status="pending",
                 params=action_payload["params"],

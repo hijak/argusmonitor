@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import AgentAction, Host, HostMetric, User
+from app.models import AIChatMessage, AgentAction, Host, HostMetric, User
 from app.schemas import AgentActionOut, AgentActionResultRequest, AgentHeartbeatRequest, AgentHeartbeatResponse
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -28,27 +28,35 @@ async def _ensure_agent_actions_schema(db: AsyncSession) -> None:
         connection = sync_session.connection()
         inspector = inspect(connection)
         tables = inspector.get_table_names()
-        if "agent_actions" in tables:
+        if "agent_actions" not in tables:
+            connection.execute(text("""
+                CREATE TABLE agent_actions (
+                    id UUID PRIMARY KEY,
+                    host_id UUID NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+                    requested_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    session_id UUID REFERENCES ai_chat_sessions(id) ON DELETE SET NULL,
+                    kind VARCHAR(100) NOT NULL,
+                    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                    params JSON DEFAULT '{}'::json,
+                    result JSON DEFAULT '{}'::json,
+                    error_text TEXT,
+                    claimed_at TIMESTAMPTZ,
+                    completed_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT now(),
+                    updated_at TIMESTAMPTZ DEFAULT now()
+                )
+            """))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_host_id ON agent_actions(host_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_status ON agent_actions(status)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_kind ON agent_actions(kind)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_session_id ON agent_actions(session_id)"))
             return
-        connection.execute(text("""
-            CREATE TABLE agent_actions (
-                id UUID PRIMARY KEY,
-                host_id UUID NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
-                requested_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-                kind VARCHAR(100) NOT NULL,
-                status VARCHAR(50) NOT NULL DEFAULT 'pending',
-                params JSON DEFAULT '{}'::json,
-                result JSON DEFAULT '{}'::json,
-                error_text TEXT,
-                claimed_at TIMESTAMPTZ,
-                completed_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ DEFAULT now(),
-                updated_at TIMESTAMPTZ DEFAULT now()
-            )
-        """))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_host_id ON agent_actions(host_id)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_status ON agent_actions(status)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_kind ON agent_actions(kind)"))
+
+        columns = {col["name"] for col in inspector.get_columns("agent_actions")}
+        if "session_id" not in columns:
+            connection.execute(text("ALTER TABLE agent_actions ADD COLUMN session_id UUID"))
+            connection.execute(text("ALTER TABLE agent_actions ADD CONSTRAINT fk_agent_actions_session_id FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE SET NULL"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_actions_session_id ON agent_actions(session_id)"))
 
     await db.run_sync(sync_ensure)
 
@@ -59,6 +67,39 @@ def derive_host_status(cpu_percent: float, memory_percent: float, disk_percent: 
     if max(cpu_percent, memory_percent, disk_percent) >= 75:
         return "warning"
     return "healthy"
+
+
+def _format_action_result_message(host: Host, action: AgentAction) -> str:
+    if action.status == "failed":
+        return (
+            f"Read-only inspection on **{host.name}** failed.\n\n"
+            f"- Action: `{action.kind}`\n"
+            f"- Error: `{action.error_text or 'Unknown error'}`"
+        )
+
+    result = action.result or {}
+    if action.kind == "largest_paths":
+        path = result.get("path") or (action.params or {}).get("path") or "/"
+        top_paths = result.get("top_paths") or []
+        top_files = result.get("top_files") or []
+        lines = [
+            f"Read-only inspection results for **{host.name}** under `{path}`:",
+            "",
+        ]
+        if top_paths:
+            lines.append("**Largest folders / paths**")
+            for item in top_paths[:10]:
+                lines.append(f"- `{item.get('size', '?')}` — `{item.get('path', '?')}`")
+            lines.append("")
+        if top_files:
+            lines.append("**Largest files**")
+            for item in top_files[:10]:
+                lines.append(f"- `{item.get('size', '?')}` — `{item.get('path', '?')}`")
+            lines.append("")
+        lines.append("_Source: read-only host agent inspection._")
+        return "\n".join(lines)
+
+    return f"Completed action `{action.kind}` on **{host.name}**."
 
 
 @router.post("/heartbeat", response_model=AgentHeartbeatResponse)
@@ -149,6 +190,19 @@ async def submit_action_result(
     action.completed_at = datetime.now(timezone.utc)
     action.updated_at = action.completed_at
     await db.flush()
+
+    if action.session_id and action.status in {"completed", "failed"}:
+        host_result = await db.execute(select(Host).where(Host.id == action.host_id))
+        host = host_result.scalar_one_or_none()
+        if host:
+            db.add(AIChatMessage(
+                user_id=action.requested_by_user_id,
+                session_id=action.session_id,
+                role="assistant",
+                content=_format_action_result_message(host, action),
+            ))
+            await db.flush()
+
     return action
 
 
@@ -173,6 +227,7 @@ async def create_host_action(
     action = AgentAction(
         host_id=host.id,
         requested_by_user_id=user.id,
+        session_id=payload.get("session_id"),
         kind=kind,
         status="pending",
         params=params,
