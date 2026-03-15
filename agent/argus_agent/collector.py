@@ -46,6 +46,29 @@ class MetricsCollector:
 
 def _resolve_ip_address() -> str | None:
     try:
-        return socket.gethostbyname(socket.gethostname())
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("1.1.1.1", 80))
+            ip = sock.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return ip
     except OSError:
-        return None
+        pass
+
+    try:
+        for addrs in psutil.net_if_addrs().values():
+            for addr in addrs:
+                if getattr(addr, "family", None) == socket.AF_INET:
+                    ip = addr.address
+                    if ip and not ip.startswith("127."):
+                        return ip
+    except Exception:
+        pass
+
+    try:
+        ip = socket.gethostbyname(socket.gethostname())
+        if ip and not ip.startswith("127."):
+            return ip
+    except OSError:
+        pass
+
+    return None
