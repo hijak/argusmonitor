@@ -53,6 +53,10 @@ export const api = {
   overviewRecentIncidents: () => request<any[]>("/overview/recent-incidents"),
   overviewTransactionSummary: () => request<any[]>("/overview/transaction-summary"),
 
+  // Search
+  globalSearch: (q: string) =>
+    request<any[]>(`/search?q=${encodeURIComponent(q)}`),
+
   // Hosts
   listHosts: (params?: { type?: string; search?: string }) => {
     const qs = new URLSearchParams();

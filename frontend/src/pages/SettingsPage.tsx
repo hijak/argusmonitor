@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,6 +33,15 @@ const integrationIcons: Record<string, string> = {
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const [active, setActive] = useState<Section>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail as Section;
+      if (section) setActive(section);
+    };
+    window.addEventListener("argus:settings-navigate", handler);
+    return () => window.removeEventListener("argus:settings-navigate", handler);
+  }, []);
 
   if (active) {
     return (
