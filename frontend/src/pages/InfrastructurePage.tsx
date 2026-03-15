@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
@@ -7,6 +7,8 @@ import { Sparkline } from "@/components/Sparkline";
 import { Search, Plus, Server, Database, Container, Wifi, Activity, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { HostDetailModal } from "@/components/HostDetailModal";
+import { toast } from "@/components/ui/sonner";
+import { useHostsStream } from "@/hooks/useHostStream";
 
 type HostType = "server" | "database" | "container" | "network";
 
@@ -26,33 +28,53 @@ export default function InfrastructurePage() {
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: hosts = [], isLoading } = useQuery({
+  const { data: hostsSeed = [], isLoading } = useQuery({
     queryKey: ["hosts", typeFilter, search],
     queryFn: () => api.listHosts({ type: typeFilter === "all" ? undefined : typeFilter, search: search || undefined }),
-    refetchInterval: 30000,
   });
 
-  const { data: allHosts = [] } = useQuery({
+  const { data: allHostsSeed = [] } = useQuery({
     queryKey: ["hosts-all"],
     queryFn: () => api.listHosts(),
-    refetchInterval: 60000,
   });
 
-  const counts = {
+  const hosts = useHostsStream(hostsSeed, { type: typeFilter, search: search || undefined });
+  const allHosts = useHostsStream(allHostsSeed, { enabled: typeFilter === "all" && !search });
+
+  const createHostMutation = useMutation({
+    mutationFn: () => api.createHost({
+      name: `host-${Math.random().toString(36).slice(2, 8)}`,
+      type: typeFilter === "all" ? "server" : typeFilter,
+      tags: ["manual"],
+    }),
+    onSuccess: (host) => {
+      toast.success(`Added ${host.name}`);
+      queryClient.invalidateQueries({ queryKey: ["hosts"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-all"] });
+      setSelectedHostId(host.id);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to add host"),
+  });
+
+  const counts = useMemo(() => ({
     all: allHosts.length,
     server: allHosts.filter((h: any) => h.type === "server").length,
     database: allHosts.filter((h: any) => h.type === "database").length,
     container: allHosts.filter((h: any) => h.type === "container").length,
     network: allHosts.filter((h: any) => h.type === "network").length,
-  };
+  }), [allHosts]);
 
   return (
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Infrastructure" description="Monitored hosts and devices">
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+          <button
+            onClick={() => createHostMutation.mutate()}
+            disabled={createHostMutation.isPending}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
             <Plus className="h-4 w-4" />
-            Add Host
+            {createHostMutation.isPending ? "Adding..." : "Add Host"}
           </button>
         </PageHeader>
       </motion.div>

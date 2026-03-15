@@ -1,6 +1,10 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { BarChart3, Calendar, Download, TrendingUp, Clock } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "@/components/ui/sonner";
 
 const reports = [
   { name: "Weekly SLA Report", type: "Availability", generated: "Jan 15, 2024", period: "Jan 8-15" },
@@ -14,13 +18,52 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } 
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 export default function ReportsPage() {
+  const queryClient = useQueryClient();
+  const [generating, setGenerating] = useState<string | null>(null);
+
+  const createIncidentMutation = useMutation({
+    mutationFn: (title: string) =>
+      api.createIncident({ title, severity: "info", affected_hosts: [] }),
+    onSuccess: () => {
+      toast.success("Report incident created");
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      setGenerating(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to generate report");
+      setGenerating(null);
+    },
+  });
+
+  const handleGenerate = (name: string) => {
+    if (generating) return;
+    setGenerating(name);
+    createIncidentMutation.mutate(`Report: ${name}`);
+  };
+
+  const handleExport = (name: string) => {
+    const content = `ArgusMonitor Report\n\nName: ${name}\nGenerated: ${new Date().toLocaleString()}\n\nData: ${JSON.stringify(reports.find((r) => r.name === name), null, 2)}`;
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name.replace(/\s+/g, "-").toLowerCase()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${name}`);
+  };
+
   return (
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Reports" description="Scheduled and on-demand reports">
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <button
+            onClick={() => handleGenerate("Weekly SLA Report")}
+            disabled={!!generating}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
             <BarChart3 className="h-4 w-4" />
-            Generate Report
+            {generating ? "Generating..." : "Generate Report"}
           </button>
         </PageHeader>
       </motion.div>
@@ -40,7 +83,10 @@ export default function ReportsPage() {
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{r.generated}</span>
                 </div>
               </div>
-              <button className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">
+              <button
+                onClick={() => handleExport(r.name)}
+                className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+              >
                 <Download className="h-3 w-3" />
                 Export
               </button>

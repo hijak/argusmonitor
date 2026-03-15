@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Bell, User } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "@/components/ui/sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.02 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -22,7 +23,28 @@ export default function AlertsPage() {
 
   const ackMutation = useMutation({
     mutationFn: (id: string) => api.acknowledgeAlert(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onSuccess: () => {
+      toast.success("Alert acknowledged");
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to acknowledge alert"),
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: () => api.createAlertRule({
+      name: `CPU above 85% • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+      description: "Default alert rule created from the UI",
+      severity: "warning",
+      type: "threshold",
+      condition: { metric: "cpu_percent", operator: ">", value: 85 },
+      target_type: "host",
+      cooldown_seconds: 300,
+    }),
+    onSuccess: () => {
+      toast.success("Alert rule created");
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to create alert rule"),
   });
 
   const filtered = alerts.filter((a: any) => {
@@ -51,9 +73,13 @@ export default function AlertsPage() {
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Alerts" description="Active and recent alerts across all services">
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <button
+            onClick={() => createRuleMutation.mutate()}
+            disabled={createRuleMutation.isPending}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
             <Bell className="h-4 w-4" />
-            Create Alert Rule
+            {createRuleMutation.isPending ? "Creating..." : "Create Alert Rule"}
           </button>
         </PageHeader>
       </motion.div>

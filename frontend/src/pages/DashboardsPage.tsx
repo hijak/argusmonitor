@@ -1,19 +1,47 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { Plus, LayoutDashboard, Bot, Clock, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "@/components/ui/sonner";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 export default function DashboardsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [prompt, setPrompt] = useState("");
   const { data: dashboards = [] } = useQuery({
     queryKey: ["dashboards"],
     queryFn: api.listDashboards,
   });
+
+  const createDashboardMutation = useMutation({
+    mutationFn: (data: { name: string; type: string; config: any }) => api.createDashboard(data),
+    onSuccess: (dashboard) => {
+      toast.success(`Created ${dashboard.name}`);
+      queryClient.invalidateQueries({ queryKey: ["dashboards"] });
+      navigate(`/dashboards/${dashboard.id}`);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to create dashboard"),
+  });
+
+  const createPresetDashboard = (name: string, preset: string, type = "system") => {
+    createDashboardMutation.mutate({ name, type, config: { preset } });
+  };
+
+  const handleGenerate = () => {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    createDashboardMutation.mutate({
+      name: trimmed.length > 48 ? `${trimmed.slice(0, 45)}...` : trimmed,
+      type: "ai",
+      config: { preset: trimmed, prompt: trimmed },
+    });
+  };
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -26,9 +54,13 @@ export default function DashboardsPage() {
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Dashboards" description="Custom and AI-generated dashboards">
-          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <button
+            onClick={() => createPresetDashboard("Infrastructure Overview", "Infrastructure", "system")}
+            disabled={createDashboardMutation.isPending}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
             <Plus className="h-4 w-4" />
-            New Dashboard
+            {createDashboardMutation.isPending ? "Creating..." : "New Dashboard"}
           </button>
         </PageHeader>
       </motion.div>
@@ -37,10 +69,19 @@ export default function DashboardsPage() {
         <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
           <Bot className="h-5 w-5 text-primary" />
           <input
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
             placeholder="Describe a dashboard... e.g. 'Create a dashboard showing API latency and error rates for the past 24 hours'"
             className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <button className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">Generate</button>
+          <button
+            onClick={handleGenerate}
+            disabled={createDashboardMutation.isPending || !prompt.trim()}
+            className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            Generate
+          </button>
         </div>
       </motion.div>
 

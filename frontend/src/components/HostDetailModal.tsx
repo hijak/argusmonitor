@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { X, Server, Database, Container, Wifi, Activity, Clock3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useHostMetricsStream } from "@/hooks/useHostStream";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -17,12 +18,12 @@ interface HostDetailModalProps {
 }
 
 export function HostDetailModal({ hostId, onClose }: HostDetailModalProps) {
-  const { data, isLoading } = useQuery({
+  const { data: seedData, isLoading } = useQuery({
     queryKey: ["host-metrics", hostId],
     queryFn: () => api.getHostMetrics(hostId!),
     enabled: !!hostId,
-    refetchInterval: 30000,
   });
+  const data = useHostMetricsStream(hostId, seedData, !!hostId);
 
   return (
     <AnimatePresence>
@@ -102,7 +103,6 @@ function HostContent({ data, onClose }: { data: any; onClose: () => void }) {
             </div>
           </div>
 
-          <GaugeCard label="CPU" value={host.cpu_percent} />
           <GaugeCard label="CPU" value={host.cpu_percent} />
           <GaugeCard label="Memory" value={host.memory_percent} />
           <GaugeCard label="Disk" value={host.disk_percent} />

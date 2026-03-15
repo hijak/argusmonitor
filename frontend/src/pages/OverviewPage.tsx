@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { MetricCard } from "@/components/MetricCard";
@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { HostDetailModal } from "@/components/HostDetailModal";
 import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react";
 import { motion } from "framer-motion";
+import { useHostsStream } from "@/hooks/useHostStream";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -15,16 +16,19 @@ const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transitio
 export default function OverviewPage() {
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const { data: stats } = useQuery({ queryKey: ["overview-stats"], queryFn: api.overviewStats, refetchInterval: 30000 });
-  const { data: hosts = [] } = useQuery({ queryKey: ["overview-hosts"], queryFn: api.overviewHostHealth, refetchInterval: 30000 });
+  const { data: hostsSeed = [] } = useQuery({ queryKey: ["overview-hosts"], queryFn: api.overviewHostHealth });
+  const hosts = useHostsStream(hostsSeed);
   const { data: alerts = [] } = useQuery({ queryKey: ["overview-alerts"], queryFn: api.overviewRecentAlerts, refetchInterval: 15000 });
   const { data: incidents = [] } = useQuery({ queryKey: ["overview-incidents"], queryFn: api.overviewRecentIncidents, refetchInterval: 30000 });
   const { data: transactions = [] } = useQuery({ queryKey: ["overview-tx"], queryFn: api.overviewTransactionSummary, refetchInterval: 30000 });
+
+  const liveAgentCount = useMemo(() => hosts.filter((h: any) => h.is_agent_connected).length, [hosts]);
 
   return (
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Overview" description="System health at a glance">
-          <StatusBadge variant="info" pulse>{hosts.filter((h: any) => h.is_agent_connected).length} live agents reporting</StatusBadge>
+          <StatusBadge variant="info" pulse>{liveAgentCount} live agents reporting</StatusBadge>
         </PageHeader>
       </motion.div>
 
