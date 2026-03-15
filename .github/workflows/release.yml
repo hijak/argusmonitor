@@ -12,7 +12,7 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  build-and-push:
+  build-and-push-containers:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -53,34 +53,129 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  build-agent:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: argus-agent-linux-amd64
+            binary: argus-agent
+          - os: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            artifact: argus-agent-linux-arm64
+            binary: argus-agent
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            artifact: argus-agent-darwin-amd64
+            binary: argus-agent
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: argus-agent-darwin-arm64
+            binary: argus-agent
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: argus-agent-windows-amd64
+            binary: argus-agent.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          cd agent
+          pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Build agent binary
+        run: |
+          cd agent
+          pyinstaller --clean --noconfirm argus-agent.spec
+
+      - name: Rename binary
+        shell: bash
+        run: mv agent/dist/${{ matrix.binary }} agent/dist/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: agent/dist/${{ matrix.artifact }}
+
   create-release:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: [build-and-push-containers, build-agent]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Download all agent artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Make binaries executable
+        run: chmod +x release-assets/argus-agent-linux-* release-assets/argus-agent-darwin-* || true
+
+      - name: Generate checksums
+        working-directory: release-assets
+        run: sha256sum argus-agent-* > checksums-sha256.txt
+
       - name: Generate changelog
-        id: changelog
         run: |
           PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1)
           if [ -z "$PREV_TAG" ]; then
             PREV_TAG=$(git rev-list --max-parents=0 HEAD)
           fi
-          echo "## Changes" > changelog.md
+          cat > changelog.md << 'HEADER'
+          ## Changes
+          HEADER
           echo "" >> changelog.md
           git log ${PREV_TAG}..HEAD --pretty=format:"- %s" >> changelog.md
-          echo "" >> changelog.md
-          echo "" >> changelog.md
-          echo "## Container Images" >> changelog.md
-          echo "" >> changelog.md
-          echo '```' >> changelog.md
-          echo "docker pull ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}" >> changelog.md
-          echo "docker pull ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}" >> changelog.md
-          echo '```' >> changelog.md
+          cat >> changelog.md << EOF
+
+          ## Container Images
+
+          \`\`\`
+          docker pull ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+          docker pull ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}
+          \`\`\`
+
+          ## Agent Downloads
+
+          | Platform | Architecture | Binary |
+          |----------|-------------|--------|
+          | Linux | amd64 | \`argus-agent-linux-amd64\` |
+          | Linux | arm64 | \`argus-agent-linux-arm64\` |
+          | macOS | Intel | \`argus-agent-darwin-amd64\` |
+          | macOS | Apple Silicon | \`argus-agent-darwin-arm64\` |
+          | Windows | amd64 | \`argus-agent-windows-amd64\` |
+
+          ### Quick Install
+
+          \`\`\`bash
+          # Linux (amd64)
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/argus-agent-linux-amd64 -o /usr/local/bin/argus-agent
+          chmod +x /usr/local/bin/argus-agent
+
+          # macOS (Apple Silicon)
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/argus-agent-darwin-arm64 -o /usr/local/bin/argus-agent
+          chmod +x /usr/local/bin/argus-agent
+          \`\`\`
+          EOF
 
       - uses: softprops/action-gh-release@v2
         with:
           body_path: changelog.md
           generate_release_notes: false
+          files: release-assets/*
