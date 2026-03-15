@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { Plus, LayoutDashboard, Bot, Clock, BarChart3 } from "lucide-react";
@@ -8,6 +9,7 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } 
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 export default function DashboardsPage() {
+  const navigate = useNavigate();
   const { data: dashboards = [] } = useQuery({
     queryKey: ["dashboards"],
     queryFn: api.listDashboards,
@@ -44,13 +46,20 @@ export default function DashboardsPage() {
 
       <motion.div variants={item} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {dashboards.map((db: any) => (
-          <div key={db.id} className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-surface-hover cursor-pointer group">
+          <div
+            key={db.id}
+            onClick={() => navigate(`/dashboards/${db.id}`)}
+            className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-surface-hover cursor-pointer group"
+          >
             <div className="flex items-center justify-between mb-3">
               <LayoutDashboard className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
               {db.type === "ai" && (
                 <span className="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                   <Bot className="h-2.5 w-2.5" /> AI Generated
                 </span>
+              )}
+              {db.type === "system" && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">System</span>
               )}
             </div>
             <h3 className="text-sm font-medium mb-1">{db.name}</h3>
@@ -60,7 +69,7 @@ export default function DashboardsPage() {
             </div>
             <div className="mt-3 grid grid-cols-3 gap-1">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-6 rounded-sm bg-muted/50" />
+                <div key={i} className="h-6 rounded-sm bg-muted/50 group-hover:bg-primary/10 transition-colors" />
               ))}
             </div>
           </div>

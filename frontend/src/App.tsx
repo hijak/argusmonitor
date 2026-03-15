@@ -13,6 +13,7 @@ import TransactionsPage from "./pages/TransactionsPage";
 import AlertsPage from "./pages/AlertsPage";
 import IncidentsPage from "./pages/IncidentsPage";
 import DashboardsPage from "./pages/DashboardsPage";
+import DashboardViewPage from "./pages/DashboardViewPage";
 import LogsPage from "./pages/LogsPage";
 import ReportsPage from "./pages/ReportsPage";
 import AIAssistantPage from "./pages/AIAssistantPage";
@@ -59,6 +60,7 @@ function AuthenticatedRoutes() {
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
         <Route path="/dashboards" element={<DashboardsPage />} />
+        <Route path="/dashboards/:id" element={<DashboardViewPage />} />
         <Route path="/logs" element={<LogsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/ai" element={<AIAssistantPage />} />

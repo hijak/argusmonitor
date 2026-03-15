@@ -122,6 +122,8 @@ export const api = {
 
   // Dashboards
   listDashboards: () => request<any[]>("/dashboards"),
+  getDashboard: (id: string) => request<any>(`/dashboards/${id}`),
+  getDashboardWidgets: (id: string) => request<any[]>(`/dashboards/${id}/widgets`),
   createDashboard: (data: any) =>
     request<any>("/dashboards", { method: "POST", body: JSON.stringify(data) }),
 
