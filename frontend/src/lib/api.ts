@@ -79,6 +79,10 @@ export const api = {
   listServices: () => request<any[]>("/services"),
   createService: (data: any) =>
     request<any>("/services", { method: "POST", body: JSON.stringify(data) }),
+  discoverServices: () =>
+    request<{ created: number; discovered: any[] }>("/services/discover", { method: "POST" }),
+  seedDefaultAlerts: () =>
+    request<{ created: number; total_defaults: number }>("/services/seed-defaults", { method: "POST" }),
 
   // Monitors
   listMonitors: () => request<any[]>("/monitors"),

@@ -1,25 +1,63 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Globe } from "lucide-react";
+import { Globe, Radar, ShieldAlert } from "lucide-react";
 import { Sparkline } from "@/components/Sparkline";
 import { motion } from "framer-motion";
+import { toast } from "@/components/ui/sonner";
+import { useServicesStream } from "@/hooks/useServiceStream";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 export default function ServicesPage() {
-  const { data: services = [], isLoading } = useQuery({
+  const queryClient = useQueryClient();
+  const { data: serviceSeed = [], isLoading } = useQuery({
     queryKey: ["services"],
     queryFn: api.listServices,
-    refetchInterval: 30000,
+  });
+  const services = useServicesStream(serviceSeed);
+
+  const discoverMutation = useMutation({
+    mutationFn: api.discoverServices,
+    onSuccess: (result) => {
+      toast.success(result.created > 0 ? `Discovered ${result.created} service${result.created === 1 ? "" : "s"}` : "No new services found");
+      queryClient.invalidateQueries({ queryKey: ["services"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Service discovery failed"),
+  });
+
+  const seedAlertsMutation = useMutation({
+    mutationFn: api.seedDefaultAlerts,
+    onSuccess: (result) => {
+      toast.success(result.created > 0 ? `Added ${result.created} default alert rules` : "Default alerts already present");
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to add default alerts"),
   });
 
   return (
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
-        <PageHeader title="Services" description="Service health and performance monitoring" />
+        <PageHeader title="Services" description="Service health and performance monitoring">
+          <button
+            onClick={() => seedAlertsMutation.mutate()}
+            disabled={seedAlertsMutation.isPending}
+            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-surface-hover disabled:opacity-50"
+          >
+            <ShieldAlert className="h-4 w-4" />
+            {seedAlertsMutation.isPending ? "Adding alerts..." : "Add Default Alerts"}
+          </button>
+          <button
+            onClick={() => discoverMutation.mutate()}
+            disabled={discoverMutation.isPending}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Radar className="h-4 w-4" />
+            {discoverMutation.isPending ? "Scanning..." : "Discover Services"}
+          </button>
+        </PageHeader>
       </motion.div>
 
       <motion.div variants={item} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
