@@ -8,7 +8,6 @@ import { toast } from "@/components/ui/sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import "highlight.js/styles/github-dark.css";
 
 const quickActions = [
   { label: "Explain alert", icon: Bell },
@@ -22,7 +21,7 @@ const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transitio
 
 function MarkdownMessage({ content }: { content: string }) {
   return (
-    <div className="prose prose-invert max-w-none prose-p:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-border prose-pre:bg-black/40 prose-code:text-primary-foreground prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground/90 prose-table:text-foreground prose-th:text-foreground prose-td:text-foreground/90">
+    <div className="argus-markdown prose prose-invert max-w-none prose-p:my-2 prose-pre:rounded-lg prose-pre:border prose-pre:border-border prose-pre:bg-black/30 prose-code:text-foreground prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground/90 prose-table:text-foreground prose-th:text-foreground prose-td:text-foreground/90">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

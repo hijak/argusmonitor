@@ -65,6 +65,22 @@ services:
       - backend
     restart: unless-stopped
 
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    ports:
+      - "8788:8080"
+    restart: unless-stopped
+
+  docs-site:
+    build:
+      context: ./docs
+      dockerfile: Dockerfile
+    ports:
+      - "8789:8080"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:

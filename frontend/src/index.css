@@ -175,3 +175,69 @@
     50% { opacity: 0.5; }
   }
 }
+
+@layer components {
+  .argus-markdown pre code.hljs {
+    display: block;
+    overflow-x: auto;
+    background: hsl(20 8% 12% / 0.96);
+    color: hsl(0 0% 94%);
+    border-radius: 0.5rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .argus-markdown .hljs {
+    color: hsl(0 0% 94%);
+  }
+
+  .argus-markdown .hljs-comment,
+  .argus-markdown .hljs-quote {
+    color: hsl(25 4% 64%);
+    font-style: italic;
+  }
+
+  .argus-markdown .hljs-keyword,
+  .argus-markdown .hljs-selector-tag,
+  .argus-markdown .hljs-subst {
+    color: hsl(25 95% 53%);
+  }
+
+  .argus-markdown .hljs-title,
+  .argus-markdown .hljs-section,
+  .argus-markdown .hljs-selector-id,
+  .argus-markdown .hljs-built_in,
+  .argus-markdown .hljs-type {
+    color: hsl(199 87% 58%);
+  }
+
+  .argus-markdown .hljs-string,
+  .argus-markdown .hljs-attr,
+  .argus-markdown .hljs-selector-attr,
+  .argus-markdown .hljs-selector-pseudo,
+  .argus-markdown .hljs-template-tag {
+    color: hsl(48 96% 64%);
+  }
+
+  .argus-markdown .hljs-number,
+  .argus-markdown .hljs-literal,
+  .argus-markdown .hljs-variable,
+  .argus-markdown .hljs-template-variable,
+  .argus-markdown .hljs-link {
+    color: hsl(160 84% 45%);
+  }
+
+  .argus-markdown .hljs-function .hljs-title,
+  .argus-markdown .hljs-title.function_ {
+    color: hsl(25 95% 66%);
+  }
+
+  .argus-markdown .hljs-params {
+    color: hsl(0 0% 88%);
+  }
+
+  .argus-markdown :not(pre) > code {
+    background: hsl(20 8% 19%);
+    color: hsl(25 95% 66%);
+    border: 1px solid hsl(20 6% 25%);
+  }
+}
