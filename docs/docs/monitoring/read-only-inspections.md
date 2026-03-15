@@ -1,8 +1,3 @@
----
-title: Read-only Host Inspections
-description: Safe, bounded inspection actions through agents.
----
-
 # Read-only Host Inspections
 
 ArgusMonitor supports a model where the control plane can queue **bounded read-only inspection actions** for monitored hosts.
@@ -14,8 +9,6 @@ Users often want answers to questions like:
 - what are the largest files on this node?
 - what are the biggest folders under `/var`?
 - what is consuming space right now?
-
-Those are useful operational questions.
 
 ## Safety model
 
@@ -34,16 +27,3 @@ The intended design is:
 A safe first action is:
 
 - `largest_paths`
-
-This can inspect allowed roots such as:
-
-- `/`
-- `/var`
-- `/home`
-- `/srv`
-- `/opt`
-- `/usr/local`
-
-## Why this matters
-
-This gives users operational leverage without normalizing reckless remote shell behavior.

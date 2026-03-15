@@ -1,8 +1,3 @@
----
-title: Systemd Deployment
-description: Run the ArgusMonitor agent as a native systemd service.
----
-
 # Systemd Deployment
 
 ArgusMonitor prefers a native host agent managed by `systemd`.
@@ -28,9 +23,3 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now argus-agent.service
 sudo systemctl status argus-agent.service --no-pager
 ```
-
-## Notes
-
-- use the host root filesystem normally when running natively
-- leave containerized agent deployment as a secondary/convenience path
-- prefer host-native monitoring by default

@@ -1,6 +1,5 @@
 ---
-title: Hosted vs Self-Hosted
-description: Choose the deployment model that fits your workflow.
+sidebar_position: 3
 ---
 
 # Hosted vs Self-Hosted
@@ -38,14 +37,3 @@ Self-hosted is ideal for:
 - internal-only environments
 - users who want to test the core platform first
 - teams with strong self-hosting preferences
-
-## Practical recommendation
-
-Use self-hosted to evaluate and experiment.
-
-Move to hosted when you want:
-
-- less operational overhead
-- managed upgrades
-- AI credits included in plan tiers
-- easier adoption across multiple nodes or teams

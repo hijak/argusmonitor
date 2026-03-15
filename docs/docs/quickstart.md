@@ -1,6 +1,5 @@
 ---
-title: Quickstart
-description: Get ArgusMonitor running quickly.
+sidebar_position: 2
 ---
 
 # Quickstart

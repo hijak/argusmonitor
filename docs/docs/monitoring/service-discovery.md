@@ -1,8 +1,3 @@
----
-title: Service Discovery
-description: Discover known services from monitored hosts.
----
-
 # Service Discovery
 
 ArgusMonitor supports lightweight service discovery so users do not need to define every obvious service by hand.
@@ -24,11 +19,3 @@ A good baseline discovery flow is:
 - use a small curated port list
 - create service records for discovered endpoints
 - avoid aggressive constant scanning
-
-## Why this matters
-
-Service discovery is helpful.
-
-Turning it into a constant network-noise machine is not.
-
-ArgusMonitor favors bounded discovery that is operationally useful without being wasteful.

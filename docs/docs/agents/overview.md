@@ -1,8 +1,3 @@
----
-title: Agent Overview
-description: How ArgusMonitor agents work.
----
-
 # Agent Overview
 
 ArgusMonitor uses lightweight agents to collect host-level monitoring signals and report them back to the control plane.
@@ -25,9 +20,3 @@ The preferred deployment model is:
 - managed by `systemd`
 
 This is the default recommendation because it gives better host visibility and more predictable lifecycle management than forcing the agent itself to run in a container.
-
-## Container monitoring
-
-Container visibility can still be supported as a feature of the host agent.
-
-That is different from making the agent container-native by default.

@@ -1,8 +1,3 @@
----
-title: Agent Install
-description: Install the ArgusMonitor agent on a host.
----
-
 # Agent Install
 
 The recommended host deployment is a native agent binary.

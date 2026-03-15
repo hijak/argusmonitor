@@ -1,6 +1,5 @@
 ---
-title: Pricing, AI Credits, and BYOK
-description: How ArgusMonitor is packaged and monetized.
+sidebar_position: 4
 ---
 
 # Pricing, AI Credits, and BYOK
@@ -18,8 +17,6 @@ The community/self-hosted tier is intended to cover:
 - basic alerts
 - dashboards and logs
 - limited nodes
-
-This keeps the core useful and lets users evaluate the platform without paywalling all the fundamentals.
 
 ## Hosted Starter
 
@@ -49,13 +46,9 @@ Pro is intended for:
 
 ## AI consumption models
 
-ArgusMonitor supports two AI monetization patterns:
-
 ### Included AI credits
 
 Paid plans include monthly AI usage credits.
-
-This makes pricing predictable and easy to understand.
 
 ### Bring Your Own Key (BYOK)
 
@@ -67,9 +60,3 @@ BYOK is useful when users want:
 - direct cost control
 - custom internal AI policies
 - higher-volume usage without relying on bundled credits alone
-
-## Why both models exist
-
-Credits make hosted plans simple.
-
-BYOK makes the platform attractive to technical users who want more control.

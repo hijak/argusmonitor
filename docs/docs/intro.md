@@ -1,6 +1,6 @@
 ---
-title: ArgusMonitor Docs
-description: AI-powered infrastructure and service monitoring with lightweight agents.
+sidebar_position: 1
+slug: /intro
 ---
 
 # ArgusMonitor Docs
@@ -44,14 +44,3 @@ Queue bounded, safe inspections through the host agent for workflows like:
 - largest files under `/var`
 - biggest folders on a node
 - future safe diagnostics such as failed units or top processes
-
-## Docs map
-
-Start here:
-
-- [Quickstart](./quickstart)
-- [Hosted vs Self-Hosted](./hosted-vs-self-hosted)
-- [Pricing, AI credits, and BYOK](./pricing-ai)
-- [Agent overview](./agents/overview)
-- [Service discovery](./monitoring/service-discovery)
-- [AI copilot](./monitoring/copilot)

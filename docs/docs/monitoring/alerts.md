@@ -1,8 +1,3 @@
----
-title: Alerts
-description: Use sensible defaults, then refine.
----
-
 # Alerts
 
 ArgusMonitor should ship with useful default alert packs instead of making users start from a blank page.
@@ -16,13 +11,5 @@ Good default alerts include:
 - host disk above threshold
 - service latency above threshold
 - service uptime below threshold
-
-## Philosophy
-
-The first-run experience should not be:
-
-- a blank screen
-- twenty pages of configuration
-- a requirement to invent every alert manually
 
 Defaults should be useful enough to create value immediately, then editable later.

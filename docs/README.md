@@ -1,27 +1,25 @@
 # ArgusMonitor Docs
 
-Mintlify-based documentation for ArgusMonitor.
+Self-hosted documentation site for ArgusMonitor using **Docusaurus**.
 
-## Local preview
-
-Install the Mintlify CLI:
-
-```bash
-npm i -g mint
-```
-
-Then run from this directory:
+## Local development
 
 ```bash
 cd docs
-mint dev
+npm install
+npm start
 ```
 
-Mintlify will look for `docs.json` in this directory.
+## Build
 
-## Contents
+```bash
+cd docs
+npm run build
+```
 
-This docs set currently covers:
+## Purpose
+
+This docs site covers:
 - product overview
 - quick start
 - hosted vs self-hosted
@@ -32,6 +30,7 @@ This docs set currently covers:
 - AI copilot
 - read-only host inspections
 
-## Publishing
+## Target
 
-Intended target: `docs.argusmonitor.com` via Mintlify hosted docs.
+Intended deployment target:
+- `docs.argusmonitor.com`
