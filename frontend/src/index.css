@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&family=Merriweather:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Solar Dusk Dark (default) */
+    --background: 20 14% 10%;
+    --foreground: 0 0% 96%;
+
+    --card: 20 8% 15%;
+    --card-foreground: 0 0% 96%;
+
+    --popover: 20 8% 15%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 20 6% 32%;
+    --secondary-foreground: 20 6% 90%;
+
+    --muted: 20 10% 11%;
+    --muted-foreground: 25 4% 64%;
+
+    --accent: 198 60% 22%;
+    --accent-foreground: 20 6% 90%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --critical: 0 72% 51%;
+    --critical-foreground: 0 0% 100%;
+
+    --border: 20 6% 25%;
+    --input: 20 6% 25%;
+    --ring: 25 95% 53%;
+
+    --radius: 0.3rem;
+
+    --surface: 20 8% 15%;
+    --surface-hover: 20 8% 19%;
+    --surface-active: 20 8% 23%;
+
+    --sidebar-background: 20 8% 15%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 25 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 199 87% 49%;
+    --sidebar-accent-foreground: 207 75% 17%;
+    --sidebar-border: 20 6% 25%;
+    --sidebar-ring: 25 95% 53%;
+
+    --chart-1: 25 95% 53%;
+    --chart-2: 199 87% 49%;
+    --chart-3: 48 96% 47%;
+    --chart-4: 25 4% 64%;
+    --chart-5: 20 6% 47%;
+  }
+
+  .light {
+    /* Solar Dusk Light */
+    --background: 40 43% 98%;
+    --foreground: 21 18% 25%;
+
+    --card: 36 33% 95%;
+    --card-foreground: 21 18% 25%;
+
+    --popover: 36 33% 95%;
+    --popover-foreground: 21 18% 25%;
+
+    --primary: 26 90% 37%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 34 61% 73%;
+    --secondary-foreground: 33 5% 32%;
+
+    --muted: 39 45% 90%;
+    --muted-foreground: 25 5% 45%;
+
+    --accent: 34 68% 84%;
+    --accent-foreground: 33 5% 32%;
+
+    --destructive: 0 70% 35%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --critical: 0 70% 35%;
+    --critical-foreground: 0 0% 100%;
+
+    --border: 44 43% 82%;
+    --input: 44 43% 82%;
+    --ring: 26 90% 37%;
+
+    --surface: 36 33% 95%;
+    --surface-hover: 36 33% 91%;
+    --surface-active: 36 33% 87%;
+
+    --sidebar-background: 39 45% 90%;
+    --sidebar-foreground: 21 18% 25%;
+    --sidebar-primary: 26 90% 37%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 35 92% 33%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 44 43% 82%;
+    --sidebar-ring: 26 90% 37%;
+
+    --chart-1: 26 90% 37%;
+    --chart-2: 25 5% 45%;
+    --chart-3: 35 92% 33%;
+    --chart-4: 25 5% 45%;
+    --chart-5: 41 96% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50;
+  }
+  .glow-primary {
+    box-shadow: 0 0 20px -5px hsl(25 95% 53% / 0.3);
+  }
+  .glow-success {
+    box-shadow: 0 0 20px -5px hsl(160 84% 39% / 0.3);
+  }
+  .glow-critical {
+    box-shadow: 0 0 20px -5px hsl(0 72% 51% / 0.3);
+  }
+  .glow-warning {
+    box-shadow: 0 0 20px -5px hsl(38 92% 50% / 0.3);
+  }
+  .pulse-live {
+    animation: pulse-live 2s ease-in-out infinite;
+  }
+  @keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+}
