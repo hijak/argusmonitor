@@ -1,30 +1,10 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Bell, CheckCircle, Clock, Filter, User } from "lucide-react";
+import { Bell, User } from "lucide-react";
 import { motion } from "framer-motion";
-
-interface Alert {
-  id: string;
-  message: string;
-  severity: "critical" | "warning" | "info";
-  service: string;
-  host: string;
-  time: string;
-  acknowledged: boolean;
-  assignee?: string;
-}
-
-const alerts: Alert[] = [
-  { id: "1", message: "CPU usage > 90% for 5 minutes", severity: "critical", service: "Worker Pool", host: "worker-03", time: "2 min ago", acknowledged: false },
-  { id: "2", message: "Database replication lag exceeds 5s", severity: "warning", service: "Database", host: "db-primary", time: "15 min ago", acknowledged: false },
-  { id: "3", message: "SSL certificate expires in 7 days", severity: "warning", service: "API Gateway", host: "lb-prod-01", time: "1 hour ago", acknowledged: true, assignee: "Alice" },
-  { id: "4", message: "Transaction 'Checkout' success rate below 98%", severity: "critical", service: "E-Commerce", host: "api-prod-01", time: "3 hours ago", acknowledged: true, assignee: "Bob" },
-  { id: "5", message: "Disk usage > 80%", severity: "warning", service: "Monitoring", host: "monitor-01", time: "5 hours ago", acknowledged: false },
-  { id: "6", message: "Memory usage > 85%", severity: "warning", service: "Database", host: "db-primary", time: "6 hours ago", acknowledged: true, assignee: "Alice" },
-  { id: "7", message: "Response time > 2s on /api/users", severity: "info", service: "API", host: "api-prod-02", time: "8 hours ago", acknowledged: true, assignee: "Charlie" },
-  { id: "8", message: "Container restart detected", severity: "critical", service: "Worker Pool", host: "worker-03", time: "12 hours ago", acknowledged: true, assignee: "Bob" },
-];
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.02 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -32,8 +12,20 @@ const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transitio
 export default function AlertsPage() {
   const [filter, setFilter] = useState<"all" | "critical" | "warning" | "info">("all");
   const [showAcked, setShowAcked] = useState(true);
+  const queryClient = useQueryClient();
 
-  const filtered = alerts.filter(a => {
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["alerts"],
+    queryFn: () => api.listAlerts(),
+    refetchInterval: 15000,
+  });
+
+  const ackMutation = useMutation({
+    mutationFn: (id: string) => api.acknowledgeAlert(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+  });
+
+  const filtered = alerts.filter((a: any) => {
     if (filter !== "all" && a.severity !== filter) return false;
     if (!showAcked && a.acknowledged) return false;
     return true;
@@ -41,9 +33,18 @@ export default function AlertsPage() {
 
   const counts = {
     all: alerts.length,
-    critical: alerts.filter(a => a.severity === "critical").length,
-    warning: alerts.filter(a => a.severity === "warning").length,
-    info: alerts.filter(a => a.severity === "info").length,
+    critical: alerts.filter((a: any) => a.severity === "critical").length,
+    warning: alerts.filter((a: any) => a.severity === "warning").length,
+    info: alerts.filter((a: any) => a.severity === "info").length,
+  };
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
   };
 
   return (
@@ -83,7 +84,7 @@ export default function AlertsPage() {
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card">
         <div className="divide-y divide-border">
-          {filtered.map(alert => (
+          {filtered.map((alert: any) => (
             <motion.div
               key={alert.id}
               variants={item}
@@ -96,30 +97,36 @@ export default function AlertsPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{alert.message}</p>
                 <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{alert.service}</span>
+                  <span>{alert.service || "Unknown"}</span>
                   <span>•</span>
-                  <span className="font-mono">{alert.host}</span>
+                  <span className="font-mono">{alert.host || "N/A"}</span>
                   <span>•</span>
-                  <span>{alert.time}</span>
+                  <span>{timeAgo(alert.created_at)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {alert.assignee && (
+                {alert.acknowledged_by && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3" />{alert.assignee}
+                    <User className="h-3 w-3" />{alert.acknowledged_by}
                   </span>
                 )}
                 <StatusBadge variant={alert.severity === "info" ? "info" : alert.severity === "critical" ? "critical" : "warning"}>
                   {alert.severity}
                 </StatusBadge>
                 {!alert.acknowledged && (
-                  <button className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">
+                  <button
+                    onClick={() => ackMutation.mutate(alert.id)}
+                    className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                  >
                     Ack
                   </button>
                 )}
               </div>
             </motion.div>
           ))}
+          {filtered.length === 0 && (
+            <div className="px-5 py-8 text-center text-sm text-muted-foreground">No alerts matching filters</div>
+          )}
         </div>
       </motion.div>
     </motion.div>

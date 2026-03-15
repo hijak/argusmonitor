@@ -1,0 +1,145 @@
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("argus_token");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (res.status === 401) {
+    localStorage.removeItem("argus_token");
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || `Request failed: ${res.status}`);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export const api = {
+  // Auth
+  login: (email: string, password: string) =>
+    request<{ access_token: string }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+
+  register: (email: string, password: string, name: string) =>
+    request<{ access_token: string }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password, name }),
+    }),
+
+  me: () => request<{ id: string; email: string; name: string; role: string }>("/auth/me"),
+
+  // Overview
+  overviewStats: () => request<any>("/overview/stats"),
+  overviewHostHealth: () => request<any[]>("/overview/host-health"),
+  overviewRecentAlerts: () => request<any[]>("/overview/recent-alerts"),
+  overviewRecentIncidents: () => request<any[]>("/overview/recent-incidents"),
+  overviewTransactionSummary: () => request<any[]>("/overview/transaction-summary"),
+
+  // Hosts
+  listHosts: (params?: { type?: string; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.type && params.type !== "all") qs.set("type", params.type);
+    if (params?.search) qs.set("search", params.search);
+    const q = qs.toString();
+    return request<any[]>(`/hosts${q ? `?${q}` : ""}`);
+  },
+  createHost: (data: any) =>
+    request<any>("/hosts", { method: "POST", body: JSON.stringify(data) }),
+  deleteHost: (id: string) =>
+    request<void>(`/hosts/${id}`, { method: "DELETE" }),
+
+  // Services
+  listServices: () => request<any[]>("/services"),
+  createService: (data: any) =>
+    request<any>("/services", { method: "POST", body: JSON.stringify(data) }),
+
+  // Monitors
+  listMonitors: () => request<any[]>("/monitors"),
+  createMonitor: (data: any) =>
+    request<any>("/monitors", { method: "POST", body: JSON.stringify(data) }),
+
+  // Transactions
+  listTransactions: () => request<any[]>("/transactions"),
+  getTransaction: (id: string) => request<any>(`/transactions/${id}`),
+  createTransaction: (data: any) =>
+    request<any>("/transactions", { method: "POST", body: JSON.stringify(data) }),
+  updateTransaction: (id: string, data: any) =>
+    request<any>(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteTransaction: (id: string) =>
+    request<void>(`/transactions/${id}`, { method: "DELETE" }),
+  runTransaction: (id: string) =>
+    request<any>(`/transactions/${id}/run`, { method: "POST" }),
+  listTransactionRuns: (id: string) => request<any[]>(`/transactions/${id}/runs`),
+
+  // Alerts
+  listAlerts: (params?: { severity?: string; acknowledged?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.severity && params.severity !== "all") qs.set("severity", params.severity);
+    if (params?.acknowledged !== undefined) qs.set("acknowledged", String(params.acknowledged));
+    const q = qs.toString();
+    return request<any[]>(`/alerts${q ? `?${q}` : ""}`);
+  },
+  listAlertRules: () => request<any[]>("/alerts/rules"),
+  createAlertRule: (data: any) =>
+    request<any>("/alerts/rules", { method: "POST", body: JSON.stringify(data) }),
+  acknowledgeAlert: (id: string) =>
+    request<any>(`/alerts/${id}/acknowledge`, { method: "POST" }),
+
+  // Incidents
+  listIncidents: () => request<any[]>("/incidents"),
+  createIncident: (data: any) =>
+    request<any>("/incidents", { method: "POST", body: JSON.stringify(data) }),
+  addIncidentEvent: (id: string, data: any) =>
+    request<any>(`/incidents/${id}/events`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Logs
+  listLogs: (params?: { level?: string; search?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.level && params.level !== "all") qs.set("level", params.level);
+    if (params?.search) qs.set("search", params.search);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<any[]>(`/logs${q ? `?${q}` : ""}`);
+  },
+
+  // Dashboards
+  listDashboards: () => request<any[]>("/dashboards"),
+  createDashboard: (data: any) =>
+    request<any>("/dashboards", { method: "POST", body: JSON.stringify(data) }),
+
+  // AI
+  aiChat: (message: string) =>
+    request<{ role: string; content: string; timestamp: string }>("/ai/chat", {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+  aiHistory: () => request<any[]>("/ai/history"),
+  aiGenerateTransaction: (prompt: string) =>
+    request<any>("/ai/generate-transaction", {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
+  aiExplainFailure: (runId: string) =>
+    request<{ explanation: string }>("/ai/explain-failure", {
+      method: "POST",
+      body: JSON.stringify({ run_id: runId }),
+    }),
+};

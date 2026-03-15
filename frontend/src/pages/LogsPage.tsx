@@ -1,30 +1,9 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
-import { Search, Filter, Clock, AlertTriangle, ArrowDown } from "lucide-react";
+import { Search } from "lucide-react";
 import { motion } from "framer-motion";
-
-interface LogEntry {
-  id: string;
-  timestamp: string;
-  level: "info" | "warn" | "error" | "debug";
-  service: string;
-  message: string;
-}
-
-const logs: LogEntry[] = [
-  { id: "1", timestamp: "14:55:23.142", level: "error", service: "api-prod-01", message: "Connection refused to db-primary:5432 - pool exhausted" },
-  { id: "2", timestamp: "14:55:22.891", level: "warn", service: "worker-03", message: "Job queue depth exceeds threshold: 15,234 pending" },
-  { id: "3", timestamp: "14:55:22.445", level: "info", service: "api-prod-02", message: "Request completed: GET /api/users - 200 OK (45ms)" },
-  { id: "4", timestamp: "14:55:21.998", level: "error", service: "api-prod-01", message: "Timeout waiting for database connection after 5000ms" },
-  { id: "5", timestamp: "14:55:21.776", level: "info", service: "auth-service", message: "Token validated for user_id=usr_8x2k9 scope=api:read" },
-  { id: "6", timestamp: "14:55:21.334", level: "debug", service: "cache-redis-01", message: "Cache hit: session:usr_8x2k9 TTL=3600s" },
-  { id: "7", timestamp: "14:55:20.891", level: "warn", service: "payment-svc", message: "Stripe API response time elevated: 189ms (threshold: 100ms)" },
-  { id: "8", timestamp: "14:55:20.445", level: "info", service: "api-prod-02", message: "Request completed: POST /api/orders - 201 Created (62ms)" },
-  { id: "9", timestamp: "14:55:19.998", level: "error", service: "search-svc", message: "Elasticsearch cluster health: RED - 2 shards unassigned" },
-  { id: "10", timestamp: "14:55:19.556", level: "info", service: "lb-prod-01", message: "Health check passed for api-prod-02 (28ms)" },
-  { id: "11", timestamp: "14:55:19.112", level: "debug", service: "api-prod-01", message: "Rate limit check: usr_3j4k2 - 45/100 requests remaining" },
-  { id: "12", timestamp: "14:55:18.667", level: "info", service: "notification-svc", message: "Email queued: password_reset to user@example.com" },
-];
 
 const levelColors: Record<string, string> = {
   error: "text-critical",
@@ -47,11 +26,20 @@ export default function LogsPage() {
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  const filtered = logs.filter(l => {
-    if (levelFilter !== "all" && l.level !== levelFilter) return false;
-    if (search && !l.message.toLowerCase().includes(search.toLowerCase()) && !l.service.includes(search)) return false;
-    return true;
+  const { data: logs = [] } = useQuery({
+    queryKey: ["logs", levelFilter, search],
+    queryFn: () => api.listLogs({
+      level: levelFilter !== "all" ? levelFilter : undefined,
+      search: search || undefined,
+      limit: 100,
+    }),
+    refetchInterval: 10000,
   });
+
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3 } as any);
+  };
 
   return (
     <motion.div className="p-6 space-y-4" variants={container} initial="hidden" animate="show">
@@ -90,20 +78,23 @@ export default function LogsPage() {
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="divide-y divide-border/50">
-          {filtered.map(log => (
+          {logs.map((log: any) => (
             <motion.div
               key={log.id}
               variants={item}
               className="flex items-start gap-3 px-4 py-2.5 font-mono text-xs hover:bg-surface-hover transition-colors cursor-pointer"
             >
-              <span className="shrink-0 text-muted-foreground w-[90px]">{log.timestamp}</span>
-              <span className={`shrink-0 w-12 rounded px-1.5 py-0.5 text-center font-medium uppercase ${levelBg[log.level]} ${levelColors[log.level]}`}>
+              <span className="shrink-0 text-muted-foreground w-[90px]">{formatTime(log.timestamp)}</span>
+              <span className={`shrink-0 w-12 rounded px-1.5 py-0.5 text-center font-medium uppercase ${levelBg[log.level] || "bg-muted"} ${levelColors[log.level] || "text-muted-foreground"}`}>
                 {log.level}
               </span>
               <span className="shrink-0 w-[120px] truncate text-muted-foreground">{log.service}</span>
               <span className="flex-1 text-foreground break-all">{log.message}</span>
             </motion.div>
           ))}
+          {logs.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">No logs found</div>
+          )}
         </div>
       </motion.div>
     </motion.div>
