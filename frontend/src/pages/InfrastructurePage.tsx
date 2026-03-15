@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { Search, Plus, Server, Database, Container, Wifi } from "lucide-react";
 import { motion } from "framer-motion";
+import { HostDetailModal } from "@/components/HostDetailModal";
 
 type HostType = "server" | "database" | "container" | "network";
 
@@ -22,6 +23,7 @@ const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transitio
 export default function InfrastructurePage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<HostType | "all">("all");
+  const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: hosts = [], isLoading } = useQuery({
@@ -97,6 +99,7 @@ export default function InfrastructurePage() {
               <motion.div
                 key={host.id}
                 variants={item}
+                onClick={() => setSelectedHostId(host.id)}
                 className="grid grid-cols-[1fr_100px_80px_80px_80px_80px_100px] items-center gap-4 px-5 py-3 transition-colors hover:bg-surface-hover cursor-pointer"
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -129,6 +132,8 @@ export default function InfrastructurePage() {
           )}
         </div>
       </motion.div>
+
+      <HostDetailModal hostId={selectedHostId} onClose={() => setSelectedHostId(null)} />
     </motion.div>
   );
 }

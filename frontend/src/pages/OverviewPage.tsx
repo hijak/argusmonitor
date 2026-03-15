@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { MetricCard } from "@/components/MetricCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { PageHeader } from "@/components/PageHeader";
+import { HostDetailModal } from "@/components/HostDetailModal";
 import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -11,6 +13,7 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } 
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 export default function OverviewPage() {
+  const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const { data: stats } = useQuery({ queryKey: ["overview-stats"], queryFn: api.overviewStats, refetchInterval: 30000 });
   const { data: hosts = [] } = useQuery({ queryKey: ["overview-hosts"], queryFn: api.overviewHostHealth, refetchInterval: 30000 });
   const { data: alerts = [] } = useQuery({ queryKey: ["overview-alerts"], queryFn: api.overviewRecentAlerts, refetchInterval: 15000 });
@@ -41,7 +44,7 @@ export default function OverviewPage() {
             </div>
             <div className="divide-y divide-border">
               {hosts.map((host: any) => (
-                <div key={host.id} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-surface-hover">
+                <div key={host.id} onClick={() => setSelectedHostId(host.id)} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-surface-hover cursor-pointer">
                   <StatusBadge variant={host.status}>{host.status}</StatusBadge>
                   <span className="flex-1 font-mono text-sm">{host.name}</span>
                   <div className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex">
@@ -141,6 +144,8 @@ export default function OverviewPage() {
           </div>
         </div>
       </motion.div>
+
+      <HostDetailModal hostId={selectedHostId} onClose={() => setSelectedHostId(null)} />
     </motion.div>
   );
 }

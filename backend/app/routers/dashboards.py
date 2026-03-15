@@ -89,7 +89,9 @@ async def get_dashboard_widgets(
 
 
 async def _build_widgets(preset: str, db: AsyncSession) -> list[dict]:
-    if "Infrastructure" in preset:
+    if "Alert" in preset or "alert" in preset:
+        return await _alert_hosts_widgets(db)
+    elif "Infrastructure" in preset:
         return await _infra_widgets(db)
     elif "API" in preset or "Performance" in preset:
         return await _api_widgets(db)
@@ -410,3 +412,84 @@ async def _sla_widgets(db: AsyncSession) -> list[dict]:
             {"label": "Avg TX Success", "value": f"{round(sum(tx.success_rate for tx in txs) / max(len(txs),1), 1)}%"},
         ]},
     ]
+
+
+async def _alert_hosts_widgets(db: AsyncSession) -> list[dict]:
+    hosts_result = await db.execute(
+        select(Host).where(Host.status.in_(["warning", "critical"])).order_by(Host.status.desc(), Host.name)
+    )
+    alert_hosts = hosts_result.scalars().all()
+
+    all_result = await db.execute(select(Host))
+    all_hosts = all_result.scalars().all()
+    ts = _ts_range(24)
+
+    alerts_result = await db.execute(
+        select(AlertInstance).where(AlertInstance.resolved == False).order_by(AlertInstance.created_at.desc()).limit(20)
+    )
+    active_alerts = alerts_result.scalars().all()
+
+    status_counts = {"healthy": 0, "warning": 0, "critical": 0, "unknown": 0}
+    for h in all_hosts:
+        status_counts[h.status] = status_counts.get(h.status, 0) + 1
+
+    cpu_nodes = []
+    for h in alert_hosts:
+        base = h.cpu_percent
+        cpu_nodes.append({
+            "id": str(h.id), "name": h.name, "status": h.status,
+            "type": h.type, "current": round(base, 1),
+            "data": [{"time": _fmt(t), "value": round(max(0, min(100, base + random.uniform(-15, 10) * math.sin(i / 3))), 1)} for i, t in enumerate(ts)],
+        })
+
+    mem_nodes = []
+    for h in alert_hosts:
+        base = h.memory_percent
+        mem_nodes.append({
+            "id": str(h.id), "name": h.name, "status": h.status,
+            "type": h.type, "current": round(base, 1),
+            "data": [{"time": _fmt(t), "value": round(max(0, min(100, base + random.uniform(-8, 8))), 1)} for i, t in enumerate(ts)],
+        })
+
+    host_table = []
+    for h in alert_hosts:
+        host_table.append({
+            "id": str(h.id), "name": h.name, "type": h.type,
+            "status": h.status, "ip": h.ip_address or "N/A",
+            "cpu": round(h.cpu_percent, 1), "mem": round(h.memory_percent, 1),
+            "disk": round(h.disk_percent, 1), "uptime": h.uptime or "N/A",
+        })
+
+    alert_table = []
+    for a in active_alerts:
+        alert_table.append({
+            "id": str(a.id), "name": a.message or "Alert",
+            "severity": a.severity,
+            "status": "acknowledged" if a.acknowledged else "firing",
+            "fired": a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "N/A",
+        })
+
+    widgets = [
+        {"id": "w1", "type": "stat_row", "title": "Alert Summary", "size": "full", "stats": [
+            {"label": "Total Hosts", "value": len(all_hosts)},
+            {"label": "In Alert", "value": len(alert_hosts)},
+            {"label": "Warning", "value": status_counts.get("warning", 0)},
+            {"label": "Critical", "value": status_counts.get("critical", 0)},
+        ]},
+        {"id": "w2", "type": "pie_chart", "title": "Host Status Breakdown", "size": "small",
+         "data": [{"name": k, "value": v} for k, v in status_counts.items() if v > 0]},
+        {"id": "w3", "type": "gauge_grid", "title": "Alerting Host CPU", "size": "medium",
+         "nodes": [{"id": n["id"], "name": n["name"], "status": n["status"], "value": n["current"], "label": "CPU %"} for n in cpu_nodes]},
+    ]
+
+    if cpu_nodes:
+        widgets.append({"id": "w4", "type": "line_chart", "title": "CPU Trend (Alerting Hosts)", "size": "large", "nodes": cpu_nodes})
+    if mem_nodes:
+        widgets.append({"id": "w5", "type": "area_chart", "title": "Memory Trend (Alerting Hosts)", "size": "large", "nodes": mem_nodes})
+
+    widgets.append({"id": "w6", "type": "table", "title": "Hosts in Alert", "size": "full", "rows": host_table})
+
+    if alert_table:
+        widgets.append({"id": "w7", "type": "table", "title": "Active Alerts", "size": "full", "rows": alert_table})
+
+    return widgets

@@ -94,6 +94,46 @@ async def update_host(
     return host
 
 
+@router.get("/{host_id}/metrics")
+async def get_host_metrics(
+    host_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Host).where(Host.id == host_id))
+    host = result.scalar_one_or_none()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+
+    metrics_q = (
+        select(HostMetric)
+        .where(HostMetric.host_id == host_id)
+        .order_by(HostMetric.recorded_at.desc())
+        .limit(48)
+    )
+    metrics_result = await db.execute(metrics_q)
+    metrics = list(reversed(metrics_result.scalars().all()))
+
+    cpu_data = [{"time": m.recorded_at.strftime("%H:%M"), "value": round(m.cpu_percent, 1)} for m in metrics if m.cpu_percent is not None]
+    mem_data = [{"time": m.recorded_at.strftime("%H:%M"), "value": round(m.memory_percent, 1)} for m in metrics if m.memory_percent is not None]
+    disk_data = [{"time": m.recorded_at.strftime("%H:%M"), "value": round(m.disk_percent, 1)} for m in metrics if m.disk_percent is not None]
+
+    return {
+        "host": {
+            "id": str(host.id), "name": host.name, "type": host.type,
+            "status": host.status, "ip_address": host.ip_address,
+            "os": host.os, "uptime": host.uptime,
+            "cpu_percent": host.cpu_percent, "memory_percent": host.memory_percent,
+            "disk_percent": host.disk_percent,
+            "tags": host.tags or [], "agent_version": host.agent_version,
+            "last_seen": host.last_seen.isoformat() if host.last_seen else None,
+        },
+        "cpu": cpu_data,
+        "memory": mem_data,
+        "disk": disk_data,
+    }
+
+
 @router.delete("/{host_id}", status_code=204)
 async def delete_host(
     host_id: UUID,

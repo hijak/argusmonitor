@@ -293,6 +293,7 @@ async def seed():
             {"name": "Database Metrics", "type": "system", "widgets_count": 7},
             {"name": "Network Overview", "type": "custom", "widgets_count": 4},
             {"name": "SLA Report", "type": "ai", "widgets_count": 3},
+            {"name": "Hosts in Alert", "type": "system", "widgets_count": 7, "config": {"preset": "Hosts in Alert"}},
         ]
         for dd in dashboards_data:
             db.add(Dashboard(**dd))
