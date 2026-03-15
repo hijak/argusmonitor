@@ -13,7 +13,9 @@ analyze incidents, and troubleshoot issues.
 You have access to monitoring data including hosts, services, transactions, alerts, and incidents.
 Be concise, technical, and actionable in your responses.
 When suggesting monitoring configurations, provide specific step-by-step details.
-Format responses with markdown for readability."""
+Format responses with markdown for readability.
+If live monitoring context is provided, ground your answer in that context and cite concrete values.
+If the requested host/service is not present in the provided context, say so plainly instead of inventing details."""
 
 TRANSACTION_PROMPT = """You are a monitoring automation expert. Given a user's description of a workflow,
 generate a JSON array of transaction monitoring steps.
@@ -85,22 +87,35 @@ class AIService:
             raise ValueError("AI transaction response was not a JSON array")
         return parsed
 
-    async def chat(self, messages: list[dict]) -> str:
+    def _build_context_block(self, monitoring_context: dict | None) -> str:
+        if not monitoring_context:
+            return "No monitoring context was provided."
+        return "Live monitoring context:\n" + json.dumps(monitoring_context, indent=2, default=str)
+
+    async def chat(self, messages: list[dict], monitoring_context: dict | None = None) -> str:
         client = self._get_client()
+        context_block = self._build_context_block(monitoring_context)
+
+        prompt_messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": context_block},
+            *messages,
+        ]
+
         if not client:
-            return self._fallback_chat(messages[-1]["content"] if messages else "")
+            return self._fallback_chat(messages[-1]["content"] if messages else "", monitoring_context)
 
         try:
             response = await client.chat.completions.create(
                 model=self.settings.openai_model,
-                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                messages=prompt_messages,
                 max_tokens=1024,
-                temperature=0.7,
+                temperature=0.4,
             )
             return self._extract_text_content(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
-            return self._fallback_chat(messages[-1]["content"] if messages else "")
+            return self._fallback_chat(messages[-1]["content"] if messages else "", monitoring_context)
 
     async def generate_transaction(self, prompt: str) -> dict:
         client = self._get_client()
@@ -162,41 +177,59 @@ class AIService:
             logger.error(f"AI explain failure error: {e}")
             return "Unable to generate AI analysis. Please check the step results manually."
 
-    def _fallback_chat(self, message: str) -> str:
+    def _fallback_chat(self, message: str, monitoring_context: dict | None = None) -> str:
         msg = message.lower()
-        if "worker" in msg and ("critical" in msg or "status" in msg or "why" in msg):
-            return (
-                "**worker-03** is in critical state due to:\n\n"
-                "1. **CPU at 95%** - sustained for 45+ minutes\n"
-                "2. **Memory at 92%** - approaching OOM threshold\n"
-                "3. **Job queue backlog** - 15,234 pending jobs\n\n"
-                "**Root Cause:** The worker is processing a large batch import. "
-                "The job queue is growing faster than it can process.\n\n"
-                "**Recommended Actions:**\n"
-                "- Scale horizontally: add 2 more worker instances\n"
-                "- Increase memory limit from 4GB to 8GB\n"
-                "- Consider splitting the batch into smaller chunks"
-            )
-        if "transaction" in msg or "monitor" in msg or "create" in msg or "checkout" in msg:
-            return (
-                "I'll create a transaction monitor with these steps:\n\n"
-                "1. **Navigate** to the target URL\n"
-                "2. **Input** required credentials\n"
-                "3. **Click** submit/action button\n"
-                "4. **Assert** expected result appears\n\n"
-                "**Schedule:** Every 5 minutes\n"
-                "**Timeout:** 30 seconds\n"
-                "**Alert on:** 2 consecutive failures\n\n"
-                "Would you like me to create this monitor now?"
-            )
+        context = monitoring_context or {}
+        hosts = context.get("hosts", [])
+        services = context.get("services", [])
+        alerts = context.get("alerts", [])
+        incidents = context.get("incidents", [])
+
+        def find_host(name: str):
+            needle = name.lower()
+            for host in hosts:
+                if str(host.get("name", "")).lower() == needle:
+                    return host
+            return None
+
+        for token in msg.replace("?", " ").split():
+            if token.startswith("node") or token.startswith("host"):
+                host = find_host(token)
+                if host:
+                    return (
+                        f"**{host['name']}**\n\n"
+                        f"- Status: **{host.get('status', 'unknown')}**\n"
+                        f"- IP: `{host.get('ip_address') or 'unknown'}`\n"
+                        f"- OS: {host.get('os') or 'unknown'}\n"
+                        f"- CPU: **{host.get('cpu_percent', 0):.1f}%**\n"
+                        f"- Memory: **{host.get('memory_percent', 0):.1f}%**\n"
+                        f"- Disk: **{host.get('disk_percent', 0):.1f}%**\n"
+                        f"- Last seen: {host.get('last_seen') or 'unknown'}\n"
+                        f"- Tags: {', '.join(host.get('tags') or []) or 'none'}"
+                    )
+
         if "alert" in msg or "explain" in msg:
+            if alerts:
+                critical = [a for a in alerts if a.get("severity") == "critical" and not a.get("resolved")]
+                warning = [a for a in alerts if a.get("severity") == "warning" and not a.get("resolved")]
+                top = critical[0] if critical else alerts[0]
+                return (
+                    "Based on the current monitoring context:\n\n"
+                    f"- **{len(critical)} critical alerts**\n"
+                    f"- **{len(warning)} warning alerts**\n\n"
+                    f"Most urgent: **{top.get('message', 'Unknown alert')}**"
+                )
+        if "service" in msg and services:
+            top = sorted(services, key=lambda s: (-float(s.get("latency_ms") or 0), s.get("name", "")))[:5]
+            lines = [f"- **{svc['name']}** — {svc.get('status')} · {round(float(svc.get('latency_ms') or 0))}ms · {svc.get('url') or 'no URL'}" for svc in top]
+            return "Top services by latency:\n\n" + "\n".join(lines)
+        if "incident" in msg and incidents:
+            top = incidents[0]
             return (
-                "Based on current alerts:\n\n"
-                "- **3 critical alerts** require immediate attention\n"
-                "- **4 warning alerts** should be reviewed\n\n"
-                "The most urgent is CPU saturation on worker-03, "
-                "which is causing cascading delays in the job queue. "
-                "I recommend scaling the worker pool as the first action."
+                f"Active incident: **{top.get('ref', 'INC')} — {top.get('title', 'Untitled')}**\n\n"
+                f"- Status: {top.get('status')}\n"
+                f"- Severity: {top.get('severity')}\n"
+                f"- Affected hosts: {', '.join(top.get('affected_hosts') or []) or 'none'}"
             )
         if "dashboard" in msg:
             return (
@@ -206,6 +239,17 @@ class AIService:
                 "3. **Transaction Health** - Success rates, timing trends\n"
                 "4. **SLA Report** - Uptime and availability metrics\n\n"
                 "Which would you like, or describe a custom layout?"
+            )
+        if hosts:
+            unhealthy = [h for h in hosts if h.get("status") in {"warning", "critical"}]
+            return (
+                "I have live monitoring context loaded.\n\n"
+                f"- Hosts in context: **{len(hosts)}**\n"
+                f"- Services in context: **{len(services)}**\n"
+                f"- Active alerts in context: **{len(alerts)}**\n"
+                f"- Active incidents in context: **{len(incidents)}**\n"
+                f"- Unhealthy hosts: **{len(unhealthy)}**\n\n"
+                "Ask me about a specific host, service, alert, or incident."
             )
         return (
             "I'm Argus, your AI monitoring assistant. I can help you with:\n\n"
