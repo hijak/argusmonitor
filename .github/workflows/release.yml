@@ -121,6 +121,7 @@ jobs:
       - name: Download all agent artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: argus-agent-*
           path: release-assets
           merge-multiple: true
 
