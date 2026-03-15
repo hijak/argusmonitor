@@ -141,12 +141,15 @@ export const api = {
     request<any>("/dashboards", { method: "POST", body: JSON.stringify(data) }),
 
   // AI
-  aiChat: (message: string) =>
-    request<{ role: string; content: string; timestamp: string }>("/ai/chat", {
+  aiSessions: () => request<any[]>("/ai/sessions"),
+  aiCreateSession: (title?: string) =>
+    request<any>("/ai/sessions", { method: "POST", body: JSON.stringify({ title }) }),
+  aiChat: (message: string, sessionId?: string) =>
+    request<{ role: string; content: string; timestamp: string; session_id?: string }>("/ai/chat", {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, session_id: sessionId ?? null }),
     }),
-  aiHistory: () => request<any[]>("/ai/history"),
+  aiHistory: (sessionId?: string) => request<any[]>(`/ai/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`),
   aiGenerateTransaction: (prompt: string) =>
     request<any>("/ai/generate-transaction", {
       method: "POST",

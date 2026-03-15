@@ -378,14 +378,29 @@ class DashboardOut(BaseModel):
 
 # --- AI ---
 
+class AIChatSessionCreate(BaseModel):
+    title: Optional[str] = None
+
+
+class AIChatSessionOut(BaseModel):
+    id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class AIChatRequest(BaseModel):
     message: str
+    session_id: Optional[UUID] = None
 
 
 class AIChatResponse(BaseModel):
     role: str
     content: str
     timestamp: datetime
+    session_id: Optional[UUID] = None
 
 
 class AIGenerateTransactionRequest(BaseModel):

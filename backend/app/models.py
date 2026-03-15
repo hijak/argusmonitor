@@ -324,11 +324,22 @@ class UserPreference(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class AIChatSession(Base):
+    __tablename__ = "ai_chat_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(255), nullable=False, default="New chat")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class AIChatMessage(Base):
     __tablename__ = "ai_chat_messages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("ai_chat_sessions.id", ondelete="CASCADE"), index=True)
     role = Column(String(20), nullable=False)  # user, assistant
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow)

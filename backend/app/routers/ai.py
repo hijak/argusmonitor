@@ -2,17 +2,60 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import AIChatMessage, AlertInstance, Host, Incident, Service, TransactionRun, User
-from app.schemas import AIChatRequest, AIChatResponse, AIGenerateTransactionRequest, AIExplainFailureRequest
+from app.models import AIChatMessage, AIChatSession, AlertInstance, Host, Incident, Service, TransactionRun, User
+from app.schemas import AIChatRequest, AIChatResponse, AIChatSessionCreate, AIChatSessionOut, AIGenerateTransactionRequest, AIExplainFailureRequest
 from app.auth import get_current_user
 from app.services.ai_service import AIService
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+async def _ensure_ai_chat_schema(db: AsyncSession) -> None:
+    def sync_ensure(connection):
+        inspector = inspect(connection)
+        tables = inspector.get_table_names()
+
+        if "ai_chat_sessions" not in tables:
+            connection.execute(text("""
+                CREATE TABLE ai_chat_sessions (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title VARCHAR(255) NOT NULL DEFAULT 'New chat',
+                    created_at TIMESTAMPTZ DEFAULT now(),
+                    updated_at TIMESTAMPTZ DEFAULT now()
+                )
+            """))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_chat_sessions_user_id ON ai_chat_sessions(user_id)"))
+
+        msg_columns = {col["name"] for col in inspector.get_columns("ai_chat_messages")}
+        if "session_id" not in msg_columns:
+            connection.execute(text("ALTER TABLE ai_chat_messages ADD COLUMN session_id UUID"))
+            connection.execute(text("ALTER TABLE ai_chat_messages ADD CONSTRAINT fk_ai_chat_messages_session_id FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_chat_messages_session_id ON ai_chat_messages(session_id)"))
+
+    await db.run_sync(sync_ensure)
+
+
+async def _get_or_create_session(db: AsyncSession, user: User, session_id: UUID | None, first_message: str | None = None) -> AIChatSession:
+    await _ensure_ai_chat_schema(db)
+
+    if session_id:
+        result = await db.execute(select(AIChatSession).where(AIChatSession.id == session_id, AIChatSession.user_id == user.id))
+        session = result.scalar_one_or_none()
+        if session:
+            return session
+        raise HTTPException(status_code=404, detail="Chat session not found")
+
+    title = (first_message or "New chat").strip()[:80] or "New chat"
+    session = AIChatSession(user_id=user.id, title=title)
+    db.add(session)
+    await db.flush()
+    return session
 
 
 async def _build_monitoring_context(db: AsyncSession) -> dict:
@@ -31,64 +74,37 @@ async def _build_monitoring_context(db: AsyncSession) -> dict:
         .limit(6)
     )
 
-    hosts = [
-        {
-            "id": str(h.id),
-            "name": h.name,
-            "type": h.type,
-            "status": h.status,
-            "ip_address": h.ip_address,
-            "os": h.os,
-            "cpu_percent": round(h.cpu_percent or 0, 1),
-            "memory_percent": round(h.memory_percent or 0, 1),
-            "disk_percent": round(h.disk_percent or 0, 1),
-            "uptime": h.uptime,
-            "tags": h.tags or [],
-            "agent_version": h.agent_version,
-            "last_seen": h.last_seen.isoformat() if h.last_seen else None,
-        }
-        for h in hosts_result.scalars().all()
-    ]
+    hosts = [{
+        "id": str(h.id), "name": h.name, "type": h.type, "status": h.status,
+        "ip_address": h.ip_address, "os": h.os,
+        "cpu_percent": round(h.cpu_percent or 0, 1),
+        "memory_percent": round(h.memory_percent or 0, 1),
+        "disk_percent": round(h.disk_percent or 0, 1),
+        "uptime": h.uptime, "tags": h.tags or [],
+        "agent_version": h.agent_version,
+        "last_seen": h.last_seen.isoformat() if h.last_seen else None,
+    } for h in hosts_result.scalars().all()]
 
-    services = [
-        {
-            "id": str(s.id),
-            "name": s.name,
-            "status": s.status,
-            "url": s.url,
-            "uptime_percent": round(s.uptime_percent or 0, 2),
-            "latency_ms": round(s.latency_ms or 0, 1),
-            "requests_per_min": round(s.requests_per_min or 0, 1),
-        }
-        for s in services_result.scalars().all()
-    ]
+    services = [{
+        "id": str(s.id), "name": s.name, "status": s.status, "url": s.url,
+        "uptime_percent": round(s.uptime_percent or 0, 2),
+        "latency_ms": round(s.latency_ms or 0, 1),
+        "requests_per_min": round(s.requests_per_min or 0, 1),
+    } for s in services_result.scalars().all()]
 
-    alerts = [
-        {
-            "id": str(a.id),
-            "message": a.message,
-            "severity": a.severity,
-            "service": a.service,
-            "host": a.host,
-            "acknowledged": a.acknowledged,
-            "resolved": a.resolved,
-            "created_at": a.created_at.isoformat() if a.created_at else None,
-        }
-        for a in alerts_result.scalars().all()
-    ]
+    alerts = [{
+        "id": str(a.id), "message": a.message, "severity": a.severity,
+        "service": a.service, "host": a.host,
+        "acknowledged": a.acknowledged, "resolved": a.resolved,
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+    } for a in alerts_result.scalars().all()]
 
-    incidents = [
-        {
-            "id": str(i.id),
-            "ref": i.ref,
-            "title": i.title,
-            "status": i.status,
-            "severity": i.severity,
-            "affected_hosts": i.affected_hosts or [],
-            "started_at": i.started_at.isoformat() if i.started_at else None,
-        }
-        for i in incidents_result.scalars().all()
-    ]
+    incidents = [{
+        "id": str(i.id), "ref": i.ref, "title": i.title,
+        "status": i.status, "severity": i.severity,
+        "affected_hosts": i.affected_hosts or [],
+        "started_at": i.started_at.isoformat() if i.started_at else None,
+    } for i in incidents_result.scalars().all()]
 
     return {
         "summary": {
@@ -106,24 +122,56 @@ async def _build_monitoring_context(db: AsyncSession) -> dict:
     }
 
 
+@router.get("/sessions", response_model=list[AIChatSessionOut])
+async def list_sessions(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await _ensure_ai_chat_schema(db)
+    result = await db.execute(
+        select(AIChatSession)
+        .where(AIChatSession.user_id == user.id)
+        .order_by(AIChatSession.updated_at.desc(), AIChatSession.created_at.desc())
+        .limit(50)
+    )
+    return result.scalars().all()
+
+
+@router.post("/sessions", response_model=AIChatSessionOut, status_code=201)
+async def create_session(
+    req: AIChatSessionCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await _ensure_ai_chat_schema(db)
+    session = AIChatSession(user_id=user.id, title=(req.title or "New chat")[:80])
+    db.add(session)
+    await db.flush()
+    return session
+
+
 @router.post("/chat", response_model=AIChatResponse)
 async def chat(
     req: AIChatRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    session = await _get_or_create_session(db, user, req.session_id, req.message)
+
     user_msg = AIChatMessage(
         user_id=user.id,
+        session_id=session.id,
         role="user",
         content=req.message,
     )
     db.add(user_msg)
+    session.updated_at = datetime.now(timezone.utc)
     await db.flush()
 
     ai = AIService()
     history_result = await db.execute(
         select(AIChatMessage)
-        .where(AIChatMessage.user_id == user.id)
+        .where(AIChatMessage.user_id == user.id, AIChatMessage.session_id == session.id)
         .order_by(AIChatMessage.created_at.desc())
         .limit(20)
     )
@@ -135,34 +183,53 @@ async def chat(
 
     assistant_msg = AIChatMessage(
         user_id=user.id,
+        session_id=session.id,
         role="assistant",
         content=response_text,
     )
     db.add(assistant_msg)
+    session.updated_at = datetime.now(timezone.utc)
     await db.flush()
 
     return AIChatResponse(
         role="assistant",
         content=response_text,
         timestamp=datetime.now(timezone.utc),
+        session_id=session.id,
     )
 
 
 @router.get("/history", response_model=list[AIChatResponse])
 async def get_history(
     limit: int = 50,
+    session_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
+    await _ensure_ai_chat_schema(db)
+    q = (
         select(AIChatMessage)
         .where(AIChatMessage.user_id == user.id)
         .order_by(AIChatMessage.created_at.asc())
         .limit(limit)
     )
+    if session_id:
+        q = q.where(AIChatMessage.session_id == session_id)
+    else:
+        session_result = await db.execute(
+            select(AIChatSession)
+            .where(AIChatSession.user_id == user.id)
+            .order_by(AIChatSession.updated_at.desc(), AIChatSession.created_at.desc())
+            .limit(1)
+        )
+        latest_session = session_result.scalar_one_or_none()
+        if latest_session:
+            q = q.where(AIChatMessage.session_id == latest_session.id)
+
+    result = await db.execute(q)
     messages = result.scalars().all()
     return [
-        AIChatResponse(role=m.role, content=m.content, timestamp=m.created_at)
+        AIChatResponse(role=m.role, content=m.content, timestamp=m.created_at, session_id=m.session_id)
         for m in messages
     ]
 
