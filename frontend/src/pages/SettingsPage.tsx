@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppMeta } from "@/contexts/AppMetaContext";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -32,6 +33,7 @@ const integrationIcons: Record<string, string> = {
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
+  const { meta } = useAppMeta();
   const [active, setActive] = useState<Section>(null);
 
   useEffect(() => {
@@ -63,6 +65,21 @@ export default function SettingsPage() {
     <motion.div className="p-6 space-y-6 max-w-2xl" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Settings" description="Manage your ArgusMonitor configuration" />
+      </motion.div>
+
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Runtime Mode</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {meta?.demo_mode ? "Demo mode is enabled. Seeded placeholder data is visible across the app." : "Normal mode is enabled. Only real data and anything you create will appear."}
+            </p>
+          </div>
+          <StatusBadge variant={meta?.demo_mode ? "warning" : "healthy"}>{meta?.demo_mode ? "Demo" : "Live"}</StatusBadge>
+        </div>
+        <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          Toggle with <span className="font-mono">ARGUS_DEMO_MODE=true</span> before starting the backend.
+        </div>
       </motion.div>
 
       {user && (

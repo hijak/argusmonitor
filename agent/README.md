@@ -6,7 +6,7 @@ Standalone host agent for ArgusMonitor. It collects local system metrics, option
 
 - Registers or updates a host record through `/api/agent/heartbeat`
 - Sends CPU, memory, disk, uptime, and network counters
-- Ships log lines to `/api/logs/ingest/batch`
+- Ships new log lines to `/api/logs/ingest/batch` (starts at EOF on first run to avoid replaying old logs)
 - Runs as a simple polling daemon
 - Can be bundled into a single-file binary with PyInstaller
 
@@ -28,6 +28,7 @@ Optional settings:
 - `ARGUS_AGENT_HOST_TYPE` default `server`
 - `ARGUS_AGENT_TAGS` comma-separated tags
 - `ARGUS_AGENT_VERIFY_TLS` default `true`
+- `ARGUS_AGENT_DISK_PATH` default `/` (set this to a host root bind mount like `/hostfs` when running in Docker)
 
 ## Run
 
@@ -68,6 +69,31 @@ Notes:
 - PyInstaller produces a single executable, but it is still platform-specific.
 - Build separate artifacts for `linux-amd64`, `linux-arm64`, `windows-amd64`, and so on.
 - If you disable TLS verification for internal testing, set `ARGUS_AGENT_VERIFY_TLS=false`.
+
+## systemd deployment
+
+Files:
+
+- `systemd/argus-agent.service`
+- `systemd/argus-agent.env.example`
+- `systemd/install-systemd.sh`
+
+Example install on a Linux host after building the binary:
+
+```bash
+cd agent
+sudo ./systemd/install-systemd.sh ./dist/argus-agent ./systemd/argus-agent.env.example ./systemd/argus-agent.service
+sudoedit /etc/argus-agent/argus-agent.env
+sudo systemctl restart argus-agent
+sudo systemctl status argus-agent --no-pager
+```
+
+Notes:
+
+- The service uses `/etc/argus-agent/argus-agent.env` for configuration.
+- `ARGUS_AGENT_LOG_FILES` may require root-readable paths, so a system service is the preferred deployment.
+- When running natively on the host, leave `ARGUS_AGENT_DISK_PATH=/`.
+- When running in Docker, set `ARGUS_AGENT_DISK_PATH` to the host root bind mount (for example `/hostfs`).
 
 ## Backend
 

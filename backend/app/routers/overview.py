@@ -11,6 +11,14 @@ from sqlalchemy.orm import selectinload
 router = APIRouter(prefix="/overview", tags=["overview"])
 
 
+def _host_sort_key(host: Host):
+    return (
+        0 if host.agent_version else 1,
+        0 if host.status == "critical" else 1 if host.status == "warning" else 2 if host.status == "healthy" else 3,
+        host.name.lower(),
+    )
+
+
 @router.get("/stats", response_model=OverviewStats)
 async def get_stats(
     db: AsyncSession = Depends(get_db),
@@ -28,15 +36,17 @@ async def get_stats(
     tx_result = await db.execute(select(func.avg(Transaction.success_rate)))
     tx_success = round(tx_result.scalar() or 100.0, 1)
 
+    live_agent_count = (await db.execute(select(func.count(Host.id)).where(Host.agent_version.isnot(None)))).scalar() or 0
+
     return OverviewStats(
         monitored_hosts=host_count,
         active_alerts=alert_count,
         health_score=health_score,
         transaction_success=tx_success,
-        hosts_change=f"+{host_count} total",
+        hosts_change=f"{live_agent_count} live agents · {host_count} total",
         alerts_change=f"{alert_count} active",
-        health_change=f"{health_score}%",
-        tx_change=f"{tx_success}%",
+        health_change=f"{health_score}% healthy",
+        tx_change=f"{tx_success}% success",
     )
 
 
@@ -45,13 +55,16 @@ async def get_host_health(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Host).order_by(Host.name).limit(10))
-    hosts = result.scalars().all()
+    result = await db.execute(select(Host))
+    hosts = sorted(result.scalars().all(), key=_host_sort_key)[:10]
     out = []
     for h in hosts:
         spark = [h.cpu_percent] * 7
+        payload = HostOut.model_validate(h).model_dump()
+        payload["is_agent_connected"] = bool(h.agent_version)
+        payload["data_source"] = "agent" if h.agent_version else "seeded"
         out.append(HostWithSparkline(
-            **HostOut.model_validate(h).model_dump(),
+            **payload,
             spark=spark,
         ))
     return out

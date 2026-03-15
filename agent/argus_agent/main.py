@@ -26,7 +26,7 @@ async def run() -> None:
 
     logger.info("Starting agent for host %s against %s", settings.hostname, settings.server_url)
     while True:
-        payload = collector.snapshot(settings.hostname, settings.host_type, settings.tags)
+        payload = collector.snapshot(settings.hostname, settings.host_type, settings.tags, settings.disk_path)
         payload["agent_version"] = AGENT_VERSION
 
         try:

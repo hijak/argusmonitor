@@ -8,8 +8,12 @@ until python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect((
 done
 echo "PostgreSQL is ready."
 
-echo "Running database seed..."
-python3 -m seed || echo "Seed skipped or already applied."
+if [ "${ARGUS_DEMO_MODE:-false}" = "true" ]; then
+    echo "Demo mode enabled: running database seed..."
+    python3 -m seed || echo "Seed skipped or already applied."
+else
+    echo "Demo mode disabled: skipping database seed."
+fi
 
 echo "Starting ArgusMonitor API..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --log-level info

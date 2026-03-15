@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/CommandPalette";
+import { useAppMeta } from "@/contexts/AppMetaContext";
 
 const navItems = [
   { label: "Overview", icon: Activity, path: "/" },
@@ -33,6 +34,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const location = useLocation();
+  const { meta } = useAppMeta();
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -77,7 +79,10 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
                 <Activity className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="text-sm font-bold tracking-tight text-foreground">ArgusMonitor</span>
+              <div className="min-w-0">
+                <span className="block text-sm font-bold tracking-tight text-foreground">ArgusMonitor</span>
+                {meta?.demo_mode && <span className="block text-[10px] font-medium uppercase tracking-wide text-amber-500">Demo mode</span>}
+              </div>
             </div>
           ) : (
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">

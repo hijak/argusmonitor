@@ -1,5 +1,7 @@
 import json
 import logging
+from typing import Any
+
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -17,10 +19,10 @@ TRANSACTION_PROMPT = """You are a monitoring automation expert. Given a user's d
 generate a JSON array of transaction monitoring steps.
 
 Each step must have:
-- "order": integer starting from 1
-- "type": one of "navigate", "input", "click", "wait", "api", "assert"
-- "label": human-readable description
-- "config": object with relevant configuration (url, selector, value, method, headers, body, assertion, etc.)
+- \"order\": integer starting from 1
+- \"type\": one of \"navigate\", \"input\", \"click\", \"wait\", \"api\", \"assert\"
+- \"label\": human-readable description
+- \"config\": object with relevant configuration (url, selector, value, method, headers, body, assertion, etc.)
 
 Return ONLY valid JSON. No explanations."""
 
@@ -30,13 +32,58 @@ class AIService:
         self.settings = get_settings()
         self._client = None
 
+    def _default_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if self.settings.openai_app_name:
+            headers["X-Title"] = self.settings.openai_app_name
+        if self.settings.openai_site_url:
+            headers["HTTP-Referer"] = self.settings.openai_site_url
+        return headers
+
     def _get_client(self):
         if not self.settings.openai_api_key:
             return None
         if self._client is None:
             from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(api_key=self.settings.openai_api_key)
+            self._client = AsyncOpenAI(
+                api_key=self.settings.openai_api_key,
+                base_url=self.settings.openai_base_url,
+                default_headers=self._default_headers() or None,
+            )
         return self._client
+
+    @staticmethod
+    def _extract_text_content(content: Any) -> str:
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text" and item.get("text"):
+                        parts.append(str(item["text"]))
+                elif isinstance(item, str):
+                    parts.append(item)
+            return "\n".join(parts)
+        return str(content)
+
+    @staticmethod
+    def _strip_code_fences(text: str) -> str:
+        stripped = text.strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            lines = stripped.splitlines()
+            if len(lines) >= 2:
+                return "\n".join(lines[1:-1]).strip()
+        return stripped
+
+    def _parse_transaction_steps(self, content: Any) -> list[dict]:
+        text = self._strip_code_fences(self._extract_text_content(content))
+        parsed = json.loads(text)
+        if not isinstance(parsed, list):
+            raise ValueError("AI transaction response was not a JSON array")
+        return parsed
 
     async def chat(self, messages: list[dict]) -> str:
         client = self._get_client()
@@ -50,7 +97,7 @@ class AIService:
                 max_tokens=1024,
                 temperature=0.7,
             )
-            return response.choices[0].message.content
+            return self._extract_text_content(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             return self._fallback_chat(messages[-1]["content"] if messages else "")
@@ -70,8 +117,7 @@ class AIService:
                 max_tokens=1024,
                 temperature=0.3,
             )
-            content = response.choices[0].message.content
-            steps = json.loads(content)
+            steps = self._parse_transaction_steps(response.choices[0].message.content)
             return {"steps": steps, "name": f"Generated: {prompt[:50]}"}
         except Exception as e:
             logger.error(f"AI generate transaction error: {e}")
@@ -111,7 +157,7 @@ class AIService:
                 max_tokens=512,
                 temperature=0.5,
             )
-            return response.choices[0].message.content
+            return self._extract_text_content(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"AI explain failure error: {e}")
             return "Unable to generate AI analysis. Please check the step results manually."

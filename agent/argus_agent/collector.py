@@ -18,7 +18,7 @@ class MetricsCollector:
         self._last_net = psutil.net_io_counters()
         self._last_at = time.monotonic()
 
-    def snapshot(self, hostname: str, host_type: str, tags: list[str]) -> dict:
+    def snapshot(self, hostname: str, host_type: str, tags: list[str], disk_path: str = "/") -> dict:
         now = time.monotonic()
         net = psutil.net_io_counters()
         elapsed = max(now - self._last_at, 1e-6)
@@ -37,7 +37,7 @@ class MetricsCollector:
             "tags": tags,
             "cpu_percent": psutil.cpu_percent(interval=None),
             "memory_percent": psutil.virtual_memory().percent,
-            "disk_percent": psutil.disk_usage("/").percent,
+            "disk_percent": psutil.disk_usage(disk_path).percent,
             "uptime": _format_uptime(boot_seconds),
             "network_in_bytes": round(network_in_rate, 2),
             "network_out_bytes": round(network_out_rate, 2),

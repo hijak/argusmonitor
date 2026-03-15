@@ -18,6 +18,7 @@ class AgentSettings:
     log_files: list[str]
     interval_seconds: int
     verify_tls: bool
+    disk_path: str
 
 
 def load_settings() -> AgentSettings:
@@ -32,4 +33,5 @@ def load_settings() -> AgentSettings:
         log_files=_split_csv(os.getenv("ARGUS_AGENT_LOG_FILES", "")),
         interval_seconds=int(os.getenv("ARGUS_AGENT_INTERVAL_SECONDS", "30")),
         verify_tls=os.getenv("ARGUS_AGENT_VERIFY_TLS", "true").lower() != "false",
+        disk_path=os.getenv("ARGUS_AGENT_DISK_PATH", "/"),
     )

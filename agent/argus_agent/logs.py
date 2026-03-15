@@ -12,8 +12,12 @@ class LogTailer:
         for path in self._paths:
             if not path.exists() or not path.is_file():
                 continue
-            offset = self._offsets.get(path, 0)
             with path.open("r", encoding="utf-8", errors="replace") as handle:
+                if path not in self._offsets:
+                    handle.seek(0, 2)
+                    self._offsets[path] = handle.tell()
+                    continue
+                offset = self._offsets.get(path, 0)
                 handle.seek(offset)
                 for line in handle:
                     message = line.strip()

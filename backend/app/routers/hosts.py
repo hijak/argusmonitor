@@ -12,6 +12,25 @@ from app.auth import get_current_user
 router = APIRouter(prefix="/hosts", tags=["hosts"])
 
 
+def _host_sort_key(host: Host):
+    return (
+        0 if host.agent_version else 1,
+        0 if host.status == "critical" else 1 if host.status == "warning" else 2 if host.status == "healthy" else 3,
+        host.name.lower(),
+    )
+
+
+def _host_out(host: Host, spark: list[float]):
+    is_connected = bool(host.agent_version)
+    payload = HostOut.model_validate(host).model_dump()
+    payload["is_agent_connected"] = is_connected
+    payload["data_source"] = "agent" if is_connected else "seeded"
+    return HostWithSparkline(
+        **payload,
+        spark=spark if spark else [host.cpu_percent] * 7,
+    )
+
+
 @router.get("", response_model=list[HostWithSparkline])
 async def list_hosts(
     type: str | None = None,
@@ -29,7 +48,7 @@ async def list_hosts(
         q = q.where(Host.name.ilike(f"%{search}%") | Host.ip_address.ilike(f"%{search}%"))
 
     result = await db.execute(q)
-    hosts = result.scalars().all()
+    hosts = sorted(result.scalars().all(), key=_host_sort_key)
 
     out = []
     for h in hosts:
@@ -42,10 +61,7 @@ async def list_hosts(
         metrics_result = await db.execute(metrics_q)
         spark = [float(m) for m in metrics_result.scalars().all() if m is not None]
         spark.reverse()
-        out.append(HostWithSparkline(
-            **HostOut.model_validate(h).model_dump(),
-            spark=spark if spark else [h.cpu_percent] * 7,
-        ))
+        out.append(_host_out(h, spark))
     return out
 
 
@@ -127,6 +143,8 @@ async def get_host_metrics(
             "disk_percent": host.disk_percent,
             "tags": host.tags or [], "agent_version": host.agent_version,
             "last_seen": host.last_seen.isoformat() if host.last_seen else None,
+            "is_agent_connected": bool(host.agent_version),
+            "data_source": "agent" if host.agent_version else "seeded",
         },
         "cpu": cpu_data,
         "memory": mem_data,

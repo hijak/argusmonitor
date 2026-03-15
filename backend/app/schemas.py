@@ -68,6 +68,8 @@ class HostOut(BaseModel):
     agent_version: Optional[str]
     last_seen: Optional[datetime]
     created_at: datetime
+    is_agent_connected: bool = False
+    data_source: str = "seeded"
 
     model_config = {"from_attributes": True}
 

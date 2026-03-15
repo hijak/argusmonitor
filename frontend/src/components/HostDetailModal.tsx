@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
-import { X, Server, Database, Container, Wifi } from "lucide-react";
+import { X, Server, Database, Container, Wifi, Activity, Clock3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -79,8 +79,13 @@ function HostContent({ data, onClose }: { data: any; onClose: () => void }) {
             <h2 className="text-lg font-semibold font-mono flex items-center gap-3">
               {host.name}
               <StatusBadge variant={host.status}>{host.status}</StatusBadge>
+              {host.is_agent_connected && (
+                <span className="inline-flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+                  <Activity className="h-3 w-3" /> Live agent
+                </span>
+              )}
             </h2>
-            <p className="text-xs text-muted-foreground">{host.ip_address} · {host.os || "Unknown OS"}</p>
+            <p className="text-xs text-muted-foreground">{host.ip_address || "No IP"} · {host.os || "Unknown OS"}</p>
           </div>
         </div>
         <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors">
@@ -89,8 +94,15 @@ function HostContent({ data, onClose }: { data: any; onClose: () => void }) {
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Live gauges */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-border bg-muted/30 p-4 md:col-span-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1"><Activity className="h-3.5 w-3.5" /> Source: {host.data_source === "agent" ? "Live agent" : "Seed/demo data"}</span>
+              <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> Last seen: {host.last_seen ? new Date(host.last_seen).toLocaleString() : "N/A"}</span>
+            </div>
+          </div>
+
+          <GaugeCard label="CPU" value={host.cpu_percent} />
           <GaugeCard label="CPU" value={host.cpu_percent} />
           <GaugeCard label="Memory" value={host.memory_percent} />
           <GaugeCard label="Disk" value={host.disk_percent} />
@@ -120,6 +132,7 @@ function HostContent({ data, onClose }: { data: any; onClose: () => void }) {
               ["IP Address", host.ip_address],
               ["Operating System", host.os],
               ["Uptime", host.uptime],
+              ["Data Source", host.data_source === "agent" ? "Live agent" : "Seed/demo"],
               ["Agent Version", host.agent_version],
               ["Last Seen", host.last_seen ? new Date(host.last_seen).toLocaleString() : "N/A"],
               ["Tags", (host.tags || []).join(", ") || "None"],

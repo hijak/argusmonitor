@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { PageHeader } from "@/components/PageHeader";
 import { HostDetailModal } from "@/components/HostDetailModal";
-import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react";
 import { motion } from "framer-motion";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
@@ -24,7 +24,7 @@ export default function OverviewPage() {
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Overview" description="System health at a glance">
-          <StatusBadge variant="healthy" pulse>All systems operational</StatusBadge>
+          <StatusBadge variant="info" pulse>{hosts.filter((h: any) => h.is_agent_connected).length} live agents reporting</StatusBadge>
         </PageHeader>
       </motion.div>
 
@@ -46,11 +46,19 @@ export default function OverviewPage() {
               {hosts.map((host: any) => (
                 <div key={host.id} onClick={() => setSelectedHostId(host.id)} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-surface-hover cursor-pointer">
                   <StatusBadge variant={host.status}>{host.status}</StatusBadge>
-                  <span className="flex-1 font-mono text-sm">{host.name}</span>
+                  <div className="flex flex-1 items-center gap-2 min-w-0">
+                    <span className="truncate font-mono text-sm">{host.name}</span>
+                    {host.is_agent_connected && (
+                      <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                        <Activity className="h-2.5 w-2.5" /> Live
+                      </span>
+                    )}
+                  </div>
                   <div className="hidden items-center gap-6 text-xs text-muted-foreground sm:flex">
                     <span>CPU {Math.round(host.cpu_percent)}%</span>
                     <span>MEM {Math.round(host.memory_percent)}%</span>
                     <span>{host.uptime || "N/A"}</span>
+                    {host.last_seen && <span>seen {new Date(host.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                   </div>
                   <Sparkline
                     data={host.spark || []}

@@ -1,0 +1,21 @@
+[Unit]
+Description=ArgusMonitor host agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/argus-agent/argus-agent.env
+ExecStart=/usr/local/bin/argus-agent
+Restart=always
+RestartSec=5
+WorkingDirectory=/var/lib/argus-agent
+StateDirectory=argus-agent
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/argus-agent
+
+[Install]
+WantedBy=multi-user.target

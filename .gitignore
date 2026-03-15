@@ -9,6 +9,7 @@ build/
 .venv/
 venv/
 env/
+.build-venv/
 
 # Node
 node_modules/

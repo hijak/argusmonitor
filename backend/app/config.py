@@ -17,12 +17,16 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_app_name: str = "ArgusMonitor"
+    openai_site_url: str = ""
     agent_shared_token: str = "argus-agent-dev-token"
 
     cors_origins: str = "http://localhost:8080,http://localhost:5173,http://frontend:8080"
 
     monitoring_default_interval: int = 60
     monitoring_default_timeout: int = 30
+    demo_mode: bool = False
 
     model_config = {"env_prefix": "ARGUS_", "env_file": ".env"}
 

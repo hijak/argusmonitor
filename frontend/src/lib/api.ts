@@ -46,6 +46,9 @@ export const api = {
 
   me: () => request<{ id: string; email: string; name: string; role: string }>("/auth/me"),
 
+  // Meta
+  getMeta: () => request<{ app_name: string; demo_mode: boolean }>("/meta"),
+
   // Overview
   overviewStats: () => request<any>("/overview/stats"),
   overviewHostHealth: () => request<any[]>("/overview/host-health"),

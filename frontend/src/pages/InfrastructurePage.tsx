@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
-import { Search, Plus, Server, Database, Container, Wifi } from "lucide-react";
+import { Search, Plus, Server, Database, Container, Wifi, Activity, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { HostDetailModal } from "@/components/HostDetailModal";
 
@@ -57,7 +57,7 @@ export default function InfrastructurePage() {
         </PageHeader>
       </motion.div>
 
-      <motion.div variants={item} className="flex flex-wrap items-center gap-3">
+      <motion.div variants={item} className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -79,6 +79,10 @@ export default function InfrastructurePage() {
               {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)} ({counts[t]})
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+          <Activity className="h-3.5 w-3.5 text-success" />
+          <span>{allHosts.filter((h: any) => h.is_agent_connected).length} live agent hosts</span>
         </div>
       </motion.div>
 
@@ -105,14 +109,28 @@ export default function InfrastructurePage() {
                 <div className="flex items-center gap-3 min-w-0">
                   <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <p className="truncate font-mono text-sm">{host.name}</p>
-                    <p className="text-xs text-muted-foreground">{host.ip_address}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-mono text-sm">{host.name}</p>
+                      {host.is_agent_connected && (
+                        <span className="inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                          <Activity className="h-2.5 w-2.5" /> Live
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{host.ip_address || "No IP"}</p>
                   </div>
                 </div>
                 <StatusBadge variant={host.status}>{host.status}</StatusBadge>
                 <span className={`font-mono text-sm ${host.cpu_percent > 80 ? 'text-critical' : host.cpu_percent > 60 ? 'text-warning' : 'text-foreground'}`}>{Math.round(host.cpu_percent)}%</span>
                 <span className={`font-mono text-sm ${host.memory_percent > 80 ? 'text-critical' : host.memory_percent > 60 ? 'text-warning' : 'text-foreground'}`}>{Math.round(host.memory_percent)}%</span>
-                <span className="font-mono text-sm text-muted-foreground">{host.uptime || "N/A"}</span>
+                <div className="space-y-0.5">
+                  <span className="block font-mono text-sm text-muted-foreground">{host.uptime || "N/A"}</span>
+                  {host.last_seen && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="h-2.5 w-2.5" /> {new Date(host.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
                 <Sparkline
                   data={host.spark || []}
                   color={host.status === "critical" ? "hsl(0 84% 60%)" : host.status === "warning" ? "hsl(38 92% 50%)" : "hsl(160 84% 39%)"}
