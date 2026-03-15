@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from argus_agent.actions import run_action
 from argus_agent.client import ArgusClient
 from argus_agent.collector import MetricsCollector
 from argus_agent.config import load_settings
@@ -32,6 +33,16 @@ async def run() -> None:
         try:
             result = await client.send_heartbeat(payload)
             logger.info("Heartbeat accepted for host %s with status %s", settings.hostname, result["status"])
+            action = result.get("action")
+            if action:
+                logger.info("Received action %s (%s)", action.get("id"), action.get("kind"))
+                try:
+                    action_result = await run_action(action)
+                    await client.submit_action_result(action["id"], "completed", result=action_result)
+                    logger.info("Completed action %s", action.get("id"))
+                except Exception as action_error:
+                    logger.exception("Action %s failed", action.get("id"))
+                    await client.submit_action_result(action["id"], "failed", error_text=str(action_error))
         except Exception:
             logger.exception("Heartbeat failed")
 

@@ -516,10 +516,31 @@ class AgentHeartbeatRequest(BaseModel):
     network_out_bytes: Optional[float] = None
 
 
+class AgentActionOut(BaseModel):
+    id: UUID
+    kind: str
+    status: str
+    params: dict[str, Any] = {}
+    result: dict[str, Any] = {}
+    error_text: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class AgentActionResultRequest(BaseModel):
+    status: str
+    result: dict[str, Any] = {}
+    error_text: Optional[str] = None
+
+
 class AgentHeartbeatResponse(BaseModel):
     host_id: UUID
     status: str
     recorded_at: datetime
+    action: Optional[AgentActionOut] = None
 
 # --- Overview ---
 

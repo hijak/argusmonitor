@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import AIChatMessage, AIChatSession, AlertInstance, Host, Incident, Service, TransactionRun, User
+from app.models import AIChatMessage, AIChatSession, AgentAction, AlertInstance, Host, Incident, Service, TransactionRun, User
 from app.schemas import AIChatRequest, AIChatResponse, AIChatSessionCreate, AIChatSessionOut, AIGenerateTransactionRequest, AIExplainFailureRequest
 from app.auth import get_current_user
 from app.services.ai_service import AIService
@@ -16,7 +16,8 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 
 
 async def _ensure_ai_chat_schema(db: AsyncSession) -> None:
-    def sync_ensure(connection):
+    def sync_ensure(sync_session):
+        connection = sync_session.connection()
         inspector = inspect(connection)
         tables = inspector.get_table_names()
 
@@ -32,7 +33,7 @@ async def _ensure_ai_chat_schema(db: AsyncSession) -> None:
             """))
             connection.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_chat_sessions_user_id ON ai_chat_sessions(user_id)"))
 
-        msg_columns = {col["name"] for col in inspector.get_columns("ai_chat_messages")}
+        msg_columns = {col["name"] for col in inspect(connection).get_columns("ai_chat_messages")}
         if "session_id" not in msg_columns:
             connection.execute(text("ALTER TABLE ai_chat_messages ADD COLUMN session_id UUID"))
             connection.execute(text("ALTER TABLE ai_chat_messages ADD CONSTRAINT fk_ai_chat_messages_session_id FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE"))
@@ -56,6 +57,25 @@ async def _get_or_create_session(db: AsyncSession, user: User, session_id: UUID 
     db.add(session)
     await db.flush()
     return session
+
+
+def _maybe_parse_host_inspection_request(message: str) -> tuple[str, dict] | None:
+    lowered = message.lower()
+    if not any(phrase in lowered for phrase in ["largest files", "largest folders", "largest file", "largest folder", "biggest files", "biggest folders"]):
+        return None
+
+    host_name = None
+    for token in message.replace("?", " ").replace(",", " ").split():
+        token = token.strip()
+        if token.lower().startswith("node") or token.lower().startswith("host"):
+            host_name = token.strip("`'\"")
+            break
+    if not host_name:
+        return None
+
+    path = "/var" if "/var" in lowered else "/home" if "/home" in lowered else "/"
+    mode = "files" if "files" in lowered and "folders" not in lowered else "both"
+    return host_name, {"kind": "largest_paths", "params": {"path": path, "limit": 15, "mode": mode}}
 
 
 async def _build_monitoring_context(db: AsyncSession) -> dict:
@@ -168,18 +188,40 @@ async def chat(
     session.updated_at = datetime.now(timezone.utc)
     await db.flush()
 
-    ai = AIService()
-    history_result = await db.execute(
-        select(AIChatMessage)
-        .where(AIChatMessage.user_id == user.id, AIChatMessage.session_id == session.id)
-        .order_by(AIChatMessage.created_at.desc())
-        .limit(20)
-    )
-    history = list(reversed(history_result.scalars().all()))
-    messages = [{"role": m.role, "content": m.content} for m in history]
+    inspection_request = _maybe_parse_host_inspection_request(req.message)
+    if inspection_request:
+        host_name, action_payload = inspection_request
+        host_result = await db.execute(select(Host).where(Host.name.ilike(host_name)))
+        host = host_result.scalar_one_or_none()
+        if host and host.agent_version:
+            action = AgentAction(
+                host_id=host.id,
+                requested_by_user_id=user.id,
+                kind=action_payload["kind"],
+                status="pending",
+                params=action_payload["params"],
+            )
+            db.add(action)
+            await db.flush()
+            response_text = (
+                f"Queued a **read-only inspection** on **{host.name}** to find the largest files/folders under `{action_payload['params']['path']}`. "
+                "The host agent will pick it up on its next heartbeat and return the results here."
+            )
+        else:
+            response_text = f"I couldn't queue that inspection because **{host_name}** is not currently an agent-connected host."
+    else:
+        ai = AIService()
+        history_result = await db.execute(
+            select(AIChatMessage)
+            .where(AIChatMessage.user_id == user.id, AIChatMessage.session_id == session.id)
+            .order_by(AIChatMessage.created_at.desc())
+            .limit(20)
+        )
+        history = list(reversed(history_result.scalars().all()))
+        messages = [{"role": m.role, "content": m.content} for m in history]
 
-    monitoring_context = await _build_monitoring_context(db)
-    response_text = await ai.chat(messages, monitoring_context=monitoring_context)
+        monitoring_context = await _build_monitoring_context(db)
+        response_text = await ai.chat(messages, monitoring_context=monitoring_context)
 
     assistant_msg = AIChatMessage(
         user_id=user.id,
