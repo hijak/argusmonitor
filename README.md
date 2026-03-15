@@ -137,6 +137,7 @@ npm run dev  # Proxies /api to localhost:8000
 | `ARGUS_SECRET_KEY` | (dev default) | JWT signing key - **change in production** |
 | `ARGUS_OPENAI_API_KEY` | (empty) | OpenAI API key for AI features. Optional - falls back to built-in intelligence |
 | `ARGUS_OPENAI_MODEL` | gpt-4o-mini | OpenAI model to use |
+| `ARGUS_AGENT_SHARED_TOKEN` | argus-agent-dev-token | Shared token required by standalone host agents |
 | `ARGUS_DATABASE_URL` | (compose default) | PostgreSQL async connection string |
 | `ARGUS_REDIS_URL` | (compose default) | Redis connection string |
 | `ARGUS_CORS_ORIGINS` | localhost origins | Comma-separated allowed origins |
@@ -170,6 +171,7 @@ npm run dev  # Proxies /api to localhost:8000
 | GET | `/api/ai/history` | Chat history |
 | POST | `/api/ai/generate-transaction` | AI transaction generation |
 | POST | `/api/ai/explain-failure` | AI failure analysis |
+| POST | `/api/agent/heartbeat` | Standalone agent host heartbeat + metric ingestion |
 
 ## Database Schema
 
@@ -220,6 +222,13 @@ argus-monitor/
 │       └── services/
 │           ├── ai_service.py   # OpenAI integration + fallbacks
 │           └── scheduler.py    # Background metric simulation
+├── agent/
+│   ├── README.md               # Standalone host agent docs
+│   ├── build.sh                # One-file binary build script
+│   ├── argus-agent.spec        # PyInstaller spec for single binary
+│   ├── requirements.txt        # Agent runtime dependencies
+│   ├── requirements-build.txt  # Agent build-time dependencies
+│   └── argus_agent/            # Agent collector, client, and daemon loop
 ├── frontend/
 │   ├── Dockerfile
 │   ├── nginx.conf              # Production proxy config

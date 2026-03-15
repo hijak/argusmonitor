@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    agent_shared_token: str = "argus-agent-dev-token"
 
     cors_origins: str = "http://localhost:8080,http://localhost:5173,http://frontend:8080"
 

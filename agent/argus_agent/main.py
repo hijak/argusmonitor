@@ -1,0 +1,48 @@
+import asyncio
+import logging
+
+from argus_agent.client import ArgusClient
+from argus_agent.collector import MetricsCollector
+from argus_agent.config import load_settings
+from argus_agent.logs import LogTailer
+
+AGENT_VERSION = "0.1.0"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("argus-agent")
+
+
+async def run() -> None:
+    settings = load_settings()
+    if not settings.token:
+        raise RuntimeError("ARGUS_AGENT_TOKEN is required")
+
+    client = ArgusClient(settings.server_url, settings.token, settings.verify_tls)
+    collector = MetricsCollector()
+    tailer = LogTailer(settings.log_files)
+
+    logger.info("Starting agent for host %s against %s", settings.hostname, settings.server_url)
+    while True:
+        payload = collector.snapshot(settings.hostname, settings.host_type, settings.tags)
+        payload["agent_version"] = AGENT_VERSION
+
+        try:
+            result = await client.send_heartbeat(payload)
+            logger.info("Heartbeat accepted for host %s with status %s", settings.hostname, result["status"])
+        except Exception:
+            logger.exception("Heartbeat failed")
+
+        try:
+            entries = tailer.read_entries(settings.service_name)
+            await client.send_logs(entries)
+        except Exception:
+            logger.exception("Log shipping failed")
+
+        await asyncio.sleep(settings.interval_seconds)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())

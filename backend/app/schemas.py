@@ -483,6 +483,27 @@ class AgentOut(BaseModel):
     last_seen: Optional[datetime]
     model_config = {"from_attributes": True}
 
+
+class AgentHeartbeatRequest(BaseModel):
+    name: str
+    type: str = "server"
+    ip_address: Optional[str] = None
+    os: Optional[str] = None
+    tags: list[str] = []
+    agent_version: str = "1.0.0"
+    cpu_percent: float = Field(ge=0, le=100)
+    memory_percent: float = Field(ge=0, le=100)
+    disk_percent: float = Field(ge=0, le=100)
+    uptime: Optional[str] = None
+    network_in_bytes: Optional[float] = None
+    network_out_bytes: Optional[float] = None
+
+
+class AgentHeartbeatResponse(BaseModel):
+    host_id: UUID
+    status: str
+    recorded_at: datetime
+
 # --- Overview ---
 
 class OverviewStats(BaseModel):
