@@ -7,14 +7,14 @@ const tiers = [
     name: "Community",
     price: "Free",
     period: "",
-    desc: "Self-hosted core monitoring for homelabs, tinkering, and evaluation.",
+    desc: "Self-hosted core monitoring for homelabs, tinkering, and technical evaluation.",
     cta: "Get Started",
     ctaVariant: "hero-outline" as const,
     highlight: false,
     features: [
       "Self-hosted deployment",
       "Up to 3 nodes",
-      "Dashboards & alerts",
+      "Dashboards, alerts, and incidents",
       "Service discovery",
       "Log collection",
       "Community support",
@@ -40,20 +40,20 @@ const tiers = [
     ],
   },
   {
-    name: "Pro",
-    price: "$49",
-    period: "/mo",
-    desc: "For small teams and serious infrastructure work.",
-    cta: "Start Free Trial",
+    name: "Business / Enterprise Foundations",
+    price: "Talk to us",
+    period: "",
+    desc: "For teams that need enterprise buyer basics without dragging in a giant platform.",
+    cta: "Book Demo",
     ctaVariant: "hero-outline" as const,
     highlight: false,
     features: [
-      "Everything in Starter",
-      "Up to 50 nodes",
-      "Higher AI credit allowance",
-      "30-day data retention",
-      "Team member access",
-      "Optional BYOK support",
+      "Organizations and workspaces",
+      "RBAC foundation",
+      "OIDC / SSO foundation",
+      "Audit logs",
+      "Maintenance windows and silences",
+      "Real Slack / webhook / email delivery",
       "Priority support",
     ],
   },
@@ -64,7 +64,7 @@ const PricingSection = () => (
     <div className="container mx-auto px-4 lg:px-8">
       <div className="mx-auto max-w-2xl text-center mb-14">
         <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Simple, honest pricing.</h2>
-        <p className="text-muted-foreground text-lg">Start free. Scale when you're ready. Paid plans include AI credits, and advanced users can bring their own key.</p>
+        <p className="text-muted-foreground text-lg">Start free. Scale when you need it. Enterprise buyer features are arriving as a focused layer, not a bloated edition.</p>
       </div>
       <div className="mx-auto max-w-5xl grid md:grid-cols-3 gap-6">
         {tiers.map((t, i) => (

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import auth, hosts, services, monitors, transactions, alerts, incidents, logs, dashboards, overview, ai, agent, search, meta, oncall, users
+from app.routers import auth, hosts, services, monitors, transactions, alerts, incidents, logs, dashboards, overview, ai, agent, search, meta, oncall, users, enterprise
 from app.routers import settings as settings_router
 
 logging.basicConfig(level=logging.INFO)
@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ArgusMonitor API starting up...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created/verified")
+    logger.info("Database startup complete; expecting Alembic migrations to manage schema")
 
     from app.services.scheduler import start_scheduler
     scheduler = start_scheduler()
@@ -65,6 +63,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(meta.router, prefix="/api")
 app.include_router(oncall.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(enterprise.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 
 

@@ -30,6 +30,19 @@ This is a good fit when you want:
 - local-only data
 - low-cost evaluation
 - homelab usage
+- to evaluate the enterprise foundation layer before committing to a hosted offering
+
+## Enterprise foundation quick check
+
+If you are evaluating ArgusMonitor for a serious buyer demo, verify these pieces first:
+
+1. Alembic migrations run cleanly
+2. An organization and workspace can be created
+3. Workspace membership / RBAC basics are working
+4. OIDC provider configuration is present
+5. Audit logs are being recorded
+6. Notification channels can deliver real test messages
+7. Maintenance windows and alert silences can be created
 
 ## Recommended first steps
 
@@ -38,3 +51,4 @@ This is a good fit when you want:
 3. Read [Systemd Deployment](./agents/systemd)
 4. Read [Service Discovery](./monitoring/service-discovery)
 5. Read [AI Copilot](./monitoring/copilot)
+6. Review alerting and enterprise foundations in [Alerts](./monitoring/alerts)

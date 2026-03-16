@@ -8,7 +8,7 @@ const FinalCTA = () => (
     <div className="container mx-auto px-4 lg:px-8 relative">
       <div className="mx-auto max-w-2xl text-center space-y-6">
         <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground">Ready to monitor without the bloat?</h2>
-        <p className="text-lg text-muted-foreground">Deploy in minutes. Self-hosted or managed — your infrastructure, your way.</p>
+        <p className="text-lg text-muted-foreground">Deploy in minutes. Run it yourself or use a hosted control plane. Enterprise buyer foundations are now landing without turning the product into sludge.</p>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Button asChild variant="hero" size="lg"><a href={START_URL} target="_blank" rel="noreferrer">Start Free</a></Button>
           <Button asChild variant="hero-outline" size="lg"><a href={DEMO_URL}>Book Demo</a></Button>

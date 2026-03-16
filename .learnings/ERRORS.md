@@ -88,3 +88,35 @@ Before running npm scripts, confirm the nearest `package.json` and execute from 
 - See Also: ERR-20260315-001, ERR-20260315-002
 
 ---
+
+## [ERR-20260316-002] missing-local-alembic-cli
+
+**Logged**: 2026-03-16T13:36:40Z
+**Priority**: medium
+**Status**: pending
+**Area**: backend
+
+### Summary
+Attempted to autogenerate an Alembic migration from the host environment, but the local Python/Alembic CLI was not available even though the repo declares Alembic in backend requirements.
+
+### Error
+```
+zsh:1: command not found: alembic
+/Library/Developer/CommandLineTools/usr/bin/python3: No module named alembic.__main__; 'alembic' is a package and cannot be directly executed
+```
+
+### Context
+- Operation attempted: generate migration for enterprise Phase 1 schema changes
+- Repository has `backend/requirements.txt` with `alembic==1.14.1`
+- Host execution environment did not have the backend virtualenv / installed Alembic CLI available
+- Workaround used: hand-authored migration file under `backend/alembic/versions/`
+
+### Suggested Fix
+Standardize backend dev commands through a project venv, uv, or docker-compose service so Alembic generation runs from a known Python environment.
+
+### Metadata
+- Reproducible: yes
+- Related Files: backend/requirements.txt, backend/alembic.ini, backend/alembic/versions/0001_enterprise_foundations.py
+- See Also: ERR-20260316-001
+
+---

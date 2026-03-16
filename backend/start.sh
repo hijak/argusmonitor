@@ -8,6 +8,9 @@ until python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect((
 done
 echo "PostgreSQL is ready."
 
+echo "Running Alembic migrations..."
+alembic upgrade head
+
 if [ "${ARGUS_DEMO_MODE:-false}" = "true" ]; then
     echo "Demo mode enabled: running database seed..."
     python3 -m seed || echo "Seed skipped or already applied."

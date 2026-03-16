@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey, JSON, Enum as SAEnum
+    Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey, JSON, Enum as SAEnum, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -26,6 +26,107 @@ class User(Base):
     role = Column(String(50), nullable=False, default="admin")
     timezone = Column(String(100), nullable=False, default="UTC")
     is_active = Column(Boolean, nullable=False, default=True)
+    auth_provider = Column(String(50), nullable=False, default="local")
+    auth_subject = Column(String(255), unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    name = Column(String(255), nullable=False, unique=True, index=True)
+    slug = Column(String(100), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+    __table_args__ = (UniqueConstraint("organization_id", "slug", name="uq_workspaces_org_slug"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), nullable=False)
+    timezone = Column(String(100), nullable=False, default="UTC")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class WorkspaceMembership(Base):
+    __tablename__ = "workspace_memberships"
+    __table_args__ = (UniqueConstraint("workspace_id", "user_id", name="uq_workspace_memberships_workspace_user"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(50), nullable=False, default="member")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OIDCProvider(Base):
+    __tablename__ = "oidc_providers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    issuer = Column(String(500), nullable=False)
+    client_id = Column(String(255), nullable=False)
+    client_secret = Column(Text)
+    authorize_url = Column(String(500))
+    token_url = Column(String(500))
+    userinfo_url = Column(String(500))
+    scopes = Column(JSON, default=list)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), index=True)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
+    actor_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    action = Column(String(255), nullable=False, index=True)
+    resource_type = Column(String(100), nullable=False, index=True)
+    resource_id = Column(String(255), nullable=False, index=True)
+    detail = Column(JSON, default=dict)
+    ip_address = Column(String(100))
+    created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class MaintenanceWindow(Base):
+    __tablename__ = "maintenance_windows"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    starts_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    ends_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    scope_type = Column(String(50), nullable=False, default="all")
+    scope = Column(JSON, default=dict)
+    reason = Column(Text)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class AlertSilence(Base):
+    __tablename__ = "alert_silences"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    matcher = Column(JSON, default=dict)
+    starts_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    ends_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    reason = Column(Text)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -34,6 +135,7 @@ class Host(Base):
     __tablename__ = "hosts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False, index=True)
     type = Column(String(50), nullable=False, default="server")  # server, database, container, network
     status = Column(String(50), nullable=False, default="unknown")  # healthy, warning, critical, unknown
@@ -71,6 +173,7 @@ class Service(Base):
     __tablename__ = "services"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="unknown")
     url = Column(String(500))
@@ -87,6 +190,7 @@ class Monitor(Base):
     __tablename__ = "monitors"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False)
     type = Column(String(50), nullable=False)  # http, ping, tcp, dns, ssl
     target = Column(String(500), nullable=False)
@@ -120,6 +224,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text)
     status = Column(String(50), nullable=False, default="unknown")  # healthy, warning, critical
@@ -189,6 +294,7 @@ class AlertRule(Base):
     __tablename__ = "alert_rules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     severity = Column(String(50), nullable=False, default="warning")  # critical, warning, info
@@ -208,6 +314,7 @@ class AlertInstance(Base):
     __tablename__ = "alert_instances"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     rule_id = Column(UUID(as_uuid=True), ForeignKey("alert_rules.id", ondelete="CASCADE"), index=True)
     assigned_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     message = Column(Text, nullable=False)
@@ -229,6 +336,7 @@ class Incident(Base):
     __tablename__ = "incidents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     ref = Column(String(50), unique=True, nullable=False)
     title = Column(String(500), nullable=False)
     status = Column(String(50), nullable=False, default="investigating")
@@ -270,6 +378,7 @@ class Dashboard(Base):
     __tablename__ = "dashboards"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False)
     type = Column(String(50), default="custom")  # system, custom, ai
     config = Column(JSON, default=dict)
@@ -295,6 +404,7 @@ class NotificationChannel(Base):
     __tablename__ = "notification_channels"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False)
     type = Column(String(50), nullable=False)  # email, slack, pagerduty, webhook, teams
     enabled = Column(Boolean, default=True)
@@ -307,6 +417,7 @@ class Integration(Base):
     __tablename__ = "integrations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False)
     type = Column(String(50), nullable=False)  # slack, pagerduty, jira, github, webhook, teams, opsgenie
     status = Column(String(50), default="disconnected")  # connected, disconnected, error
@@ -371,6 +482,7 @@ class OnCallTeam(Base):
     __tablename__ = "oncall_teams"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     name = Column(String(255), nullable=False, unique=True, index=True)
     timezone = Column(String(100), nullable=False, default="UTC")
     description = Column(Text)

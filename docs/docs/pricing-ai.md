@@ -6,7 +6,7 @@ sidebar_position: 4
 
 ArgusMonitor’s commercial direction is:
 
-> **free monitoring, paid intelligence**
+> **lean operations platform first, paid intelligence and team features where useful**
 
 ## Community
 
@@ -34,15 +34,20 @@ Typical shape:
 - read-only host inspections
 - straightforward onboarding
 
-## Hosted Pro
+## Business / Enterprise Foundations
 
-Pro is intended for:
+This layer is for teams that need the early buyer checklist, not a thousand-seat mega-suite.
 
-- more nodes
-- more retention
-- more AI usage
-- team workflows
-- serious usage beyond hobby scale
+Current direction includes:
+
+- organizations and workspaces
+- RBAC foundation
+- OIDC / SSO groundwork
+- audit logs
+- maintenance windows and alert silences
+- real notification delivery
+
+This should be presented honestly as **enterprise foundations landing**, not as a fully mature enterprise program yet.
 
 ## AI consumption models
 

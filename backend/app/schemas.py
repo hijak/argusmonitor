@@ -27,6 +27,8 @@ class UserOut(BaseModel):
     role: str
     timezone: str = "UTC"
     is_active: bool = True
+    auth_provider: str = "local"
+    auth_subject: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -564,6 +566,159 @@ class AgentHeartbeatResponse(BaseModel):
     status: str
     recorded_at: datetime
     action: Optional[AgentActionOut] = None
+
+
+# --- Enterprise ---
+
+class OrganizationCreate(BaseModel):
+    name: str
+    slug: str
+
+
+class OrganizationOut(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspaceCreate(BaseModel):
+    organization_id: UUID
+    name: str
+    slug: str
+    timezone: str = "UTC"
+
+
+class WorkspaceOut(BaseModel):
+    id: UUID
+    organization_id: UUID
+    name: str
+    slug: str
+    timezone: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkspaceMembershipCreate(BaseModel):
+    user_id: UUID
+    role: str = "member"
+
+
+class WorkspaceMembershipOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    user_id: UUID
+    role: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OIDCProviderCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    issuer: str
+    client_id: str
+    client_secret: Optional[str] = None
+    authorize_url: Optional[str] = None
+    token_url: Optional[str] = None
+    userinfo_url: Optional[str] = None
+    scopes: list[str] = ["openid", "profile", "email"]
+    enabled: bool = True
+
+
+class OIDCProviderOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    issuer: str
+    client_id: str
+    authorize_url: Optional[str]
+    token_url: Optional[str]
+    userinfo_url: Optional[str]
+    scopes: list[str]
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AuditLogOut(BaseModel):
+    id: UUID
+    organization_id: Optional[UUID] = None
+    workspace_id: Optional[UUID] = None
+    actor_user_id: Optional[UUID] = None
+    action: str
+    resource_type: str
+    resource_id: str
+    detail: dict[str, Any] = {}
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MaintenanceWindowCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    starts_at: datetime
+    ends_at: datetime
+    scope_type: str = "all"
+    scope: dict[str, Any] = {}
+    reason: Optional[str] = None
+
+
+class MaintenanceWindowOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    starts_at: datetime
+    ends_at: datetime
+    scope_type: str
+    scope: dict[str, Any] = {}
+    reason: Optional[str] = None
+    created_by_user_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AlertSilenceCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    matcher: dict[str, Any] = {}
+    starts_at: datetime
+    ends_at: datetime
+    reason: Optional[str] = None
+
+
+class AlertSilenceOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    matcher: dict[str, Any] = {}
+    starts_at: datetime
+    ends_at: datetime
+    reason: Optional[str] = None
+    created_by_user_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationTestRequest(BaseModel):
+    subject: Optional[str] = None
+    text: str
+    message: Optional[str] = None
 
 
 class OnCallTeamCreate(BaseModel):

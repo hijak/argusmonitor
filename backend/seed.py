@@ -5,21 +5,19 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
-from app.database import async_session, engine, Base
+from app.database import async_session
 from app.models import (
     User, Host, HostMetric, Service, Transaction, TransactionStep,
     TransactionRun, TransactionRunStep, AlertRule, AlertInstance,
     Incident, IncidentEvent, LogEntry, Dashboard, Monitor,
     NotificationChannel, Integration, UserPreference,
     OnCallTeam, OnCallTeamMember, OnCallShift,
+    Organization, Workspace, WorkspaceMembership, MaintenanceWindow, AlertSilence,
 )
 from app.auth import hash_password
 
 
 async def seed():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     async with async_session() as db:
         existing = await db.execute(select(User).limit(1))
         if existing.scalar_one_or_none():
@@ -38,8 +36,47 @@ async def seed():
 
         now = datetime.now(timezone.utc)
 
+        # --- Enterprise seed: org, workspace, memberships, maintenance, silences ---
+        org = Organization(name="Acme Corp", slug="acme-corp")
+        db.add(org)
+        await db.flush()
+
+        workspace = Workspace(
+            organization_id=org.id,
+            name="Production",
+            slug="production",
+            timezone="Europe/London",
+        )
+        db.add(workspace)
+        await db.flush()
+
+        db.add(WorkspaceMembership(workspace_id=workspace.id, user_id=admin.id, role="owner"))
+        await db.flush()
+
+        db.add(MaintenanceWindow(
+            workspace_id=workspace.id,
+            name="Scheduled upgrade",
+            starts_at=now + timedelta(days=7),
+            ends_at=now + timedelta(days=7, hours=2),
+            scope_type="all",
+            scope={},
+            reason="Planned platform upgrade",
+            created_by_user_id=admin.id,
+        ))
+
+        db.add(AlertSilence(
+            workspace_id=workspace.id,
+            name="Silence low-priority alerts",
+            matcher={"severity": "info"},
+            starts_at=now,
+            ends_at=now + timedelta(days=1),
+            reason="Reducing noise during rollout",
+            created_by_user_id=admin.id,
+        ))
+
         # --- On-call ---
         primary_team = OnCallTeam(
+            workspace_id=workspace.id,
             name="Primary Ops",
             timezone="Europe/London",
             description="Default operational on-call rotation",
@@ -73,7 +110,7 @@ async def seed():
         ]
         host_objects = []
         for hd in hosts_data:
-            h = Host(**hd, last_seen=datetime.now(timezone.utc))
+            h = Host(**hd, workspace_id=workspace.id, last_seen=datetime.now(timezone.utc))
             db.add(h)
             host_objects.append(h)
 
@@ -102,7 +139,7 @@ async def seed():
             {"name": "Search Service", "status": "critical", "url": "https://search.example.com", "uptime_percent": 98.50, "latency_ms": 520, "requests_per_min": 6300, "endpoints_count": 3},
         ]
         for sd in services_data:
-            db.add(Service(**sd))
+            db.add(Service(workspace_id=workspace.id, **sd))
 
         # --- Transactions ---
         transactions_data = [
@@ -179,7 +216,7 @@ async def seed():
 
         for td in transactions_data:
             steps_data = td.pop("steps")
-            tx = Transaction(**td)
+            tx = Transaction(workspace_id=workspace.id, **td)
             db.add(tx)
             await db.flush()
 
@@ -205,10 +242,10 @@ async def seed():
 
         # --- Alert Rules ---
         rules = [
-            AlertRule(name="High CPU Alert", severity="critical", type="threshold", condition={"metric": "cpu_percent", "operator": ">", "value": 90, "duration_minutes": 5}),
-            AlertRule(name="High Memory Alert", severity="warning", type="threshold", condition={"metric": "memory_percent", "operator": ">", "value": 85}),
-            AlertRule(name="SSL Certificate Expiry", severity="warning", type="expiry", condition={"days_before": 7}),
-            AlertRule(name="Transaction Failure Alert", severity="critical", type="threshold", condition={"metric": "success_rate", "operator": "<", "value": 98}),
+            AlertRule(workspace_id=workspace.id, name="High CPU Alert", severity="critical", type="threshold", condition={"metric": "cpu_percent", "operator": ">", "value": 90, "duration_minutes": 5}),
+            AlertRule(workspace_id=workspace.id, name="High Memory Alert", severity="warning", type="threshold", condition={"metric": "memory_percent", "operator": ">", "value": 85}),
+            AlertRule(workspace_id=workspace.id, name="SSL Certificate Expiry", severity="warning", type="expiry", condition={"days_before": 7}),
+            AlertRule(workspace_id=workspace.id, name="Transaction Failure Alert", severity="critical", type="threshold", condition={"metric": "success_rate", "operator": "<", "value": 98}),
         ]
         for r in rules:
             db.add(r)
@@ -227,6 +264,7 @@ async def seed():
         ]
         for i, ad in enumerate(alerts_data):
             alert = AlertInstance(
+                workspace_id=workspace.id,
                 **ad,
                 assigned_user_id=admin.id if not ad.get("acknowledged") else None,
                 created_at=now - timedelta(hours=i * 2),
@@ -235,6 +273,7 @@ async def seed():
 
         # --- Incidents ---
         inc1 = Incident(
+            workspace_id=workspace.id,
             ref="INC-2026-001",
             title="Elevated error rates on API endpoints",
             status="investigating",
@@ -264,6 +303,7 @@ async def seed():
             ))
 
         inc2 = Incident(
+            workspace_id=workspace.id,
             ref="INC-2026-002",
             title="Worker pool saturation causing job delays",
             status="identified",
@@ -322,7 +362,7 @@ async def seed():
             {"name": "Hosts in Alert", "type": "system", "widgets_count": 7, "config": {"preset": "Hosts in Alert"}},
         ]
         for dd in dashboards_data:
-            db.add(Dashboard(**dd))
+            db.add(Dashboard(workspace_id=workspace.id, **dd))
 
         # --- Notification Channels ---
         notif_channels = [
@@ -332,7 +372,7 @@ async def seed():
             {"name": "Webhook - StatusPage", "type": "webhook", "enabled": False, "config": {"url": "https://statuspage.example.com/api/incidents", "method": "POST"}},
         ]
         for nc in notif_channels:
-            db.add(NotificationChannel(**nc))
+            db.add(NotificationChannel(workspace_id=workspace.id, **nc))
 
         # --- Integrations ---
         integrations_data = [
@@ -345,7 +385,7 @@ async def seed():
             {"name": "OpsGenie", "type": "opsgenie", "status": "disconnected", "config": {}},
         ]
         for integ in integrations_data:
-            db.add(Integration(**integ))
+            db.add(Integration(workspace_id=workspace.id, **integ))
 
         # --- User Preferences ---
         await db.flush()
@@ -360,7 +400,7 @@ async def seed():
             {"name": "SSL Certificate Check", "type": "ssl", "target": "api.example.com", "status": "warning", "interval_seconds": 3600},
         ]
         for md in monitors_data:
-            db.add(Monitor(**md))
+            db.add(Monitor(workspace_id=workspace.id, **md))
 
         await db.commit()
         print("Database seeded successfully!")

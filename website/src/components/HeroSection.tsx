@@ -15,6 +15,9 @@ import {
   HardDrive,
   MemoryStick,
   Zap,
+  Building2,
+  ShieldCheck,
+  KeyRound,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { APP_URL, DEMO_URL, GITHUB_URL, START_URL } from "@/lib/site";
@@ -232,16 +235,16 @@ const HeroSection = () => (
       <div className="mx-auto max-w-5xl space-y-6 text-center">
         <motion.div custom={0} variants={fadeUp} initial="hidden" animate="visible">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-sm">
-            <Activity className="h-3 w-3 text-primary" /> Hosted control plane • lightweight agents • AI copilot
+            <Building2 className="h-3 w-3 text-primary" /> Enterprise foundations landing: workspaces • RBAC • OIDC • audit logs
           </span>
         </motion.div>
 
         <motion.h1 custom={1} variants={fadeUp} initial="hidden" animate="visible" className="text-4xl font-display font-extrabold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-          Monitoring without <span className="text-gradient-amber">the bloat.</span>
+          Monitoring without <span className="text-gradient-amber">the bloat</span>, now with enterprise foundations.
         </motion.h1>
 
-        <motion.p custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mx-auto max-w-2xl text-lg leading-relaxed text-muted-foreground">
-          Host monitoring, service discovery, alerts, logs, dashboards, and an AI copilot that can safely inspect monitored nodes through bounded read-only agent actions.
+        <motion.p custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mx-auto max-w-3xl text-lg leading-relaxed text-muted-foreground">
+          Host monitoring, service discovery, alerts, dashboards, and AI-assisted operations — now moving toward serious buyer readiness with workspaces, RBAC, OIDC SSO, audit logs, maintenance windows, silences, and real notification delivery.
         </motion.p>
 
         <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible" className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -251,6 +254,12 @@ const HeroSection = () => (
           <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground">
             <Github className="h-4 w-4" /> View on GitHub
           </a>
+        </motion.div>
+
+        <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible" className="flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><KeyRound className="h-3.5 w-3.5 text-primary" /> OIDC SSO foundation</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Audit logs + RBAC</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Bell className="h-3.5 w-3.5 text-primary" /> Real email / Slack / webhook delivery</span>
         </motion.div>
       </div>
 

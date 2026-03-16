@@ -2,7 +2,7 @@ import secrets
 from uuid import UUID
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,8 @@ from app.schemas import (
     AgentOut,
 )
 from app.auth import get_current_user, hash_password, verify_password, hash_api_key
+from app.services.notifications import deliver_notification
+from app.services.audit import record_audit_event
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -176,6 +178,7 @@ async def delete_notification_channel(
 @router.post("/notifications/{channel_id}/test")
 async def test_notification_channel(
     channel_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -183,7 +186,26 @@ async def test_notification_channel(
     channel = result.scalar_one_or_none()
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
-    return {"message": f"Test notification sent to {channel.name}", "success": True}
+
+    delivery = await deliver_notification(
+        channel,
+        {
+            "subject": "ArgusMonitor test notification",
+            "text": f"Test notification delivered via {channel.type} to {channel.name}",
+            "message": f"Test notification delivered via {channel.type} to {channel.name}",
+        },
+    )
+    await record_audit_event(
+        db,
+        action="settings.notification.test",
+        resource_type="notification_channel",
+        resource_id=str(channel.id),
+        actor=user,
+        detail=delivery,
+        workspace_id=channel.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    return delivery
 
 
 # --- Integrations ---

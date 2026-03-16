@@ -4,8 +4,8 @@ import { Download, Radio, AlertTriangle, Bot } from "lucide-react";
 const steps = [
   { icon: Download, title: "Deploy the agent", desc: "Install the lightweight systemd agent on the nodes you care about." },
   { icon: Radio, title: "Hosts report signals", desc: "Health metrics, logs, and service discovery data flow to the control plane." },
-  { icon: AlertTriangle, title: "Issues surface automatically", desc: "ArgusMonitor detects anomalies and triggers actionable alerts." },
-  { icon: Bot, title: "Ask the AI copilot", desc: "Get answers and run safe read-only inspections on your nodes." },
+  { icon: AlertTriangle, title: "Control blast radius", desc: "Use alerts, on-call routing, maintenance windows, and silences to keep incidents useful instead of noisy." },
+  { icon: Bot, title: "Operate with context", desc: "Use the AI copilot, audit logs, workspaces, and notification delivery foundations to move toward enterprise readiness." },
 ];
 
 const HowItWorks = () => (
@@ -13,7 +13,7 @@ const HowItWorks = () => (
     <div className="container mx-auto px-4 lg:px-8">
       <div className="mx-auto max-w-2xl text-center mb-14">
         <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">How it works</h2>
-        <p className="text-muted-foreground text-lg">Hosted control plane, lightweight agents on your infrastructure.</p>
+        <p className="text-muted-foreground text-lg">Hosted control plane, lightweight agents on your infrastructure, and enterprise foundations where they actually matter.</p>
       </div>
       <div className="mx-auto max-w-4xl grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {steps.map((s, i) => (

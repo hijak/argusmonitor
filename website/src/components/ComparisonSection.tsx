@@ -2,12 +2,12 @@ import { motion } from "framer-motion";
 import { Minus, Zap } from "lucide-react";
 
 const points = [
-  { pain: "Heavyweight enterprise monitoring suites", solution: "Lean, focused platform — deploy in minutes" },
-  { pain: "Pretty dashboards with shallow insights", solution: "Operationally useful alerts and AI-assisted troubleshooting" },
-  { pain: "Not designed for self-hosters or small teams", solution: "Built for homelabs, startups, and indie ops" },
+  { pain: "Heavyweight enterprise monitoring suites", solution: "Lean platform with enterprise foundations, not enterprise bloat" },
+  { pain: "Pretty dashboards with shallow insights", solution: "Operational alerts, incidents, on-call ownership, and AI-assisted troubleshooting" },
+  { pain: "Single-tenant tools pretending to be enterprise", solution: "Organizations, workspaces, RBAC, OIDC, and audit trail foundations now landing" },
+  { pain: "Alerting that becomes pure noise during change windows", solution: "Maintenance windows and alert silences to calm the blast radius" },
+  { pain: "Notification integrations that only look connected", solution: "Real webhook, Slack, and SMTP delivery paths" },
   { pain: "AI chatbots with zero operational context", solution: "AI copilot grounded in your actual monitoring data" },
-  { pain: "Agents that require containers for everything", solution: "Native systemd agents with optional container visibility" },
-  { pain: "Black-box remote access tools", solution: "Safe, bounded read-only inspections through agents" },
 ];
 
 const ComparisonSection = () => (
@@ -15,7 +15,7 @@ const ComparisonSection = () => (
     <div className="container mx-auto px-4 lg:px-8">
       <div className="mx-auto max-w-2xl text-center mb-14">
         <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Why ArgusMonitor?</h2>
-        <p className="text-muted-foreground text-lg">Built for operators who want clarity, not complexity.</p>
+        <p className="text-muted-foreground text-lg">Built for operators who want clarity, not complexity — and now growing the right enterprise muscles.</p>
       </div>
       <div className="mx-auto max-w-3xl space-y-3">
         {points.map((p, i) => (
