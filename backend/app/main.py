@@ -18,14 +18,19 @@ async def lifespan(app: FastAPI):
     logger.info("ArgusMonitor API starting up...")
     logger.info("Database startup complete; expecting Alembic migrations to manage schema")
 
-    from app.services.scheduler import start_scheduler
-    scheduler = start_scheduler()
-    logger.info("Monitoring scheduler started")
+    scheduler = None
+    if settings.scheduler_enabled:
+        from app.services.scheduler import start_scheduler
+        scheduler = start_scheduler()
+        logger.info("Monitoring scheduler started")
+    else:
+        logger.info("Monitoring scheduler disabled for this process")
 
     yield
 
-    scheduler.shutdown(wait=False)
-    logger.info("Scheduler shut down")
+    if scheduler:
+        scheduler.shutdown(wait=False)
+        logger.info("Scheduler shut down")
     await engine.dispose()
 
 

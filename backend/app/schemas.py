@@ -721,6 +721,56 @@ class NotificationTestRequest(BaseModel):
     message: Optional[str] = None
 
 
+class EscalationPolicyCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    target_type: str = "all"
+    target_id: Optional[UUID] = None
+    steps: list[dict[str, Any]] = []
+    enabled: bool = True
+
+
+class EscalationPolicyOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    target_type: str
+    target_id: Optional[UUID] = None
+    steps: list[dict[str, Any]] = []
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RetentionPolicyCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    logs_days: int = 30
+    metrics_days: int = 30
+    alert_days: int = 90
+    incident_days: int = 180
+    run_days: int = 30
+    enabled: bool = True
+
+
+class RetentionPolicyOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    logs_days: int
+    metrics_days: int
+    alert_days: int
+    incident_days: int
+    run_days: int
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class OnCallTeamCreate(BaseModel):
     name: str
     timezone: str = "UTC"

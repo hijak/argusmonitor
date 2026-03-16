@@ -11,10 +11,12 @@ from app.database import get_db
 from app.models import (
     AlertSilence,
     AuditLog,
+    EscalationPolicy,
     MaintenanceWindow,
     NotificationChannel,
     OIDCProvider,
     Organization,
+    RetentionPolicy,
     User,
     Workspace,
     WorkspaceMembership,
@@ -23,6 +25,8 @@ from app.schemas import (
     AlertSilenceCreate,
     AlertSilenceOut,
     AuditLogOut,
+    EscalationPolicyCreate,
+    EscalationPolicyOut,
     MaintenanceWindowCreate,
     MaintenanceWindowOut,
     NotificationTestRequest,
@@ -30,6 +34,8 @@ from app.schemas import (
     OIDCProviderOut,
     OrganizationCreate,
     OrganizationOut,
+    RetentionPolicyCreate,
+    RetentionPolicyOut,
     WorkspaceCreate,
     WorkspaceMembershipCreate,
     WorkspaceMembershipOut,
@@ -311,6 +317,76 @@ async def list_oidc_providers(
     result = await db.execute(
         select(OIDCProvider).where(OIDCProvider.workspace_id == workspace_id).order_by(OIDCProvider.name.asc())
     )
+    return result.scalars().all()
+
+
+@router.post("/escalation-policies", response_model=EscalationPolicyOut, status_code=201)
+async def create_escalation_policy(
+    req: EscalationPolicyCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    policy = EscalationPolicy(**req.model_dump())
+    db.add(policy)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="escalation_policy.create",
+        resource_type="escalation_policy",
+        resource_id=str(policy.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(policy)
+    return policy
+
+
+@router.get("/escalation-policies", response_model=list[EscalationPolicyOut])
+async def list_escalation_policies(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(EscalationPolicy).where(EscalationPolicy.workspace_id == workspace_id).order_by(EscalationPolicy.name.asc()))
+    return result.scalars().all()
+
+
+@router.post("/retention-policies", response_model=RetentionPolicyOut, status_code=201)
+async def create_retention_policy(
+    req: RetentionPolicyCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    policy = RetentionPolicy(**req.model_dump())
+    db.add(policy)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="retention_policy.create",
+        resource_type="retention_policy",
+        resource_id=str(policy.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(policy)
+    return policy
+
+
+@router.get("/retention-policies", response_model=list[RetentionPolicyOut])
+async def list_retention_policies(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(RetentionPolicy).where(RetentionPolicy.workspace_id == workspace_id).order_by(RetentionPolicy.name.asc()))
     return result.scalars().all()
 
 

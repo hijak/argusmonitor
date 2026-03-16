@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AlertInstance, AlertRule, User
 from app.services.alert_suppression import get_active_suppression
+from app.services.escalation import apply_escalation_for_alert
 from app.services.oncall import get_active_oncall_user
 
 
@@ -55,4 +56,7 @@ async def emit_alert(
     db.add(alert)
     await db.flush()
     await db.refresh(alert)
+    deliveries = await apply_escalation_for_alert(db, alert)
+    alert.extra_data = {**(alert.extra_data or {}), "escalation_deliveries": deliveries}
+    await db.flush()
     return alert, None

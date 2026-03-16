@@ -85,6 +85,53 @@ class OIDCProvider(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class EscalationPolicy(Base):
+    __tablename__ = "escalation_policies"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    target_type = Column(String(50), nullable=False, default="all")
+    target_id = Column(UUID(as_uuid=True))
+    steps = Column(JSON, default=list)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class RetentionPolicy(Base):
+    __tablename__ = "retention_policies"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    logs_days = Column(Integer, nullable=False, default=30)
+    metrics_days = Column(Integer, nullable=False, default=30)
+    alert_days = Column(Integer, nullable=False, default=90)
+    incident_days = Column(Integer, nullable=False, default=180)
+    run_days = Column(Integer, nullable=False, default=30)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class WorkerJob(Base):
+    __tablename__ = "worker_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
+    kind = Column(String(100), nullable=False, index=True)
+    payload = Column(JSON, default=dict)
+    status = Column(String(50), nullable=False, default="queued", index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text)
+    scheduled_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
@@ -210,6 +257,7 @@ class MonitorResult(Base):
     __tablename__ = "monitor_results"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     monitor_id = Column(UUID(as_uuid=True), ForeignKey("monitors.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String(50), nullable=False)  # up, down, degraded
     response_time_ms = Column(Float)
@@ -259,6 +307,7 @@ class TransactionRun(Base):
     __tablename__ = "transaction_runs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="running")  # running, success, failed
     duration_ms = Column(Float)

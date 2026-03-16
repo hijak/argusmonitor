@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     oidc_enabled: bool = False
     oidc_default_workspace_slug: str = "default"
 
+    scheduler_enabled: bool = True
+
     monitoring_default_interval: int = 60
     monitoring_default_timeout: int = 30
     demo_mode: bool = False

@@ -210,6 +210,14 @@ export const api = {
     request<any[]>(`/enterprise/oidc/providers?workspace_id=${encodeURIComponent(workspaceId)}`),
   createOidcProvider: (data: any) =>
     request<any>("/enterprise/oidc/providers", { method: "POST", body: JSON.stringify(data) }),
+  listRetentionPolicies: (workspaceId: string) =>
+    request<any[]>(`/enterprise/retention-policies?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createRetentionPolicy: (data: any) =>
+    request<any>("/enterprise/retention-policies", { method: "POST", body: JSON.stringify(data) }),
+  listEscalationPolicies: (workspaceId: string) =>
+    request<any[]>(`/enterprise/escalation-policies?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createEscalationPolicy: (data: any) =>
+    request<any>("/enterprise/escalation-policies", { method: "POST", body: JSON.stringify(data) }),
 
   // Settings - Profile
   getProfile: () => request<any>("/settings/profile"),
