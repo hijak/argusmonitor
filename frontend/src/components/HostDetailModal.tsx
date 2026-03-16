@@ -196,7 +196,13 @@ function MetricChart({ title, data, color, stats, unit }: {
           <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} width={35} domain={[0, 100]} />
           <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 8, fontSize: 12 }} />
-          <Area type="monotone" dataKey="value" stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} />
+          <defs>
+            <filter id={`${gradientId}-glow`} x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+          <Area type="monotone" dataKey="value" stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} filter={`url(#${gradientId}-glow)`} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

@@ -175,13 +175,30 @@ function ChartWidget({ widget, chartType, onNodeClick }: { widget: any; chartTyp
             <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} width={40} />
             <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 8, fontSize: 12 }} />
+            <defs>
+              {nodes.map((n, i) => {
+                const color = CHART_PALETTE[i % CHART_PALETTE.length];
+                return (
+                  <filter key={n.id} id={`glow-${widget.id}-${n.id}`} x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    <feFlood floodColor={color} floodOpacity="0.18" result="flood" />
+                    <feComposite in="flood" in2="blur" operator="in" result="glow" />
+                    <feMerge>
+                      <feMergeNode in="glow" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                );
+              })}
+            </defs>
             {nodes.map((n, i) => {
               if (hiddenSeries.has(n.name)) return null;
               const color = CHART_PALETTE[i % CHART_PALETTE.length];
               return chartType === "area" ? (
-                <Area key={n.id} type="monotone" dataKey={n.name} stroke={color} fill={color} fillOpacity={0.1} strokeWidth={1.5} dot={false} />
+                <Area key={n.id} type="monotone" dataKey={n.name} stroke={color} fill={color} fillOpacity={0.1} strokeWidth={2} dot={false} filter={`url(#glow-${widget.id}-${n.id})`} />
               ) : (
-                <Line key={n.id} type="monotone" dataKey={n.name} stroke={color} strokeWidth={1.5} dot={false} />
+                <Line key={n.id} type="monotone" dataKey={n.name} stroke={color} strokeWidth={2} dot={false} filter={`url(#glow-${widget.id}-${n.id})`} />
               );
             })}
           </Chart>
