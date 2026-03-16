@@ -7,9 +7,10 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Dashboard, Host, HostMetric, Service, Transaction, AlertInstance, User
+from app.models import Dashboard, Host, HostMetric, Service, Transaction, AlertInstance, User, Workspace
 from app.schemas import DashboardCreate, DashboardOut
 from app.auth import get_current_user
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
 
@@ -18,8 +19,9 @@ router = APIRouter(prefix="/dashboards", tags=["dashboards"])
 async def list_dashboards(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Dashboard).order_by(Dashboard.updated_at.desc()))
+    result = await db.execute(select(Dashboard).where(Dashboard.workspace_id == workspace.id).order_by(Dashboard.updated_at.desc()))
     return result.scalars().all()
 
 
@@ -28,8 +30,9 @@ async def create_dashboard(
     req: DashboardCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    dashboard = Dashboard(**req.model_dump())
+    dashboard = Dashboard(workspace_id=workspace.id, **req.model_dump())
     db.add(dashboard)
     await db.flush()
     await db.refresh(dashboard)
@@ -41,8 +44,9 @@ async def get_dashboard(
     dashboard_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id))
+    result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id, Dashboard.workspace_id == workspace.id))
     dashboard = result.scalar_one_or_none()
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
@@ -54,8 +58,9 @@ async def delete_dashboard(
     dashboard_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id))
+    result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id, Dashboard.workspace_id == workspace.id))
     dashboard = result.scalar_one_or_none()
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
@@ -76,19 +81,20 @@ async def get_dashboard_widgets(
     dashboard_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id))
+    result = await db.execute(select(Dashboard).where(Dashboard.id == dashboard_id, Dashboard.workspace_id == workspace.id))
     dashboard = result.scalar_one_or_none()
     if not dashboard:
         raise HTTPException(status_code=404, detail="Dashboard not found")
 
     config = dashboard.config or {}
     preset = config.get("preset", dashboard.name)
-    widgets = await _build_widgets(preset, db)
+    widgets = await _build_widgets(preset, db, workspace.id)
     return widgets
 
 
-async def _build_widgets(preset: str, db: AsyncSession) -> list[dict]:
+async def _build_widgets(preset: str, db: AsyncSession, workspace_id: UUID) -> list[dict]:
     if "Alert" in preset or "alert" in preset:
         return await _alert_hosts_widgets(db)
     elif "Infrastructure" in preset:

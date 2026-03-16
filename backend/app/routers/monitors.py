@@ -4,9 +4,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Monitor, MonitorResult, User
+from app.models import Monitor, MonitorResult, User, Workspace
 from app.schemas import MonitorCreate, MonitorUpdate, MonitorOut, MonitorResultOut
 from app.auth import get_current_user
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/monitors", tags=["monitors"])
 
@@ -17,8 +18,9 @@ async def list_monitors(
     enabled: bool | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    q = select(Monitor).order_by(Monitor.name)
+    q = select(Monitor).where(Monitor.workspace_id == workspace.id).order_by(Monitor.name)
     if type:
         q = q.where(Monitor.type == type)
     if enabled is not None:
@@ -32,8 +34,9 @@ async def create_monitor(
     req: MonitorCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    monitor = Monitor(**req.model_dump())
+    monitor = Monitor(workspace_id=workspace.id, **req.model_dump())
     db.add(monitor)
     await db.flush()
     await db.refresh(monitor)
@@ -45,8 +48,9 @@ async def get_monitor(
     monitor_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Monitor).where(Monitor.id == monitor_id))
+    result = await db.execute(select(Monitor).where(Monitor.id == monitor_id, Monitor.workspace_id == workspace.id))
     monitor = result.scalar_one_or_none()
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
@@ -59,8 +63,9 @@ async def update_monitor(
     req: MonitorUpdate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Monitor).where(Monitor.id == monitor_id))
+    result = await db.execute(select(Monitor).where(Monitor.id == monitor_id, Monitor.workspace_id == workspace.id))
     monitor = result.scalar_one_or_none()
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
@@ -76,8 +81,9 @@ async def delete_monitor(
     monitor_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Monitor).where(Monitor.id == monitor_id))
+    result = await db.execute(select(Monitor).where(Monitor.id == monitor_id, Monitor.workspace_id == workspace.id))
     monitor = result.scalar_one_or_none()
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
@@ -90,7 +96,11 @@ async def get_monitor_results(
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
+    monitor = (await db.execute(select(Monitor).where(Monitor.id == monitor_id, Monitor.workspace_id == workspace.id))).scalar_one_or_none()
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor not found")
     result = await db.execute(
         select(MonitorResult)
         .where(MonitorResult.monitor_id == monitor_id)

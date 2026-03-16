@@ -5,10 +5,11 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import AlertRule, AlertInstance, User
+from app.models import AlertRule, AlertInstance, User, Workspace
 from app.schemas import AlertRuleCreate, AlertRuleOut, AlertInstanceOut
 from app.auth import get_current_user
 from app.services.oncall import get_active_oncall_user
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -32,8 +33,9 @@ async def _ensure_alert_schema(db: AsyncSession) -> None:
 async def list_rules(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(AlertRule).order_by(AlertRule.created_at.desc()))
+    result = await db.execute(select(AlertRule).where(AlertRule.workspace_id == workspace.id).order_by(AlertRule.created_at.desc()))
     return result.scalars().all()
 
 
@@ -42,8 +44,9 @@ async def create_rule(
     req: AlertRuleCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    rule = AlertRule(**req.model_dump())
+    rule = AlertRule(workspace_id=workspace.id, **req.model_dump())
     db.add(rule)
     await db.flush()
     await db.refresh(rule)
@@ -57,9 +60,10 @@ async def list_alerts(
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_alert_schema(db)
-    q = select(AlertInstance).order_by(AlertInstance.created_at.desc()).limit(limit)
+    q = select(AlertInstance).where(AlertInstance.workspace_id == workspace.id).order_by(AlertInstance.created_at.desc()).limit(limit)
     if severity:
         q = q.where(AlertInstance.severity == severity)
     if acknowledged is not None:
@@ -98,9 +102,10 @@ async def acknowledge_alert(
     alert_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_alert_schema(db)
-    result = await db.execute(select(AlertInstance).where(AlertInstance.id == alert_id))
+    result = await db.execute(select(AlertInstance).where(AlertInstance.id == alert_id, AlertInstance.workspace_id == workspace.id))
     alert = result.scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -135,9 +140,10 @@ async def resolve_alert(
     alert_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_alert_schema(db)
-    result = await db.execute(select(AlertInstance).where(AlertInstance.id == alert_id))
+    result = await db.execute(select(AlertInstance).where(AlertInstance.id == alert_id, AlertInstance.workspace_id == workspace.id))
     alert = result.scalar_one_or_none()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")

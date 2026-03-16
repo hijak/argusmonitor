@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import Host, Service, User
+from app.models import AlertRule, Host, Service, User, Workspace
 from app.schemas import ServiceCreate, ServiceOut, ServiceUpdate, ServiceWithSparkline
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/services", tags=["services"])
 STREAM_INTERVAL_SECONDS = 5
@@ -92,8 +93,8 @@ def _service_to_out(service: Service) -> ServiceWithSparkline:
     return ServiceWithSparkline(**ServiceOut.model_validate(service).model_dump(), spark=spark)
 
 
-async def _query_services(db: AsyncSession) -> list[ServiceWithSparkline]:
-    result = await db.execute(select(Service).order_by(Service.name))
+async def _query_services(db: AsyncSession, workspace_id: UUID) -> list[ServiceWithSparkline]:
+    result = await db.execute(select(Service).where(Service.workspace_id == workspace_id).order_by(Service.name))
     return [_service_to_out(service) for service in result.scalars().all()]
 
 
@@ -109,8 +110,9 @@ async def _tcp_open(host: str, port: int, timeout: float = 0.35) -> bool:
 async def list_services(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    return await _query_services(db)
+    return await _query_services(db, workspace.id)
 
 
 @router.post("", response_model=ServiceOut, status_code=201)
@@ -118,8 +120,9 @@ async def create_service(
     req: ServiceCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    service = Service(**req.model_dump())
+    service = Service(workspace_id=workspace.id, **req.model_dump())
     db.add(service)
     await db.flush()
     await db.refresh(service)
@@ -130,10 +133,9 @@ async def create_service(
 async def seed_default_service_alerts(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    from app.models import AlertRule
-
-    result = await db.execute(select(AlertRule))
+    result = await db.execute(select(AlertRule).where(AlertRule.workspace_id == workspace.id))
     existing = result.scalars().all()
     existing_keys = {(rule.name, json.dumps(rule.condition or {}, sort_keys=True)) for rule in existing}
 
@@ -142,7 +144,7 @@ async def seed_default_service_alerts(
         key = (rule_data["name"], json.dumps(rule_data["condition"], sort_keys=True))
         if key in existing_keys:
             continue
-        db.add(AlertRule(**rule_data))
+        db.add(AlertRule(workspace_id=workspace.id, **rule_data))
         created += 1
 
     await db.flush()
@@ -153,11 +155,16 @@ async def seed_default_service_alerts(
 async def discover_services(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    hosts_result = await db.execute(select(Host).where(Host.ip_address.is_not(None)).order_by(Host.name))
+    hosts_result = await db.execute(
+        select(Host)
+        .where(Host.workspace_id == workspace.id, Host.ip_address.is_not(None))
+        .order_by(Host.name)
+    )
     hosts = [host for host in hosts_result.scalars().all() if host.ip_address and not host.ip_address.startswith("127.")]
 
-    services_result = await db.execute(select(Service))
+    services_result = await db.execute(select(Service).where(Service.workspace_id == workspace.id))
     existing_services = services_result.scalars().all()
     existing_urls = {service.url for service in existing_services if service.url}
 
@@ -176,6 +183,7 @@ async def discover_services(
                 continue
 
             service = Service(
+                workspace_id=workspace.id,
                 name=f"{host.name} {label}",
                 status="healthy",
                 url=url,
@@ -199,6 +207,7 @@ async def stream_services(
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     async def event_stream():
         last_payload = ""
@@ -206,7 +215,7 @@ async def stream_services(
             if await request.is_disconnected():
                 break
 
-            services = await _query_services(db)
+            services = await _query_services(db, workspace.id)
             payload = json.dumps({"services": [service.model_dump(mode="json") for service in services]}, separators=(",", ":"))
             if payload != last_payload:
                 yield f"data: {payload}\n\n"
@@ -231,8 +240,9 @@ async def get_service(
     service_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Service).where(Service.id == service_id))
+    result = await db.execute(select(Service).where(Service.id == service_id, Service.workspace_id == workspace.id))
     service = result.scalar_one_or_none()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
@@ -245,8 +255,9 @@ async def update_service(
     req: ServiceUpdate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Service).where(Service.id == service_id))
+    result = await db.execute(select(Service).where(Service.id == service_id, Service.workspace_id == workspace.id))
     service = result.scalar_one_or_none()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
@@ -264,8 +275,9 @@ async def delete_service(
     service_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Service).where(Service.id == service_id))
+    result = await db.execute(select(Service).where(Service.id == service_id, Service.workspace_id == workspace.id))
     service = result.scalar_one_or_none()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")

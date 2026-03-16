@@ -160,6 +160,7 @@ def upgrade() -> None:
         'notification_channels',
         'integrations',
         'oncall_teams',
+        'log_entries',
     ]:
         op.add_column(table_name, sa.Column('workspace_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('workspaces.id', ondelete='SET NULL'), nullable=True))
         op.create_index(op.f(f'ix_{table_name}_workspace_id'), table_name, ['workspace_id'], unique=False)
@@ -178,6 +179,7 @@ def downgrade() -> None:
         'monitors',
         'services',
         'hosts',
+        'log_entries',
     ]:
         op.drop_index(op.f(f'ix_{table_name}_workspace_id'), table_name=table_name)
         op.drop_column(table_name, 'workspace_id')

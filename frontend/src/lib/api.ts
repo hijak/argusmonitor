@@ -1,3 +1,5 @@
+import { getWorkspaceId } from "@/lib/workspace";
+
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -8,6 +10,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  const workspaceId = getWorkspaceId();
+  if (workspaceId) {
+    headers["X-Workspace-Id"] = workspaceId;
   }
 
   const res = await fetch(`${API_BASE}/api${path}`, {
@@ -179,6 +185,31 @@ export const api = {
   listUsers: () => request<any[]>("/users"),
   createUser: (data: any) => request<any>("/users", { method: "POST", body: JSON.stringify(data) }),
   updateUser: (id: string, data: any) => request<any>(`/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Enterprise
+  listOrganizations: () => request<any[]>("/enterprise/organizations"),
+  createOrganization: (data: { name: string; slug: string }) =>
+    request<any>("/enterprise/organizations", { method: "POST", body: JSON.stringify(data) }),
+  listWorkspaces: (organizationId?: string) =>
+    request<any[]>(`/enterprise/workspaces${organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`),
+  createWorkspace: (data: { organization_id: string; name: string; slug: string; timezone?: string }) =>
+    request<any>("/enterprise/workspaces", { method: "POST", body: JSON.stringify(data) }),
+  addWorkspaceMember: (workspaceId: string, data: { user_id: string; role: string }) =>
+    request<any>(`/enterprise/workspaces/${workspaceId}/members`, { method: "POST", body: JSON.stringify(data) }),
+  listAuditLogs: (workspaceId?: string, limit?: number) =>
+    request<any[]>(`/enterprise/audit-logs${workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : ""}${limit ? `${workspaceId ? "&" : "?"}limit=${limit}` : ""}`),
+  listMaintenanceWindows: (workspaceId: string) =>
+    request<any[]>(`/enterprise/maintenance-windows?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createMaintenanceWindow: (data: any) =>
+    request<any>("/enterprise/maintenance-windows", { method: "POST", body: JSON.stringify(data) }),
+  listSilences: (workspaceId: string) =>
+    request<any[]>(`/enterprise/silences?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createSilence: (data: any) =>
+    request<any>("/enterprise/silences", { method: "POST", body: JSON.stringify(data) }),
+  listOidcProviders: (workspaceId: string) =>
+    request<any[]>(`/enterprise/oidc/providers?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createOidcProvider: (data: any) =>
+    request<any>("/enterprise/oidc/providers", { method: "POST", body: JSON.stringify(data) }),
 
   // Settings - Profile
   getProfile: () => request<any>("/settings/profile"),

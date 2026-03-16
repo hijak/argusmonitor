@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Incident, IncidentEvent, User
+from app.models import Incident, IncidentEvent, User, Workspace
 from app.schemas import IncidentCreate, IncidentEventCreate, IncidentOut
 from app.auth import get_current_user
 from app.services.oncall import get_active_oncall_user
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -62,9 +63,10 @@ async def list_incidents(
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_incident_schema(db)
-    q = select(Incident).order_by(Incident.started_at.desc())
+    q = select(Incident).where(Incident.workspace_id == workspace.id).order_by(Incident.started_at.desc())
     if status:
         q = q.where(Incident.status == status)
     result = await db.execute(q)
@@ -77,11 +79,13 @@ async def create_incident(
     req: IncidentCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_incident_schema(db)
     ref = await _generate_ref(db)
     oncall_user = await get_active_oncall_user(db)
     incident = Incident(
+        workspace_id=workspace.id,
         ref=ref,
         title=req.title,
         severity=req.severity,
@@ -112,9 +116,10 @@ async def get_incident(
     incident_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_incident_schema(db)
-    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.workspace_id == workspace.id))
     incident = result.scalar_one_or_none()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -127,9 +132,10 @@ async def add_event(
     req: IncidentEventCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_incident_schema(db)
-    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.workspace_id == workspace.id))
     incident = result.scalar_one_or_none()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -150,9 +156,10 @@ async def resolve_incident(
     incident_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_incident_schema(db)
-    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.workspace_id == workspace.id))
     incident = result.scalar_one_or_none()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")

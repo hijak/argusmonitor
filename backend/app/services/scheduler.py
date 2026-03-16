@@ -10,10 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 def simulate_host_metrics():
-    """Simulate updating host metrics periodically."""
+    """Simulate updating host metrics periodically and emit alerts through the shared alert path."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from app.models import Host, HostMetric
+    from app.services.alerts import emit_alert
+    import asyncio
 
     settings = get_settings()
     sync_engine = create_engine(settings.database_url_sync)
@@ -43,6 +45,21 @@ def simulate_host_metrics():
                 )
                 session.add(metric)
 
+                if host.workspace_id and host.cpu_percent > 90:
+                    async def _emit():
+                        from app.database import async_session
+                        async with async_session() as adb:
+                            await emit_alert(
+                                adb,
+                                workspace_id=host.workspace_id,
+                                message=f"{host.name}: CPU above 90%",
+                                severity="critical",
+                                host=host.name,
+                                metadata={"metric": "cpu_percent", "value": host.cpu_percent},
+                            )
+                            await adb.commit()
+                    asyncio.run(_emit())
+
             session.commit()
             logger.debug(f"Updated metrics for {len(hosts)} hosts")
     except Exception as e:
@@ -52,10 +69,12 @@ def simulate_host_metrics():
 
 
 def simulate_service_checks():
-    """Simulate service health checks."""
+    """Simulate service health checks and emit alerts through the shared alert path."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from app.models import Service
+    from app.services.alerts import emit_alert
+    import asyncio
 
     settings = get_settings()
     sync_engine = create_engine(settings.database_url_sync)
@@ -75,6 +94,21 @@ def simulate_service_checks():
                     svc.status = "healthy"
 
                 svc.requests_per_min = max(0, svc.requests_per_min + random.uniform(-50, 50))
+
+                if svc.workspace_id and svc.latency_ms > 250:
+                    async def _emit():
+                        from app.database import async_session
+                        async with async_session() as adb:
+                            await emit_alert(
+                                adb,
+                                workspace_id=svc.workspace_id,
+                                message=f"{svc.name}: latency above 250ms",
+                                severity="warning" if svc.latency_ms <= 500 else "critical",
+                                service=svc.name,
+                                metadata={"metric": "latency_ms", "value": svc.latency_ms},
+                            )
+                            await adb.commit()
+                    asyncio.run(_emit())
 
             session.commit()
             logger.debug(f"Updated {len(services)} service checks")

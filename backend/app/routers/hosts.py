@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import decode_token, get_current_user
 from app.database import async_session, get_db
-from app.models import Host, HostMetric, User
+from app.models import Host, HostMetric, User, Workspace, WorkspaceMembership
 from app.schemas import HostCreate, HostOut, HostUpdate, HostWithSparkline
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/hosts", tags=["hosts"])
 LIVE_HOST_WINDOW = timedelta(seconds=120)
@@ -58,6 +59,16 @@ async def _get_stream_user(token: str) -> User:
         return user
 
 
+async def _get_user_workspace_id(user_id: UUID) -> UUID | None:
+    async with async_session() as db:
+        result = await db.execute(
+            select(WorkspaceMembership.workspace_id)
+            .where(WorkspaceMembership.user_id == user_id)
+            .order_by(WorkspaceMembership.created_at.asc())
+        )
+        return result.scalar_one_or_none()
+
+
 async def _fetch_host_sparks(db: AsyncSession, host_ids: list[UUID], limit: int = 7) -> dict[UUID, list[float]]:
     if not host_ids:
         return {}
@@ -89,11 +100,12 @@ async def _fetch_host_sparks(db: AsyncSession, host_ids: list[UUID], limit: int 
 
 async def _query_hosts_payload(
     db: AsyncSession,
+    workspace_id: UUID,
     type: str | None = None,
     status: str | None = None,
     search: str | None = None,
 ) -> list[HostWithSparkline]:
-    q = select(Host).order_by(Host.name)
+    q = select(Host).where(Host.workspace_id == workspace_id).order_by(Host.name)
     if type:
         q = q.where(Host.type == type)
     if status:
@@ -144,8 +156,9 @@ async def list_hosts(
     search: str | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    return await _query_hosts_payload(db, type=type, status=status, search=search)
+    return await _query_hosts_payload(db, workspace.id, type=type, status=status, search=search)
 
 
 @router.post("", response_model=HostOut, status_code=201)
@@ -153,8 +166,9 @@ async def create_host(
     req: HostCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    host = Host(**req.model_dump())
+    host = Host(workspace_id=workspace.id, **req.model_dump())
     db.add(host)
     await db.flush()
     await db.refresh(host)
@@ -169,7 +183,8 @@ async def stream_hosts(
     status: str | None = None,
     search: str | None = None,
 ):
-    await _get_stream_user(token)
+    stream_user = await _get_stream_user(token)
+    workspace_id = await _get_user_workspace_id(stream_user.id)
 
     async def event_stream():
         last_payload = ""
@@ -178,8 +193,11 @@ async def stream_hosts(
                 break
 
             async with async_session() as db:
-                hosts = await _query_hosts_payload(db, type=type, status=status, search=search)
-                payload = json.dumps({"hosts": [h.model_dump(mode="json") for h in hosts]}, separators=(",", ":"))
+                if not workspace_id:
+                    payload = json.dumps({"hosts": []}, separators=(",", ":"))
+                else:
+                    hosts = await _query_hosts_payload(db, workspace_id, type=type, status=status, search=search)
+                    payload = json.dumps({"hosts": [h.model_dump(mode="json") for h in hosts]}, separators=(",", ":"))
 
             if payload != last_payload:
                 yield f"data: {payload}\n\n"
@@ -205,8 +223,9 @@ async def get_host(
     host_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Host).where(Host.id == host_id))
+    result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace.id))
     host = result.scalar_one_or_none()
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
@@ -219,8 +238,9 @@ async def update_host(
     req: HostUpdate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Host).where(Host.id == host_id))
+    result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace.id))
     host = result.scalar_one_or_none()
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
@@ -237,8 +257,9 @@ async def get_host_metrics(
     host_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Host).where(Host.id == host_id))
+    result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace.id))
     host = result.scalar_one_or_none()
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
@@ -308,8 +329,9 @@ async def delete_host(
     host_id: UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Host).where(Host.id == host_id))
+    result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace.id))
     host = result.scalar_one_or_none()
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")

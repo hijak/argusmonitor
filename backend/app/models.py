@@ -367,6 +367,7 @@ class LogEntry(Base):
     __tablename__ = "log_entries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
     timestamp = Column(DateTime(timezone=True), default=utcnow, index=True)
     level = Column(String(20), nullable=False, index=True)  # info, warn, error, debug
     service = Column(String(255), nullable=False, index=True)

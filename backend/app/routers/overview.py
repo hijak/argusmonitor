@@ -3,10 +3,11 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Host, AlertInstance, Transaction, Service, Incident, User
+from app.models import Host, AlertInstance, Transaction, Service, Incident, User, Workspace
 from app.schemas import OverviewStats, HostWithSparkline, AlertInstanceOut, IncidentOut, HostOut
 from app.auth import get_current_user
 from sqlalchemy.orm import selectinload
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/overview", tags=["overview"])
 
@@ -23,20 +24,21 @@ def _host_sort_key(host: Host):
 async def get_stats(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    host_count = (await db.execute(select(func.count(Host.id)))).scalar() or 0
+    host_count = (await db.execute(select(func.count(Host.id)).where(Host.workspace_id == workspace.id))).scalar() or 0
     alert_count = (await db.execute(
-        select(func.count(AlertInstance.id)).where(AlertInstance.resolved == False)
+        select(func.count(AlertInstance.id)).where(AlertInstance.workspace_id == workspace.id, AlertInstance.resolved == False)
     )).scalar() or 0
 
-    health_q = await db.execute(select(func.count(Host.id)).where(Host.status == "healthy"))
+    health_q = await db.execute(select(func.count(Host.id)).where(Host.workspace_id == workspace.id, Host.status == "healthy"))
     healthy = health_q.scalar() or 0
     health_score = round((healthy / max(host_count, 1)) * 100, 1)
 
-    tx_result = await db.execute(select(func.avg(Transaction.success_rate)))
+    tx_result = await db.execute(select(func.avg(Transaction.success_rate)).where(Transaction.workspace_id == workspace.id))
     tx_success = round(tx_result.scalar() or 100.0, 1)
 
-    live_agent_count = (await db.execute(select(func.count(Host.id)).where(Host.agent_version.isnot(None)))).scalar() or 0
+    live_agent_count = (await db.execute(select(func.count(Host.id)).where(Host.workspace_id == workspace.id, Host.agent_version.isnot(None)))).scalar() or 0
 
     return OverviewStats(
         monitored_hosts=host_count,
@@ -54,8 +56,9 @@ async def get_stats(
 async def get_host_health(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Host))
+    result = await db.execute(select(Host).where(Host.workspace_id == workspace.id))
     hosts = sorted(result.scalars().all(), key=_host_sort_key)[:10]
     out = []
     for h in hosts:
@@ -74,10 +77,11 @@ async def get_host_health(
 async def get_recent_alerts(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     result = await db.execute(
         select(AlertInstance)
-        .where(AlertInstance.resolved == False)
+        .where(AlertInstance.workspace_id == workspace.id, AlertInstance.resolved == False)
         .order_by(AlertInstance.created_at.desc())
         .limit(5)
     )
@@ -88,11 +92,12 @@ async def get_recent_alerts(
 async def get_recent_incidents(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     result = await db.execute(
         select(Incident)
         .options(selectinload(Incident.events))
-        .where(Incident.status != "resolved")
+        .where(Incident.workspace_id == workspace.id, Incident.status != "resolved")
         .order_by(Incident.started_at.desc())
         .limit(5)
     )
@@ -103,8 +108,9 @@ async def get_recent_incidents(
 async def get_transaction_summary(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Transaction).order_by(Transaction.name).limit(10))
+    result = await db.execute(select(Transaction).where(Transaction.workspace_id == workspace.id).order_by(Transaction.name).limit(10))
     txs = result.scalars().all()
     return [
         {
