@@ -833,6 +833,177 @@ class OnCallShiftOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
+class SAMLProviderCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    entry_point: str
+    x509_cert: str
+    auto_provision: bool = False
+    default_role: str = "member"
+    enabled: bool = True
+
+
+class SAMLProviderOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    entry_point: str
+    auto_provision: bool
+    default_role: str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SCIMTokenCreate(BaseModel):
+    workspace_id: UUID
+    name: str
+    expires_at: Optional[datetime] = None
+
+
+class SCIMTokenOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    expires_at: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SCIMGroupMappingCreate(BaseModel):
+    workspace_id: UUID
+    external_group_id: str
+    external_group_name: str
+    role: str = "member"
+
+
+class SCIMGroupMappingOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    external_group_id: str
+    external_group_name: str
+    role: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ComplianceReportCreate(BaseModel):
+    workspace_id: UUID
+    report_type: str
+    period_start: datetime
+    period_end: datetime
+
+
+class ComplianceReportOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    report_type: str
+    period_start: datetime
+    period_end: datetime
+    status: str
+    summary: dict[str, Any] = {}
+    download_url: Optional[str] = None
+    generated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DataExportCreate(BaseModel):
+    workspace_id: UUID
+    export_type: str
+    format: str = "json"
+    filters: dict[str, Any] = {}
+
+
+class DataExportOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    export_type: str
+    format: str
+    filters: dict[str, Any] = {}
+    status: str
+    download_url: Optional[str] = None
+    generated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SupportTicketCreate(BaseModel):
+    workspace_id: UUID
+    subject: str
+    description: str
+    priority: str = "normal"
+
+
+class SupportTicketUpdate(BaseModel):
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    assigned_to_user_id: Optional[UUID] = None
+
+
+class SupportTicketOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    user_id: Optional[UUID] = None
+    subject: str
+    description: str
+    priority: str
+    status: str
+    assigned_to_user_id: Optional[UUID] = None
+    resolved_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AdminAnnouncementCreate(BaseModel):
+    title: str
+    message: str
+    severity: str = "info"
+    starts_at: datetime
+    ends_at: datetime
+    active: bool = True
+
+
+class AdminAnnouncementOut(BaseModel):
+    id: UUID
+    title: str
+    message: str
+    severity: str
+    starts_at: datetime
+    ends_at: datetime
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class APIVersionOut(BaseModel):
+    id: UUID
+    version: str
+    deprecation_date: Optional[datetime] = None
+    sunset_date: Optional[datetime] = None
+    release_notes_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
 # --- Overview ---
 
 class OverviewStats(BaseModel):

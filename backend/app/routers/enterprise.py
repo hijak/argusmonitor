@@ -1,5 +1,5 @@
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime, timedelta, timezone
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -9,22 +9,37 @@ from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
 from app.models import (
+    APIVersion,
+    AdminAnnouncement,
     AlertSilence,
     AuditLog,
+    ComplianceReport,
+    DataExport,
     EscalationPolicy,
     MaintenanceWindow,
     NotificationChannel,
     OIDCProvider,
     Organization,
     RetentionPolicy,
+    SAMLProvider,
+    SCIMGroupMapping,
+    SCIMToken,
+    SupportTicket,
     User,
     Workspace,
     WorkspaceMembership,
 )
 from app.schemas import (
+    APIVersionOut,
+    AdminAnnouncementCreate,
+    AdminAnnouncementOut,
     AlertSilenceCreate,
     AlertSilenceOut,
     AuditLogOut,
+    ComplianceReportCreate,
+    ComplianceReportOut,
+    DataExportCreate,
+    DataExportOut,
     EscalationPolicyCreate,
     EscalationPolicyOut,
     MaintenanceWindowCreate,
@@ -36,6 +51,15 @@ from app.schemas import (
     OrganizationOut,
     RetentionPolicyCreate,
     RetentionPolicyOut,
+    SAMLProviderCreate,
+    SAMLProviderOut,
+    SCIMGroupMappingCreate,
+    SCIMGroupMappingOut,
+    SCIMTokenCreate,
+    SCIMTokenOut,
+    SupportTicketCreate,
+    SupportTicketOut,
+    SupportTicketUpdate,
     WorkspaceCreate,
     WorkspaceMembershipCreate,
     WorkspaceMembershipOut,
@@ -387,6 +411,302 @@ async def list_retention_policies(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(RetentionPolicy).where(RetentionPolicy.workspace_id == workspace_id).order_by(RetentionPolicy.name.asc()))
+    return result.scalars().all()
+
+
+@router.post("/saml/providers", response_model=SAMLProviderOut, status_code=201)
+async def create_saml_provider(
+    req: SAMLProviderCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    provider = SAMLProvider(**req.model_dump())
+    db.add(provider)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="saml_provider.create",
+        resource_type="saml_provider",
+        resource_id=str(provider.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(provider)
+    return provider
+
+
+@router.get("/saml/providers", response_model=list[SAMLProviderOut])
+async def list_saml_providers(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(SAMLProvider).where(SAMLProvider.workspace_id == workspace_id).order_by(SAMLProvider.name.asc()))
+    return result.scalars().all()
+
+
+@router.post("/scim/tokens", status_code=201)
+async def create_scim_token(
+    req: SCIMTokenCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    raw_token = f"scim_{uuid4().hex}"
+    token = SCIMToken(
+        workspace_id=req.workspace_id,
+        name=req.name,
+        token_hash=raw_token,
+        expires_at=req.expires_at,
+        created_by_user_id=current_user.id,
+    )
+    db.add(token)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="scim_token.create",
+        resource_type="scim_token",
+        resource_id=str(token.id),
+        actor=current_user,
+        detail={"name": req.name},
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"id": str(token.id), "workspace_id": str(token.workspace_id), "name": token.name, "token": raw_token, "expires_at": token.expires_at, "last_used_at": token.last_used_at, "created_at": token.created_at}
+
+
+@router.get("/scim/tokens", response_model=list[SCIMTokenOut])
+async def list_scim_tokens(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(SCIMToken).where(SCIMToken.workspace_id == workspace_id).order_by(SCIMToken.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.post("/scim/group-mappings", response_model=SCIMGroupMappingOut, status_code=201)
+async def create_scim_group_mapping(
+    req: SCIMGroupMappingCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    mapping = SCIMGroupMapping(**req.model_dump())
+    db.add(mapping)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="scim_group_mapping.create",
+        resource_type="scim_group_mapping",
+        resource_id=str(mapping.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(mapping)
+    return mapping
+
+
+@router.get("/scim/group-mappings", response_model=list[SCIMGroupMappingOut])
+async def list_scim_group_mappings(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(SCIMGroupMapping).where(SCIMGroupMapping.workspace_id == workspace_id).order_by(SCIMGroupMapping.external_group_name.asc()))
+    return result.scalars().all()
+
+
+@router.post("/compliance-reports", response_model=ComplianceReportOut, status_code=201)
+async def create_compliance_report(
+    req: ComplianceReportCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    report = ComplianceReport(
+        workspace_id=req.workspace_id,
+        report_type=req.report_type,
+        period_start=req.period_start,
+        period_end=req.period_end,
+        status="completed",
+        summary={"audit_events": 0, "alerts": 0, "incidents": 0},
+        download_url=f"/api/enterprise/compliance-reports/{uuid4()}.json",
+        generated_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+    db.add(report)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="compliance_report.create",
+        resource_type="compliance_report",
+        resource_id=str(report.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(report)
+    return report
+
+
+@router.get("/compliance-reports", response_model=list[ComplianceReportOut])
+async def list_compliance_reports(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(ComplianceReport).where(ComplianceReport.workspace_id == workspace_id).order_by(ComplianceReport.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.post("/exports", response_model=DataExportOut, status_code=201)
+async def create_data_export(
+    req: DataExportCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    export = DataExport(
+        workspace_id=req.workspace_id,
+        export_type=req.export_type,
+        format=req.format,
+        filters=req.filters,
+        status="completed",
+        download_url=f"/api/enterprise/exports/{uuid4()}.{req.format}",
+        generated_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        created_by_user_id=current_user.id,
+    )
+    db.add(export)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="data_export.create",
+        resource_type="data_export",
+        resource_id=str(export.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(export)
+    return export
+
+
+@router.get("/exports", response_model=list[DataExportOut])
+async def list_data_exports(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(DataExport).where(DataExport.workspace_id == workspace_id).order_by(DataExport.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.post("/support/tickets", response_model=SupportTicketOut, status_code=201)
+async def create_support_ticket(
+    req: SupportTicketCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles={"owner", "admin", "member", "viewer"})
+    ticket = SupportTicket(
+        workspace_id=req.workspace_id,
+        user_id=current_user.id,
+        subject=req.subject,
+        description=req.description,
+        priority=req.priority,
+    )
+    db.add(ticket)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action="support_ticket.create",
+        resource_type="support_ticket",
+        resource_id=str(ticket.id),
+        actor=current_user,
+        detail=req.model_dump(mode="json"),
+        workspace_id=req.workspace_id,
+        ip_address=request.client.host if request.client else None,
+    )
+    await db.refresh(ticket)
+    return ticket
+
+
+@router.get("/support/tickets", response_model=list[SupportTicketOut])
+async def list_support_tickets(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(SupportTicket).where(SupportTicket.workspace_id == workspace_id).order_by(SupportTicket.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.put("/support/tickets/{ticket_id}", response_model=SupportTicketOut)
+async def update_support_ticket(
+    ticket_id: UUID,
+    req: SupportTicketUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ticket = await db.get(SupportTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found")
+    await require_workspace_role(db, workspace_id=ticket.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    data = req.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(ticket, key, value)
+    if data.get("status") == "resolved":
+        ticket.resolved_at = datetime.now(timezone.utc)
+    await db.flush()
+    await db.refresh(ticket)
+    return ticket
+
+
+@router.post("/announcements", response_model=AdminAnnouncementOut, status_code=201)
+async def create_announcement(
+    req: AdminAnnouncementCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    announcement = AdminAnnouncement(**req.model_dump())
+    db.add(announcement)
+    await db.flush()
+    await db.refresh(announcement)
+    return announcement
+
+
+@router.get("/announcements", response_model=list[AdminAnnouncementOut])
+async def list_announcements(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(AdminAnnouncement).order_by(AdminAnnouncement.starts_at.desc()))
+    return result.scalars().all()
+
+
+@router.get("/api-versions", response_model=list[APIVersionOut])
+async def list_api_versions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(APIVersion).order_by(APIVersion.version.desc()))
     return result.scalars().all()
 
 

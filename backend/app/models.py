@@ -54,6 +54,15 @@ class Workspace(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    memberships = relationship("WorkspaceMembership", back_populates="workspace")
+    oidc_providers = relationship("OIDCProvider", back_populates="workspace")
+    saml_providers = relationship("SAMLProvider", back_populates="workspace")
+    scim_tokens = relationship("SCIMToken", back_populates="workspace")
+    scim_group_mappings = relationship("SCIMGroupMapping", back_populates="workspace")
+    compliance_reports = relationship("ComplianceReport", back_populates="workspace")
+    data_exports = relationship("DataExport", back_populates="workspace")
+    support_tickets = relationship("SupportTicket", back_populates="workspace")
+
 
 class WorkspaceMembership(Base):
     __tablename__ = "workspace_memberships"
@@ -563,5 +572,134 @@ class OnCallShift(Base):
     end_at = Column(DateTime(timezone=True), nullable=False, index=True)
     escalation_level = Column(Integer, nullable=False, default=1)
     notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class SAMLProvider(Base):
+    __tablename__ = "saml_providers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    entry_point = Column(String(500), nullable=False)
+    x509_cert = Column(Text, nullable=False)
+    auto_provision = Column(Boolean, default=False)
+    default_role = Column(String(50), default="member")
+    enabled = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    workspace = relationship("Workspace", back_populates="saml_providers")
+
+
+class SCIMToken(Base):
+    __tablename__ = "scim_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    last_used_at = Column(DateTime(timezone=True))
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    workspace = relationship("Workspace", back_populates="scim_tokens")
+
+
+class SCIMGroupMapping(Base):
+    __tablename__ = "scim_group_mappings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    external_group_id = Column(String(255), nullable=False, index=True)
+    external_group_name = Column(String(255), nullable=False)
+    role = Column(String(50), default="member")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    workspace = relationship("Workspace", back_populates="scim_group_mappings")
+
+
+class APIVersion(Base):
+    __tablename__ = "api_versions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    version = Column(String(20), nullable=False, unique=True, index=True)
+    deprecation_date = Column(DateTime(timezone=True), nullable=True, index=True)
+    sunset_date = Column(DateTime(timezone=True), nullable=True, index=True)
+    release_notes_url = Column(String(500))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ComplianceReport(Base):
+    __tablename__ = "compliance_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    report_type = Column(String(100), nullable=False, index=True)
+    period_start = Column(DateTime(timezone=True), nullable=False, index=True)
+    period_end = Column(DateTime(timezone=True), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="pending")
+    summary = Column(JSON, default=dict)
+    download_url = Column(String(500))
+    generated_at = Column(DateTime(timezone=True))
+    expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    workspace = relationship("Workspace", back_populates="compliance_reports")
+
+
+class DataExport(Base):
+    __tablename__ = "data_exports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    export_type = Column(String(100), nullable=False, index=True)
+    format = Column(String(20), nullable=False, default="json")
+    filters = Column(JSON, default=dict)
+    status = Column(String(50), nullable=False, default="pending")
+    download_url = Column(String(500))
+    generated_at = Column(DateTime(timezone=True))
+    expires_at = Column(DateTime(timezone=True))
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    workspace = relationship("Workspace", back_populates="data_exports")
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    subject = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    priority = Column(String(20), default="normal")
+    status = Column(String(50), default="open", index=True)
+    assigned_to_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    resolved_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    workspace = relationship("Workspace", back_populates="support_tickets")
+
+
+class AdminAnnouncement(Base):
+    __tablename__ = "admin_announcements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    severity = Column(String(20), default="info")
+    starts_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    ends_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

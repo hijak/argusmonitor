@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/lib/api";
 import { getWorkspaceId, setWorkspaceId } from "@/lib/workspace";
 import { toast } from "@/components/ui/sonner";
-import { Building2, ShieldCheck, ScrollText, CalendarClock, VolumeX, KeyRound, TimerReset, Siren } from "lucide-react";
+import { Building2, ShieldCheck, ScrollText, CalendarClock, VolumeX, KeyRound, TimerReset, Siren, ShieldEllipsis, Users, FileSpreadsheet, LifeBuoy, Megaphone, Waypoints } from "lucide-react";
 
 export default function EnterprisePage() {
   const qc = useQueryClient();
@@ -13,8 +13,15 @@ export default function EnterprisePage() {
   const [maintenanceForm, setMaintenanceForm] = useState({ name: "", reason: "", starts_at: "", ends_at: "", scope_type: "all" });
   const [silenceForm, setSilenceForm] = useState({ name: "", reason: "", starts_at: "", ends_at: "", matcher: '{"severity":"info"}' });
   const [oidcForm, setOidcForm] = useState({ name: "OIDC", issuer: "", client_id: "", client_secret: "", authorize_url: "", token_url: "", userinfo_url: "" });
+  const [samlForm, setSamlForm] = useState({ name: "SAML", entry_point: "", x509_cert: "", auto_provision: true, default_role: "member" });
+  const [scimTokenForm, setScimTokenForm] = useState({ name: "Default SCIM token" });
+  const [scimMappingForm, setScimMappingForm] = useState({ external_group_id: "", external_group_name: "", role: "member" });
   const [retentionForm, setRetentionForm] = useState({ name: "Default retention", logs_days: 30, metrics_days: 30, alert_days: 90, incident_days: 180, run_days: 30 });
   const [escalationForm, setEscalationForm] = useState({ name: "Default escalation", steps: '[{"delay_minutes":0,"channel":"slack"},{"delay_minutes":15,"channel":"email"}]' });
+  const [complianceForm, setComplianceForm] = useState({ report_type: "soc2-summary", period_start: "", period_end: "" });
+  const [exportForm, setExportForm] = useState({ export_type: "audit-log", format: "json" });
+  const [supportForm, setSupportForm] = useState({ subject: "", description: "", priority: "normal" });
+  const [announcementForm, setAnnouncementForm] = useState({ title: "", message: "", severity: "info", starts_at: "", ends_at: "" });
 
   const { data: organizations = [] } = useQuery({ queryKey: ["enterprise-orgs"], queryFn: api.listOrganizations });
   const selectedOrgId = workspaceForm.organization_id || organizations[0]?.id || "";
@@ -32,6 +39,14 @@ export default function EnterprisePage() {
   const { data: oidcProviders = [] } = useQuery({ queryKey: ["enterprise-oidc", selectedWorkspaceId], queryFn: () => api.listOidcProviders(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
   const { data: retentionPolicies = [] } = useQuery({ queryKey: ["enterprise-retention", selectedWorkspaceId], queryFn: () => api.listRetentionPolicies(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
   const { data: escalationPolicies = [] } = useQuery({ queryKey: ["enterprise-escalation", selectedWorkspaceId], queryFn: () => api.listEscalationPolicies(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: samlProviders = [] } = useQuery({ queryKey: ["enterprise-saml", selectedWorkspaceId], queryFn: () => api.listSamlProviders(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: scimTokens = [] } = useQuery({ queryKey: ["enterprise-scim-tokens", selectedWorkspaceId], queryFn: () => api.listScimTokens(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: scimMappings = [] } = useQuery({ queryKey: ["enterprise-scim-mappings", selectedWorkspaceId], queryFn: () => api.listScimGroupMappings(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: complianceReports = [] } = useQuery({ queryKey: ["enterprise-compliance", selectedWorkspaceId], queryFn: () => api.listComplianceReports(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: exports = [] } = useQuery({ queryKey: ["enterprise-exports", selectedWorkspaceId], queryFn: () => api.listExports(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: supportTickets = [] } = useQuery({ queryKey: ["enterprise-support", selectedWorkspaceId], queryFn: () => api.listSupportTickets(selectedWorkspaceId), enabled: !!selectedWorkspaceId });
+  const { data: announcements = [] } = useQuery({ queryKey: ["enterprise-announcements"], queryFn: api.listAnnouncements });
+  const { data: apiVersions = [] } = useQuery({ queryKey: ["enterprise-api-versions"], queryFn: api.listApiVersions });
 
   const createOrg = useMutation({
     mutationFn: () => api.createOrganization(orgForm),
@@ -77,6 +92,48 @@ export default function EnterprisePage() {
   const createEscalation = useMutation({
     mutationFn: () => api.createEscalationPolicy({ workspace_id: selectedWorkspaceId, name: escalationForm.name, target_type: "all", steps: JSON.parse(escalationForm.steps), enabled: true }),
     onSuccess: () => { toast.success("Escalation policy saved"); qc.invalidateQueries({ queryKey: ["enterprise-escalation"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createSaml = useMutation({
+    mutationFn: () => api.createSamlProvider({ ...samlForm, workspace_id: selectedWorkspaceId, enabled: true }),
+    onSuccess: () => { toast.success("SAML provider saved"); qc.invalidateQueries({ queryKey: ["enterprise-saml"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createScimToken = useMutation({
+    mutationFn: () => api.createScimToken({ ...scimTokenForm, workspace_id: selectedWorkspaceId }),
+    onSuccess: () => { toast.success("SCIM token created"); qc.invalidateQueries({ queryKey: ["enterprise-scim-tokens"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createScimMapping = useMutation({
+    mutationFn: () => api.createScimGroupMapping({ ...scimMappingForm, workspace_id: selectedWorkspaceId }),
+    onSuccess: () => { toast.success("SCIM mapping saved"); qc.invalidateQueries({ queryKey: ["enterprise-scim-mappings"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createComplianceReport = useMutation({
+    mutationFn: () => api.createComplianceReport({ ...complianceForm, workspace_id: selectedWorkspaceId }),
+    onSuccess: () => { toast.success("Compliance report generated"); qc.invalidateQueries({ queryKey: ["enterprise-compliance"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createExport = useMutation({
+    mutationFn: () => api.createExport({ ...exportForm, workspace_id: selectedWorkspaceId, filters: {} }),
+    onSuccess: () => { toast.success("Export created"); qc.invalidateQueries({ queryKey: ["enterprise-exports"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createSupportTicket = useMutation({
+    mutationFn: () => api.createSupportTicket({ ...supportForm, workspace_id: selectedWorkspaceId }),
+    onSuccess: () => { toast.success("Support ticket created"); qc.invalidateQueries({ queryKey: ["enterprise-support"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createAnnouncement = useMutation({
+    mutationFn: () => api.createAnnouncement(announcementForm),
+    onSuccess: () => { toast.success("Announcement created"); qc.invalidateQueries({ queryKey: ["enterprise-announcements"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -184,6 +241,75 @@ export default function EnterprisePage() {
             ))}
             {!auditLogs.length && <div>No audit events yet.</div>}
           </div>
+        </section>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-foreground font-semibold"><ShieldEllipsis className="h-4 w-4 text-primary" /> SAML</div>
+          <input placeholder="Provider name" value={samlForm.name} onChange={(e) => setSamlForm((f) => ({ ...f, name: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <input placeholder="Entry point" value={samlForm.entry_point} onChange={(e) => setSamlForm((f) => ({ ...f, entry_point: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <textarea placeholder="X509 cert" value={samlForm.x509_cert} onChange={(e) => setSamlForm((f) => ({ ...f, x509_cert: e.target.value }))} className="min-h-[100px] w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <button onClick={() => createSaml.mutate()} disabled={!selectedWorkspaceId} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Save SAML provider</button>
+          <div className="space-y-2 text-sm text-muted-foreground">{samlProviders.map((p: any) => <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">{p.name}</div>)}</div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-foreground font-semibold"><Users className="h-4 w-4 text-primary" /> SCIM</div>
+          <input placeholder="Token name" value={scimTokenForm.name} onChange={(e) => setScimTokenForm({ name: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <button onClick={() => createScimToken.mutate()} disabled={!selectedWorkspaceId} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Create SCIM token</button>
+          <input placeholder="External group ID" value={scimMappingForm.external_group_id} onChange={(e) => setScimMappingForm((f) => ({ ...f, external_group_id: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <input placeholder="External group name" value={scimMappingForm.external_group_name} onChange={(e) => setScimMappingForm((f) => ({ ...f, external_group_name: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <button onClick={() => createScimMapping.mutate()} disabled={!selectedWorkspaceId} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Save group mapping</button>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            {scimTokens.map((t: any) => <div key={t.id} className="rounded-lg border border-border bg-background px-3 py-2">Token: {t.name}</div>)}
+            {scimMappings.map((m: any) => <div key={m.id} className="rounded-lg border border-border bg-background px-3 py-2">{m.external_group_name} → {m.role}</div>)}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-foreground font-semibold"><Waypoints className="h-4 w-4 text-primary" /> API Versions</div>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            {apiVersions.map((v: any) => <div key={v.id} className="rounded-lg border border-border bg-background px-3 py-2">{v.version} {v.sunset_date ? `· sunset ${new Date(v.sunset_date).toLocaleDateString()}` : ""}</div>)}
+            {!apiVersions.length && <div>No API versions published yet.</div>}
+          </div>
+        </section>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-foreground font-semibold"><FileSpreadsheet className="h-4 w-4 text-primary" /> Compliance & Export</div>
+          <input placeholder="Report type" value={complianceForm.report_type} onChange={(e) => setComplianceForm((f) => ({ ...f, report_type: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <input type="datetime-local" value={complianceForm.period_start} onChange={(e) => setComplianceForm((f) => ({ ...f, period_start: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <input type="datetime-local" value={complianceForm.period_end} onChange={(e) => setComplianceForm((f) => ({ ...f, period_end: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <button onClick={() => createComplianceReport.mutate()} disabled={!selectedWorkspaceId} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Generate report</button>
+          <div className="grid grid-cols-2 gap-2">
+            <input placeholder="Export type" value={exportForm.export_type} onChange={(e) => setExportForm((f) => ({ ...f, export_type: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+            <input placeholder="Format" value={exportForm.format} onChange={(e) => setExportForm((f) => ({ ...f, format: e.target.value }))} className="rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          </div>
+          <button onClick={() => createExport.mutate()} disabled={!selectedWorkspaceId} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Create export</button>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            {complianceReports.map((r: any) => <div key={r.id} className="rounded-lg border border-border bg-background px-3 py-2">Report: {r.report_type}</div>)}
+            {exports.map((x: any) => <div key={x.id} className="rounded-lg border border-border bg-background px-3 py-2">Export: {x.export_type}.{x.format}</div>)}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-foreground font-semibold"><LifeBuoy className="h-4 w-4 text-primary" /> Support</div>
+          <input placeholder="Subject" value={supportForm.subject} onChange={(e) => setSupportForm((f) => ({ ...f, subject: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <textarea placeholder="Describe the issue" value={supportForm.description} onChange={(e) => setSupportForm((f) => ({ ...f, description: e.target.value }))} className="min-h-[100px] w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <button onClick={() => createSupportTicket.mutate()} disabled={!selectedWorkspaceId} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Create ticket</button>
+          <div className="space-y-2 text-sm text-muted-foreground">{supportTickets.map((t: any) => <div key={t.id} className="rounded-lg border border-border bg-background px-3 py-2">{t.subject} · {t.status}</div>)}</div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-foreground font-semibold"><Megaphone className="h-4 w-4 text-primary" /> Admin Announcements</div>
+          <input placeholder="Title" value={announcementForm.title} onChange={(e) => setAnnouncementForm((f) => ({ ...f, title: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <textarea placeholder="Message" value={announcementForm.message} onChange={(e) => setAnnouncementForm((f) => ({ ...f, message: e.target.value }))} className="min-h-[100px] w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <input type="datetime-local" value={announcementForm.starts_at} onChange={(e) => setAnnouncementForm((f) => ({ ...f, starts_at: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <input type="datetime-local" value={announcementForm.ends_at} onChange={(e) => setAnnouncementForm((f) => ({ ...f, ends_at: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" />
+          <button onClick={() => createAnnouncement.mutate()} className="min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Create announcement</button>
+          <div className="space-y-2 text-sm text-muted-foreground">{announcements.map((a: any) => <div key={a.id} className="rounded-lg border border-border bg-background px-3 py-2">{a.title}</div>)}</div>
         </section>
       </div>
     </div>

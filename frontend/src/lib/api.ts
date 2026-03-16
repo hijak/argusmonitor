@@ -218,6 +218,36 @@ export const api = {
     request<any[]>(`/enterprise/escalation-policies?workspace_id=${encodeURIComponent(workspaceId)}`),
   createEscalationPolicy: (data: any) =>
     request<any>("/enterprise/escalation-policies", { method: "POST", body: JSON.stringify(data) }),
+  listSamlProviders: (workspaceId: string) =>
+    request<any[]>(`/enterprise/saml/providers?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createSamlProvider: (data: any) =>
+    request<any>("/enterprise/saml/providers", { method: "POST", body: JSON.stringify(data) }),
+  listScimTokens: (workspaceId: string) =>
+    request<any[]>(`/enterprise/scim/tokens?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createScimToken: (data: any) =>
+    request<any>("/enterprise/scim/tokens", { method: "POST", body: JSON.stringify(data) }),
+  listScimGroupMappings: (workspaceId: string) =>
+    request<any[]>(`/enterprise/scim/group-mappings?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createScimGroupMapping: (data: any) =>
+    request<any>("/enterprise/scim/group-mappings", { method: "POST", body: JSON.stringify(data) }),
+  listComplianceReports: (workspaceId: string) =>
+    request<any[]>(`/enterprise/compliance-reports?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createComplianceReport: (data: any) =>
+    request<any>("/enterprise/compliance-reports", { method: "POST", body: JSON.stringify(data) }),
+  listExports: (workspaceId: string) =>
+    request<any[]>(`/enterprise/exports?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createExport: (data: any) =>
+    request<any>("/enterprise/exports", { method: "POST", body: JSON.stringify(data) }),
+  listSupportTickets: (workspaceId: string) =>
+    request<any[]>(`/enterprise/support/tickets?workspace_id=${encodeURIComponent(workspaceId)}`),
+  createSupportTicket: (data: any) =>
+    request<any>("/enterprise/support/tickets", { method: "POST", body: JSON.stringify(data) }),
+  updateSupportTicket: (id: string, data: any) =>
+    request<any>(`/enterprise/support/tickets/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  listAnnouncements: () => request<any[]>("/enterprise/announcements"),
+  createAnnouncement: (data: any) =>
+    request<any>("/enterprise/announcements", { method: "POST", body: JSON.stringify(data) }),
+  listApiVersions: () => request<any[]>("/enterprise/api-versions"),
 
   // Settings - Profile
   getProfile: () => request<any>("/settings/profile"),
