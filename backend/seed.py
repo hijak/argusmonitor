@@ -11,6 +11,7 @@ from app.models import (
     TransactionRun, TransactionRunStep, AlertRule, AlertInstance,
     Incident, IncidentEvent, LogEntry, Dashboard, Monitor,
     NotificationChannel, Integration, UserPreference,
+    OnCallTeam, OnCallTeamMember, OnCallShift,
 )
 from app.auth import hash_password
 
@@ -33,6 +34,29 @@ async def seed():
             role="admin",
         )
         db.add(admin)
+        await db.flush()
+
+        now = datetime.now(timezone.utc)
+
+        # --- On-call ---
+        primary_team = OnCallTeam(
+            name="Primary Ops",
+            timezone="Europe/London",
+            description="Default operational on-call rotation",
+        )
+        db.add(primary_team)
+        await db.flush()
+        db.add(OnCallTeamMember(team_id=primary_team.id, user_id=admin.id, role="lead"))
+        db.add(OnCallShift(
+            team_id=primary_team.id,
+            user_id=admin.id,
+            person_name=admin.name,
+            email=admin.email,
+            start_at=now - timedelta(days=1),
+            end_at=now + timedelta(days=6),
+            escalation_level=1,
+            notes="Primary coverage",
+        ))
 
         # --- Hosts ---
         hosts_data = [
@@ -56,7 +80,6 @@ async def seed():
         await db.flush()
 
         # Create historical host metrics
-        now = datetime.now(timezone.utc)
         for host in host_objects:
             base_cpu = host.cpu_percent
             for i in range(7):
@@ -205,6 +228,7 @@ async def seed():
         for i, ad in enumerate(alerts_data):
             alert = AlertInstance(
                 **ad,
+                assigned_user_id=admin.id if not ad.get("acknowledged") else None,
                 created_at=now - timedelta(hours=i * 2),
             )
             db.add(alert)
@@ -215,6 +239,7 @@ async def seed():
             title="Elevated error rates on API endpoints",
             status="investigating",
             severity="warning",
+            assigned_user_id=admin.id,
             affected_hosts=["api-prod-01", "api-prod-02"],
             started_at=now - timedelta(minutes=23),
         )
@@ -243,6 +268,7 @@ async def seed():
             title="Worker pool saturation causing job delays",
             status="identified",
             severity="critical",
+            assigned_user_id=admin.id,
             affected_hosts=["worker-03"],
             started_at=now - timedelta(minutes=68),
         )

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import auth, hosts, services, monitors, transactions, alerts, incidents, logs, dashboards, overview, ai, agent, search, meta, oncall
+from app.routers import auth, hosts, services, monitors, transactions, alerts, incidents, logs, dashboards, overview, ai, agent, search, meta, oncall, users
 from app.routers import settings as settings_router
 
 logging.basicConfig(level=logging.INFO)
@@ -64,6 +64,7 @@ app.include_router(agent.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(meta.router, prefix="/api")
 app.include_router(oncall.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 
 

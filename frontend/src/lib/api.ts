@@ -44,7 +44,7 @@ export const api = {
       body: JSON.stringify({ email, password, name }),
     }),
 
-  me: () => request<{ id: string; email: string; name: string; role: string }>("/auth/me"),
+  me: () => request<{ id: string; email: string; name: string; role: string; timezone: string; is_active: boolean }>("/auth/me"),
 
   // Meta
   getMeta: () => request<{ app_name: string; demo_mode: boolean }>("/meta"),
@@ -115,6 +115,8 @@ export const api = {
     request<any>("/alerts/rules", { method: "POST", body: JSON.stringify(data) }),
   acknowledgeAlert: (id: string) =>
     request<any>(`/alerts/${id}/acknowledge`, { method: "POST" }),
+  resolveAlert: (id: string) =>
+    request<any>(`/alerts/${id}/resolve`, { method: "POST" }),
 
   // Incidents
   listIncidents: () => request<any[]>("/incidents"),
@@ -122,6 +124,8 @@ export const api = {
     request<any>("/incidents", { method: "POST", body: JSON.stringify(data) }),
   addIncidentEvent: (id: string, data: any) =>
     request<any>(`/incidents/${id}/events`, { method: "POST", body: JSON.stringify(data) }),
+  resolveIncident: (id: string) =>
+    request<any>(`/incidents/${id}/resolve`, { method: "POST" }),
 
   // Logs
   listLogs: (params?: { level?: string; search?: string; limit?: number }) => {
@@ -165,9 +169,16 @@ export const api = {
   listOnCallTeams: () => request<any[]>("/oncall/teams"),
   createOnCallTeam: (data: any) =>
     request<any>("/oncall/teams", { method: "POST", body: JSON.stringify(data) }),
+  addOnCallTeamMember: (teamId: string, data: any) =>
+    request<any>(`/oncall/teams/${teamId}/members`, { method: "POST", body: JSON.stringify(data) }),
   listOnCallShifts: (teamId?: string) => request<any[]>(`/oncall/shifts${teamId ? `?team_id=${encodeURIComponent(teamId)}` : ""}`),
   createOnCallShift: (data: any) =>
     request<any>("/oncall/shifts", { method: "POST", body: JSON.stringify(data) }),
+
+  // Users
+  listUsers: () => request<any[]>("/users"),
+  createUser: (data: any) => request<any>("/users", { method: "POST", body: JSON.stringify(data) }),
+  updateUser: (id: string, data: any) => request<any>(`/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   // Settings - Profile
   getProfile: () => request<any>("/settings/profile"),

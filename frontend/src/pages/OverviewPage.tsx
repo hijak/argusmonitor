@@ -6,15 +6,24 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { PageHeader } from "@/components/PageHeader";
 import { HostDetailModal } from "@/components/HostDetailModal";
-import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react";
+import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity, ArrowUp, ArrowDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHostsStream } from "@/hooks/useHostStream";
+import { sortHosts, type HostSortKey } from "@/lib/hostSorting";
+import { usePersistentHostSort } from "@/hooks/usePersistentHostSort";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 export default function OverviewPage() {
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
+  const { sortKey: hostSortKey, sortDirection: hostSortDirection, toggleSort: toggleHostSort } = usePersistentHostSort({
+    storageKey: "argus-overview-host-sort",
+    defaultKey: "status",
+    defaultDirection: "asc",
+    queryKey: "overviewHostSort",
+    queryDirection: "overviewHostDir",
+  });
   const { data: stats } = useQuery({ queryKey: ["overview-stats"], queryFn: api.overviewStats, refetchInterval: 30000 });
   const { data: hostsSeed = [] } = useQuery({ queryKey: ["overview-hosts"], queryFn: api.overviewHostHealth });
   const hosts = useHostsStream(hostsSeed);
@@ -23,6 +32,10 @@ export default function OverviewPage() {
   const { data: transactions = [] } = useQuery({ queryKey: ["overview-tx"], queryFn: api.overviewTransactionSummary, refetchInterval: 30000 });
 
   const liveAgentCount = useMemo(() => hosts.filter((h: any) => h.is_agent_connected).length, [hosts]);
+  const sortedHosts = useMemo(
+    () => sortHosts(hosts, hostSortKey, hostSortDirection),
+    [hosts, hostSortKey, hostSortDirection],
+  );
 
   return (
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
@@ -44,10 +57,29 @@ export default function OverviewPage() {
           <div className="rounded-lg border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <h2 className="text-sm font-medium">Host Health</h2>
-              <span className="text-xs text-muted-foreground">{hosts.length} hosts</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{sortedHosts.length} hosts</span>
+                <div className="flex items-center gap-1 rounded-lg border border-border bg-background/60 p-1">
+                  {([
+                    ["status", "Status"],
+                    ["cpu", "CPU"],
+                    ["memory", "Memory"],
+                    ["name", "Name"],
+                  ] as [HostSortKey, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => toggleHostSort(key)}
+                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${hostSortKey === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {label}
+                      {hostSortKey === key && (hostSortDirection === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="divide-y divide-border">
-              {hosts.map((host: any) => (
+              {sortedHosts.map((host: any) => (
                 <div key={host.id} onClick={() => setSelectedHostId(host.id)} className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-surface-hover cursor-pointer">
                   <StatusBadge variant={host.status}>{host.status}</StatusBadge>
                   <div className="flex flex-1 items-center gap-2 min-w-0">

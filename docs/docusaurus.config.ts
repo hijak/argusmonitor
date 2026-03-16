@@ -42,6 +42,7 @@ const config: Config = {
     },
     navbar: {
       title: 'ArgusMonitor Docs',
+      hideOnScroll: true,
       logo: {
         alt: 'ArgusMonitor Logo',
         src: 'img/logo.svg',
@@ -71,27 +72,29 @@ const config: Config = {
         {
           title: 'Docs',
           items: [
-            {label: 'Overview', to: '/docs/intro'},
+            {label: 'Introduction', to: '/docs/intro'},
             {label: 'Quickstart', to: '/docs/quickstart'},
-            {label: 'AI Copilot', to: '/docs/monitoring/copilot'},
+            {label: 'Alerts + Monitoring', to: '/docs/monitoring/alerts'},
           ],
         },
         {
-          title: 'Product',
+          title: 'Platform',
           items: [
-            {label: 'Website', href: 'https://github.com/hijak/argusmonitor/tree/main/website'},
+            {label: 'Monitoring + AI', to: '/docs/pricing-ai'},
+            {label: 'Hosted vs Self-Hosted', to: '/docs/hosted-vs-self-hosted'},
             {label: 'GitHub', href: 'https://github.com/hijak/argusmonitor'},
           ],
         },
         {
-          title: 'Commercial',
+          title: 'Build',
           items: [
-            {label: 'Pricing / AI', to: '/docs/pricing-ai'},
-            {label: 'Hosted vs Self-Hosted', to: '/docs/hosted-vs-self-hosted'},
+            {label: 'Frontend', href: 'https://github.com/hijak/argusmonitor/tree/main/frontend'},
+            {label: 'Backend', href: 'https://github.com/hijak/argusmonitor/tree/main/backend'},
+            {label: 'Book Demo', href: 'mailto:plutus.ghost@gmail.com?subject=ArgusMonitor%20Demo'},
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} ArgusMonitor. Built with Docusaurus.`,
+      copyright: `© ${new Date().getFullYear()} ArgusMonitor — calm observability, less noise.`,
     },
     prism: {
       theme: prismThemes.github,

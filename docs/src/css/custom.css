@@ -1,75 +1,258 @@
 :root {
-  --ifm-color-primary: #f97316;
-  --ifm-color-primary-dark: #ea580c;
-  --ifm-color-primary-darker: #c2410c;
-  --ifm-color-primary-darkest: #9a3412;
-  --ifm-color-primary-light: #fb923c;
-  --ifm-color-primary-lighter: #fdba74;
-  --ifm-color-primary-lightest: #fed7aa;
-  --ifm-background-color: #1f1714;
-  --ifm-background-surface-color: #29201c;
-  --ifm-navbar-background-color: rgba(31, 23, 20, 0.95);
-  --ifm-footer-background-color: #16100e;
-  --ifm-font-family-base: "Oxanium", system-ui, sans-serif;
-  --ifm-font-family-monospace: "Fira Code", monospace;
-  --ifm-heading-font-family: "Oxanium", system-ui, sans-serif;
-  --ifm-heading-font-weight: 700;
-  --ifm-code-font-size: 95%;
-  --ifm-global-radius: 6px;
-  --docusaurus-highlighted-code-line-bg: rgba(249, 115, 22, 0.15);
+  --ifm-color-primary: #1d4ed8;
+  --ifm-color-primary-dark: #1e40af;
+  --ifm-color-primary-darker: #1e3a8a;
+  --ifm-color-primary-darkest: #172554;
+  --ifm-color-primary-light: #2563eb;
+  --ifm-color-primary-lighter: #3b82f6;
+  --ifm-color-primary-lightest: #93c5fd;
+
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #ffffff;
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.96);
+  --ifm-footer-background-color: #0b1220;
+
+  --ifm-font-family-base: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ifm-font-family-monospace: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --ifm-heading-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ifm-heading-font-weight: 750;
+  --ifm-code-font-size: 0.95rem;
+  --ifm-global-radius: 12px;
+  --ifm-line-height-base: 1.75;
+  --ifm-heading-line-height: 1.18;
+  --ifm-font-color-base: #0f172a;
+  --ifm-font-color-secondary: #334155;
+  --ifm-heading-color: #020617;
+  --ifm-link-color: #0f4ccf;
+  --ifm-menu-color: #334155;
+  --ifm-menu-color-active: #020617;
+  --ifm-menu-color-background-active: rgba(29, 78, 216, 0.12);
+  --ifm-toc-link-color: #475569;
+  --ifm-toc-border-color: #cbd5e1;
+  --ifm-table-border-color: #cbd5e1;
+  --ifm-hr-border-color: #cbd5e1;
+  --ifm-code-background: rgba(148, 163, 184, 0.16);
+  --docusaurus-highlighted-code-line-bg: rgba(29, 78, 216, 0.1);
 }
 
 [data-theme='dark'] {
-  --ifm-color-primary: #fb923c;
-  --ifm-color-primary-dark: #f97316;
-  --ifm-color-primary-darker: #ea580c;
-  --ifm-color-primary-darkest: #c2410c;
-  --ifm-color-primary-light: #fdba74;
-  --ifm-color-primary-lighter: #fed7aa;
-  --ifm-color-primary-lightest: #ffedd5;
-  --ifm-background-color: #1f1714;
-  --ifm-background-surface-color: #29201c;
-  --ifm-navbar-background-color: rgba(31, 23, 20, 0.95);
-  --ifm-footer-background-color: #16100e;
-  --ifm-font-color-base: #f5f5f4;
-  --ifm-font-color-secondary: #d6d3d1;
-  --ifm-heading-color: #fafaf9;
-  --ifm-link-color: #38bdf8;
-  --ifm-menu-color-active: #fb923c;
-  --docusaurus-highlighted-code-line-bg: rgba(249, 115, 22, 0.2);
+  --ifm-color-primary: #93c5fd;
+  --ifm-color-primary-dark: #60a5fa;
+  --ifm-color-primary-darker: #3b82f6;
+  --ifm-color-primary-darkest: #2563eb;
+  --ifm-color-primary-light: #bfdbfe;
+  --ifm-color-primary-lighter: #dbeafe;
+  --ifm-color-primary-lightest: #eff6ff;
+
+  --ifm-background-color: #020617;
+  --ifm-background-surface-color: #0b1220;
+  --ifm-navbar-background-color: rgba(2, 6, 23, 0.94);
+  --ifm-footer-background-color: #020617;
+  --ifm-font-color-base: #f8fafc;
+  --ifm-font-color-secondary: #cbd5e1;
+  --ifm-heading-color: #ffffff;
+  --ifm-link-color: #93c5fd;
+  --ifm-menu-color: #cbd5e1;
+  --ifm-menu-color-active: #ffffff;
+  --ifm-menu-color-background-active: rgba(147, 197, 253, 0.18);
+  --ifm-toc-link-color: #cbd5e1;
+  --ifm-toc-border-color: #334155;
+  --ifm-table-border-color: #334155;
+  --ifm-hr-border-color: #334155;
+  --ifm-code-background: rgba(51, 65, 85, 0.45);
+  --docusaurus-highlighted-code-line-bg: rgba(147, 197, 253, 0.16);
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-.hero--primary {
-  background: linear-gradient(180deg, rgba(249,115,22,0.10) 0%, rgba(31,23,20,0.2) 100%);
-}
-
-.markdown h1:first-child {
-  color: #fafaf9;
+body {
+  text-rendering: optimizeLegibility;
 }
 
 .navbar {
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(251, 146, 60, 0.12);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .footer {
-  border-top: 1px solid rgba(251, 146, 60, 0.12);
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  background: var(--ifm-footer-background-color);
 }
 
-.theme-doc-markdown pre,
-.theme-code-block {
-  border: 1px solid rgba(251, 146, 60, 0.12);
-  border-radius: 10px;
+.footer__title {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.footer__item,
+.footer__link-item {
+  color: #cbd5e1;
+}
+
+.footer__link-item:hover {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.footer__copyright {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.main-wrapper {
+  background: var(--ifm-background-color);
 }
 
 .theme-doc-sidebar-container {
-  border-right: 1px solid rgba(251, 146, 60, 0.1);
+  border-right: 1px solid var(--ifm-toc-border-color);
+  background: color-mix(in srgb, var(--ifm-background-surface-color) 94%, transparent);
 }
 
-a {
-  transition: color 150ms ease;
+.menu {
+  padding: 1rem 0.75rem 1.5rem;
+}
+
+.menu__link {
+  border-radius: 10px;
+  font-weight: 600;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.menu__link:hover {
+  text-decoration: none;
+}
+
+.theme-doc-markdown {
+  font-size: 1.08rem;
+  max-width: 74ch;
+}
+
+.theme-doc-markdown > p,
+.theme-doc-markdown li {
+  color: var(--ifm-font-color-base);
+}
+
+.theme-doc-markdown h1 {
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  letter-spacing: -0.035em;
+  margin-bottom: 1rem;
+}
+
+.theme-doc-markdown h2 {
+  font-size: clamp(1.6rem, 2.4vw, 2rem);
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.theme-doc-markdown h3 {
+  font-size: 1.2rem;
+  margin-top: 2.2rem;
+  margin-bottom: 0.65rem;
+}
+
+.theme-doc-markdown a {
+  font-weight: 600;
+  text-underline-offset: 0.18em;
+}
+
+.theme-doc-markdown blockquote {
+  border-left: 4px solid var(--ifm-color-primary);
+  background: rgba(29, 78, 216, 0.06);
+  border-radius: 0 12px 12px 0;
+  padding: 1rem 1.1rem;
+  color: var(--ifm-font-color-base);
+}
+
+[data-theme='dark'] .theme-doc-markdown blockquote {
+  background: rgba(147, 197, 253, 0.1);
+}
+
+.theme-doc-markdown code {
+  border: 1px solid var(--ifm-table-border-color);
+  border-radius: 8px;
+  padding: 0.15rem 0.42rem;
+  background: var(--ifm-code-background);
+  color: var(--ifm-font-color-base);
+}
+
+.theme-doc-markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.theme-code-block,
+.theme-doc-markdown pre {
+  border: 1px solid var(--ifm-table-border-color);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.table-of-contents {
+  border-left: 1px solid var(--ifm-toc-border-color);
+  padding-left: 1rem;
+}
+
+.table-of-contents__link {
+  color: var(--ifm-toc-link-color);
+  line-height: 1.55;
+}
+
+.table-of-contents__link--active {
+  color: var(--ifm-heading-color);
+  font-weight: 700;
+}
+
+.pagination-nav__link {
+  border-radius: 14px;
+  border-color: var(--ifm-toc-border-color);
+  background: color-mix(in srgb, var(--ifm-background-surface-color) 96%, transparent);
+}
+
+.alert {
+  border-radius: 14px;
+}
+
+.markdown > table {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.markdown > table th,
+.markdown > table td {
+  border-color: var(--ifm-table-border-color);
+}
+
+a:focus-visible,
+button:focus-visible,
+.menu__link:focus-visible,
+.pagination-nav__link:focus-visible,
+.table-of-contents__link:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@media (max-width: 996px) {
+  .theme-doc-sidebar-container {
+    background: var(--ifm-background-color);
+  }
+
+  .theme-doc-markdown {
+    font-size: 1rem;
+    max-width: 100%;
+  }
+
+  .theme-doc-markdown h1 {
+    font-size: 2.2rem;
+  }
 }

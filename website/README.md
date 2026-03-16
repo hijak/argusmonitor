@@ -44,7 +44,6 @@ npm run build
 
 ## Notes
 
-- This site originated from a Lovable-generated prototype and was then integrated into the main repo.
 - Keep branding/copy visually consistent with the product dashboard.
 - Prefer real product screenshots and docs links as they become available.
 

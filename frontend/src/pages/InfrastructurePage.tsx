@@ -4,11 +4,13 @@ import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
-import { Search, Plus, Server, Database, Container, Wifi, Activity, Clock } from "lucide-react";
+import { Search, Plus, Server, Database, Container, Wifi, Activity, Clock, ArrowUp, ArrowDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { HostDetailModal } from "@/components/HostDetailModal";
 import { toast } from "@/components/ui/sonner";
 import { useHostsStream } from "@/hooks/useHostStream";
+import { sortHosts, type HostSortKey } from "@/lib/hostSorting";
+import { usePersistentHostSort } from "@/hooks/usePersistentHostSort";
 
 type HostType = "server" | "database" | "container" | "network";
 
@@ -26,6 +28,13 @@ export default function InfrastructurePage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<HostType | "all">("all");
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
+  const { sortKey, sortDirection, toggleSort } = usePersistentHostSort({
+    storageKey: "argus-infrastructure-host-sort",
+    defaultKey: "status",
+    defaultDirection: "asc",
+    queryKey: "infraHostSort",
+    queryDirection: "infraHostDir",
+  });
   const queryClient = useQueryClient();
 
   const { data: hostsSeed = [], isLoading } = useQuery({
@@ -63,6 +72,11 @@ export default function InfrastructurePage() {
     container: allHosts.filter((h: any) => h.type === "container").length,
     network: allHosts.filter((h: any) => h.type === "network").length,
   }), [allHosts]);
+
+  const sortedHosts = useMemo(
+    () => sortHosts(hosts, sortKey, sortDirection),
+    [hosts, sortKey, sortDirection],
+  );
 
   return (
     <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
@@ -110,16 +124,27 @@ export default function InfrastructurePage() {
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card">
         <div className="grid grid-cols-[1fr_100px_80px_80px_80px_80px_100px] items-center gap-4 border-b border-border px-5 py-3 text-xs font-medium text-muted-foreground">
-          <span>Host</span>
-          <span>Status</span>
-          <span>CPU</span>
-          <span>Memory</span>
-          <span>Uptime</span>
+          {([
+            ["name", "Host"],
+            ["status", "Status"],
+            ["cpu", "CPU"],
+            ["memory", "Memory"],
+            ["uptime", "Uptime"],
+          ] as [HostSortKey, string][]).map(([key, label], index) => (
+            <button
+              key={key}
+              onClick={() => toggleSort(key)}
+              className={`flex items-center gap-1 text-left ${index === 0 ? "" : "justify-start"} ${sortKey === key ? "text-primary" : "hover:text-foreground"}`}
+            >
+              <span>{label}</span>
+              {sortKey === key && (sortDirection === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+            </button>
+          ))}
           <span>Trend</span>
           <span>Tags</span>
         </div>
         <div className="divide-y divide-border">
-          {hosts.map((host: any) => {
+          {sortedHosts.map((host: any) => {
             const Icon = typeIcons[host.type as HostType] || Server;
             return (
               <motion.div

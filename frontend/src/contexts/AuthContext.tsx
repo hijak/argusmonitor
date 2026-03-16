@@ -6,6 +6,8 @@ interface User {
   email: string;
   name: string;
   role: string;
+  timezone: string;
+  is_active: boolean;
 }
 
 interface AuthContextType {

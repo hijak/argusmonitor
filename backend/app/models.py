@@ -24,6 +24,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="admin")
+    timezone = Column(String(100), nullable=False, default="UTC")
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -207,6 +209,7 @@ class AlertInstance(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
     rule_id = Column(UUID(as_uuid=True), ForeignKey("alert_rules.id", ondelete="CASCADE"), index=True)
+    assigned_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     message = Column(Text, nullable=False)
     severity = Column(String(50), nullable=False)
     service = Column(String(255))
@@ -230,6 +233,7 @@ class Incident(Base):
     title = Column(String(500), nullable=False)
     status = Column(String(50), nullable=False, default="investigating")
     severity = Column(String(50), nullable=False, default="warning")
+    assigned_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     affected_hosts = Column(JSON, default=list)
     started_at = Column(DateTime(timezone=True), default=utcnow)
     resolved_at = Column(DateTime(timezone=True))
@@ -374,11 +378,23 @@ class OnCallTeam(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class OnCallTeamMember(Base):
+    __tablename__ = "oncall_team_members"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    team_id = Column(UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(50), nullable=False, default="member")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class OnCallShift(Base):
     __tablename__ = "oncall_shifts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
     team_id = Column(UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     person_name = Column(String(255), nullable=False, index=True)
     email = Column(String(255))
     start_at = Column(DateTime(timezone=True), nullable=False, index=True)

@@ -25,9 +25,27 @@ class UserOut(BaseModel):
     email: str
     name: str
     role: str
+    timezone: str = "UTC"
+    is_active: bool = True
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UserCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+    name: str
+    role: str = "member"
+    timezone: str = "UTC"
+
+
+class UserUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    timezone: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 # --- Hosts ---
@@ -286,6 +304,7 @@ class AlertRuleOut(BaseModel):
 class AlertInstanceOut(BaseModel):
     id: UUID
     rule_id: Optional[UUID]
+    assigned_user_id: Optional[UUID] = None
     message: str
     severity: str
     service: Optional[str]
@@ -295,6 +314,7 @@ class AlertInstanceOut(BaseModel):
     acknowledged_at: Optional[datetime]
     resolved: bool
     created_at: datetime
+    assigned_user: Optional[UserOut] = None
 
     model_config = {"from_attributes": True}
 
@@ -327,10 +347,12 @@ class IncidentOut(BaseModel):
     title: str
     status: str
     severity: str
+    assigned_user_id: Optional[UUID] = None
     affected_hosts: list[str]
     started_at: datetime
     resolved_at: Optional[datetime]
     events: list[IncidentEventOut] = []
+    assigned_user: Optional[UserOut] = None
 
     model_config = {"from_attributes": True}
 
@@ -550,6 +572,23 @@ class OnCallTeamCreate(BaseModel):
     description: Optional[str] = None
 
 
+class OnCallTeamMemberCreate(BaseModel):
+    user_id: UUID
+    role: str = "member"
+
+
+class OnCallTeamMemberOut(BaseModel):
+    id: UUID
+    team_id: UUID
+    user_id: UUID
+    role: str
+    created_at: datetime
+    updated_at: datetime
+    user: Optional[UserOut] = None
+
+    model_config = {"from_attributes": True}
+
+
 class OnCallTeamOut(BaseModel):
     id: UUID
     name: str
@@ -557,13 +596,15 @@ class OnCallTeamOut(BaseModel):
     description: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    members: list[OnCallTeamMemberOut] = []
 
     model_config = {"from_attributes": True}
 
 
 class OnCallShiftCreate(BaseModel):
     team_id: UUID
-    person_name: str
+    user_id: Optional[UUID] = None
+    person_name: Optional[str] = None
     email: Optional[str] = None
     start_at: datetime
     end_at: datetime
@@ -574,6 +615,7 @@ class OnCallShiftCreate(BaseModel):
 class OnCallShiftOut(BaseModel):
     id: UUID
     team_id: UUID
+    user_id: Optional[UUID] = None
     person_name: str
     email: Optional[str] = None
     start_at: datetime
@@ -582,6 +624,7 @@ class OnCallShiftOut(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    user: Optional[UserOut] = None
 
     model_config = {"from_attributes": True}
 
