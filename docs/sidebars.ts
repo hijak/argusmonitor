@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
       label: 'Monitoring',
       items: [
         'monitoring/service-discovery',
+        'monitoring/prometheus-compatibility',
         'monitoring/alerts',
         'monitoring/copilot',
         'monitoring/read-only-inspections',

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 from playwright.async_api import async_playwright
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Monitor, MonitorResult, Transaction, TransactionRun, TransactionRunStep
+from app.models import Host, HostMetric, Monitor, MonitorResult, Service, Transaction, TransactionRun, TransactionRunStep
+from app.services.prometheus import first_metric, parse_prometheus_text
 
 
 async def execute_monitor_check(db: AsyncSession, monitor: Monitor) -> MonitorResult:
@@ -30,6 +33,14 @@ async def execute_monitor_check(db: AsyncSession, monitor: Monitor) -> MonitorRe
             writer.close()
             await writer.wait_closed()
             status = "up"
+        elif monitor.type == "prometheus":
+            async with httpx.AsyncClient(timeout=monitor.timeout_seconds) as client:
+                response = await client.get(monitor.target, headers={"Accept": "text/plain"})
+                status_code = response.status_code
+                response.raise_for_status()
+                metrics = parse_prometheus_text(response.text)
+                await apply_prometheus_metrics(db, monitor, metrics)
+                status = "up"
         else:
             status = "degraded"
             error_message = f"Unsupported monitor type: {monitor.type}"
@@ -52,6 +63,50 @@ async def execute_monitor_check(db: AsyncSession, monitor: Monitor) -> MonitorRe
     monitor.last_check = result.checked_at
     await db.flush()
     return result
+
+
+async def apply_prometheus_metrics(db: AsyncSession, monitor: Monitor, metrics: dict[str, list[dict[str, Any]]]):
+    host_result = await db.execute(
+        select(Host).where(Host.workspace_id == monitor.workspace_id, Host.ip_address.is_not(None)).order_by(Host.created_at.asc())
+    )
+    host = host_result.scalars().first()
+    if host:
+        cpu = first_metric(metrics, "node_cpu_utilisation_ratio", "instance_cpu_usage_percent", "cpu_usage_percent")
+        mem = first_metric(metrics, "node_memory_utilisation_ratio", "instance_memory_usage_percent", "memory_usage_percent")
+        disk = first_metric(metrics, "node_filesystem_utilisation_ratio", "instance_disk_usage_percent", "disk_usage_percent")
+        if cpu is not None:
+            host.cpu_percent = cpu * 100 if cpu <= 1.5 else cpu
+        if mem is not None:
+            host.memory_percent = mem * 100 if mem <= 1.5 else mem
+        if disk is not None:
+            host.disk_percent = disk * 100 if disk <= 1.5 else disk
+        host.last_seen = datetime.now(timezone.utc)
+        db.add(
+            HostMetric(
+                host_id=host.id,
+                cpu_percent=host.cpu_percent,
+                memory_percent=host.memory_percent,
+                disk_percent=host.disk_percent,
+                network_in_bytes=first_metric(metrics, "node_network_receive_bytes_total"),
+                network_out_bytes=first_metric(metrics, "node_network_transmit_bytes_total"),
+                recorded_at=datetime.now(timezone.utc),
+            )
+        )
+
+    service_url = monitor.target.rsplit("/metrics", 1)[0] if "/metrics" in monitor.target else monitor.target
+    service_result = await db.execute(select(Service).where(Service.workspace_id == monitor.workspace_id, Service.url == service_url))
+    service = service_result.scalars().first()
+    if service:
+        req_rate = first_metric(metrics, "http_requests_per_second", "http_server_requests_per_second", "requests_per_second")
+        latency = first_metric(metrics, "http_request_duration_ms", "http_request_latency_ms", "request_latency_ms")
+        up = first_metric(metrics, "up")
+        if req_rate is not None:
+            service.requests_per_min = max(0, req_rate * 60)
+        if latency is not None:
+            service.latency_ms = latency
+        if up is not None:
+            service.uptime_percent = 100.0 if up >= 1 else 0.0
+            service.status = "healthy" if up >= 1 else "critical"
 
 
 async def execute_transaction_run(db: AsyncSession, transaction: Transaction) -> TransactionRun:

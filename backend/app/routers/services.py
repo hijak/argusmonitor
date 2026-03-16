@@ -1,9 +1,11 @@
 import asyncio
 import json
 import socket
+import time
 from datetime import datetime, timezone
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -11,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import AlertRule, Host, Service, User, Workspace
+from app.models import AlertRule, Host, Monitor, Service, User, Workspace
 from app.schemas import ServiceCreate, ServiceOut, ServiceUpdate, ServiceWithSparkline
 from app.services.workspace import get_current_workspace
 
@@ -106,6 +108,20 @@ async def _tcp_open(host: str, port: int, timeout: float = 0.35) -> bool:
         return False
 
 
+async def _is_prometheus_endpoint(url: str, timeout: float = 1.5) -> bool:
+    metrics_url = url.rstrip("/") + "/metrics"
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            response = await client.get(metrics_url, headers={"Accept": "text/plain"})
+            if response.status_code >= 400:
+                return False
+            text = response.text[:4000]
+            return "# HELP" in text or "# TYPE" in text or "_total" in text or "_bucket" in text
+    except Exception:
+        return False
+
+
 @router.get("", response_model=list[ServiceWithSparkline])
 async def list_services(
     db: AsyncSession = Depends(get_db),
@@ -194,9 +210,31 @@ async def discover_services(
                 check_interval=60,
             )
             db.add(service)
+            await db.flush()
             existing_urls.add(url)
             created += 1
-            discovered.append({"host": host.name, "port": port, "url": url})
+
+            prometheus = await _is_prometheus_endpoint(url)
+            if prometheus:
+                existing_monitor = (
+                    await db.execute(select(Monitor).where(Monitor.workspace_id == workspace.id, Monitor.type == "prometheus", Monitor.target == f"{url.rstrip('/')}/metrics"))
+                ).scalars().first()
+                if not existing_monitor:
+                    db.add(
+                        Monitor(
+                            workspace_id=workspace.id,
+                            name=f"{service.name} Prometheus",
+                            type="prometheus",
+                            target=f"{url.rstrip('/')}/metrics",
+                            interval_seconds=60,
+                            timeout_seconds=15,
+                            enabled=True,
+                            config={"source": "service-discovery", "linked_service_id": str(service.id)},
+                            status="unknown",
+                        )
+                    )
+
+            discovered.append({"host": host.name, "port": port, "url": url, "prometheus": prometheus})
 
     await db.flush()
     return {"created": created, "discovered": discovered[:50]}
