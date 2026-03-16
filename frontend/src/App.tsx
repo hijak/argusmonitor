@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppMetaProvider } from "@/contexts/AppMetaContext";
 import { AppLayout } from "@/components/AppLayout";
 import LoginPage from "./pages/LoginPage";
+import OIDCCallbackPage from "./pages/OIDCCallbackPage";
+import SAMLCallbackPage from "./pages/SAMLCallbackPage";
 import OverviewPage from "./pages/OverviewPage";
 import InfrastructurePage from "./pages/InfrastructurePage";
 import ServicesPage from "./pages/ServicesPage";
@@ -86,6 +88,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login/oidc/callback" element={<OIDCCallbackPage />} />
+      <Route path="/login/saml/callback" element={<SAMLCallbackPage />} />
       <Route path="/*" element={<AuthenticatedRoutes />} />
     </Routes>
   );

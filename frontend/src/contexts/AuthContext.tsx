@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { api } from "@/lib/api";
+import { setWorkspaceId } from "@/lib/workspace";
 
 interface User {
   id: string;
@@ -16,6 +17,8 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  completeOidcLogin: (code: string, state: string) => Promise<void>;
+  completeSamlLogin: (samlResponse: string, relayState: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -50,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const res = await api.login(email, password);
     localStorage.setItem("argus_token", res.access_token);
+    if (res.workspace_id) setWorkspaceId(res.workspace_id);
     setToken(res.access_token);
     const me = await api.me();
     setUser(me);
@@ -58,6 +62,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (email: string, password: string, name: string) => {
     const res = await api.register(email, password, name);
     localStorage.setItem("argus_token", res.access_token);
+    if (res.workspace_id) setWorkspaceId(res.workspace_id);
+    setToken(res.access_token);
+    const me = await api.me();
+    setUser(me);
+  };
+
+  const completeOidcLogin = async (code: string, state: string) => {
+    const res = await api.oidcCallback(code, state);
+    localStorage.setItem("argus_token", res.access_token);
+    if (res.workspace_id) setWorkspaceId(res.workspace_id);
+    setToken(res.access_token);
+    const me = await api.me();
+    setUser(me);
+  };
+
+  const completeSamlLogin = async (samlResponse: string, relayState: string) => {
+    const res = await api.samlAcs(samlResponse, relayState);
+    localStorage.setItem("argus_token", res.access_token);
+    if (res.workspace_id) setWorkspaceId(res.workspace_id);
     setToken(res.access_token);
     const me = await api.me();
     setUser(me);
@@ -70,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, completeOidcLogin, completeSamlLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 import { Activity, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -9,6 +10,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [workspaceSlug, setWorkspaceSlug] = useState("default");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,6 +27,30 @@ export default function LoginPage() {
     } catch (err: any) {
       setError(err.message || "Authentication failed");
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOidc = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.oidcStart(workspaceSlug);
+      window.location.href = res.authorize_url;
+    } catch (err: any) {
+      setError(err.message || "OIDC start failed");
+      setLoading(false);
+    }
+  };
+
+  const handleSaml = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.samlStart(workspaceSlug);
+      window.location.href = `${res.idp_entry_point}?RelayState=${encodeURIComponent(res.relay_state)}&callback=${encodeURIComponent(res.entry_point)}`;
+    } catch (err: any) {
+      setError(err.message || "SAML start failed");
       setLoading(false);
     }
   };
@@ -96,6 +122,34 @@ export default function LoginPage() {
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {isRegister ? "Create Account" : "Sign In"}
           </button>
+
+          {!isRegister && (
+            <div className="space-y-2 pt-2">
+              <input
+                type="text"
+                value={workspaceSlug}
+                onChange={e => setWorkspaceSlug(e.target.value)}
+                placeholder="workspace slug"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
+              />
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleOidc}
+                className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+              >
+                Sign in with OIDC
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleSaml}
+                className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+              >
+                Sign in with SAML
+              </button>
+            </div>
+          )}
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
 
     oidc_enabled: bool = False
     oidc_default_workspace_slug: str = "default"
+    oidc_redirect_base_url: str = "http://localhost:8080"
+    oidc_callback_path: str = "/login/oidc/callback"
 
     scheduler_enabled: bool = True
 

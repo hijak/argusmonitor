@@ -39,18 +39,30 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   login: (email: string, password: string) =>
-    request<{ access_token: string }>("/auth/login", {
+    request<{ access_token: string; workspace_id?: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
 
   register: (email: string, password: string, name: string) =>
-    request<{ access_token: string }>("/auth/register", {
+    request<{ access_token: string; workspace_id?: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ email, password, name }),
     }),
 
   me: () => request<{ id: string; email: string; name: string; role: string; timezone: string; is_active: boolean }>("/auth/me"),
+  oidcStart: (workspaceSlug: string) => request<{ authorize_url: string; state: string }>(`/auth/oidc/start?workspace_slug=${encodeURIComponent(workspaceSlug)}`),
+  oidcCallback: (code: string, state: string) =>
+    request<{ access_token: string; workspace_id?: string }>("/auth/oidc/callback", {
+      method: "POST",
+      body: JSON.stringify({ code, state }),
+    }),
+  samlStart: (workspaceSlug: string) => request<{ entry_point: string; relay_state: string; idp_entry_point: string }>(`/auth/saml/start?workspace_slug=${encodeURIComponent(workspaceSlug)}`),
+  samlAcs: (SAMLResponse: string, RelayState: string) =>
+    request<{ access_token: string; workspace_id?: string }>("/auth/saml/acs", {
+      method: "POST",
+      body: JSON.stringify({ SAMLResponse, RelayState }),
+    }),
 
   // Meta
   getMeta: () => request<{ app_name: string; demo_mode: boolean }>("/meta"),

@@ -7,6 +7,22 @@ from uuid import UUID
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    workspace_id: Optional[UUID] = None
+
+
+class OIDCStartResponse(BaseModel):
+    authorize_url: str
+    state: str
+
+
+class OIDCCallbackRequest(BaseModel):
+    code: str
+    state: str
+
+
+class SAMLACSRequest(BaseModel):
+    SAMLResponse: str
+    RelayState: str
 
 
 class LoginRequest(BaseModel):

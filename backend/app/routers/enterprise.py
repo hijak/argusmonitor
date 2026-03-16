@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user
+from app.auth import get_current_user, hash_api_key
 from app.config import get_settings
 from app.database import get_db
 from app.models import (
@@ -461,7 +461,7 @@ async def create_scim_token(
     token = SCIMToken(
         workspace_id=req.workspace_id,
         name=req.name,
-        token_hash=raw_token,
+        token_hash=hash_api_key(raw_token),
         expires_at=req.expires_at,
         created_by_user_id=current_user.id,
     )
