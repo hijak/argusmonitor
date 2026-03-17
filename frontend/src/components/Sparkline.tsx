@@ -1,3 +1,7 @@
+import { useId, useMemo } from "react";
+import { Line, LineChart } from "recharts";
+
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
 interface SparklineProps {
@@ -8,48 +12,60 @@ interface SparklineProps {
   width?: number;
 }
 
-export function Sparkline({ data, color = "hsl(217 91% 60%)", className, height = 32, width = 120 }: SparklineProps) {
-  if (data.length < 2) return null;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const glowId = `spark-glow-${Math.random().toString(36).slice(2, 9)}`;
+export function Sparkline({
+  data,
+  color = "hsl(217 91% 60%)",
+  className,
+  height = 32,
+  width = 120,
+}: SparklineProps) {
+  const glowId = useId().replace(/:/g, "");
 
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * width;
-    const y = height - ((v - min) / range) * (height - 4) - 2;
-    return `${x},${y}`;
-  }).join(" ");
+  const chartData = useMemo(
+    () => data.map((value, index) => ({ index, value })),
+    [data],
+  );
+
+  const chartConfig = useMemo(
+    () =>
+      ({
+        value: {
+          label: "Value",
+          color,
+        },
+      }) satisfies ChartConfig,
+    [color],
+  );
+
+  if (chartData.length < 2) return null;
 
   return (
-    <svg className={cn("shrink-0 overflow-visible", className)} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <defs>
-        <filter id={glowId} x="-20%" y="-50%" width="140%" height="200%">
-          <feGaussianBlur stdDeviation="2.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeOpacity="0.18"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={points}
-      />
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={points}
-        filter={`url(#${glowId})`}
-      />
-    </svg>
+    <ChartContainer
+      config={chartConfig}
+      className={cn("aspect-auto shrink-0 overflow-visible", className)}
+      style={{ width, height }}
+    >
+      <LineChart
+        accessibilityLayer
+        data={chartData}
+        margin={{ top: 3, right: 3, bottom: 3, left: 3 }}
+      >
+        <defs>
+          <filter id={glowId} x="-20%" y="-50%" width="140%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+        <Line
+          dataKey="value"
+          type="bump"
+          stroke="var(--color-value)"
+          dot={false}
+          strokeWidth={2}
+          filter={`url(#${glowId})`}
+          isAnimationActive={false}
+        />
+      </LineChart>
+    </ChartContainer>
   );
 }
