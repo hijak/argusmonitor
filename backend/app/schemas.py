@@ -68,6 +68,7 @@ class UserUpdateRequest(BaseModel):
 
 # --- Hosts ---
 
+
 class HostCreate(BaseModel):
     name: str
     type: str = "server"
@@ -125,6 +126,7 @@ class HostWithSparkline(HostOut):
 
 # --- Services ---
 
+
 class ServiceCreate(BaseModel):
     name: str
     url: Optional[str] = None
@@ -161,6 +163,7 @@ class ServiceWithSparkline(ServiceOut):
 
 
 # --- Monitors ---
+
 
 class MonitorCreate(BaseModel):
     name: str
@@ -210,6 +213,7 @@ class MonitorResultOut(BaseModel):
 
 
 # --- Transactions ---
+
 
 class TransactionStepCreate(BaseModel):
     order: int
@@ -292,6 +296,7 @@ class TransactionRunOut(BaseModel):
 
 # --- Alerts ---
 
+
 class AlertRuleCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -339,6 +344,7 @@ class AlertInstanceOut(BaseModel):
 
 # --- Incidents ---
 
+
 class IncidentCreate(BaseModel):
     title: str
     severity: str = "warning"
@@ -377,6 +383,7 @@ class IncidentOut(BaseModel):
 
 # --- Logs ---
 
+
 class LogEntryCreate(BaseModel):
     level: str
     service: str
@@ -398,6 +405,7 @@ class LogEntryOut(BaseModel):
 
 # --- Dashboards ---
 
+
 class DashboardCreate(BaseModel):
     name: str
     type: str = "custom"
@@ -417,6 +425,7 @@ class DashboardOut(BaseModel):
 
 
 # --- AI ---
+
 
 class AIChatSessionCreate(BaseModel):
     title: Optional[str] = None
@@ -453,16 +462,20 @@ class AIExplainFailureRequest(BaseModel):
 
 # --- Settings ---
 
+
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
+
 
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
 
+
 class ApiKeyCreate(BaseModel):
     name: str
+
 
 class ApiKeyOut(BaseModel):
     id: UUID
@@ -473,18 +486,22 @@ class ApiKeyOut(BaseModel):
     created_at: datetime
     model_config = {"from_attributes": True}
 
+
 class ApiKeyCreated(ApiKeyOut):
     key: str
+
 
 class NotificationChannelCreate(BaseModel):
     name: str
     type: str
     config: dict[str, Any] = {}
 
+
 class NotificationChannelUpdate(BaseModel):
     name: Optional[str] = None
     enabled: Optional[bool] = None
     config: Optional[dict[str, Any]] = None
+
 
 class NotificationChannelOut(BaseModel):
     id: UUID
@@ -496,15 +513,18 @@ class NotificationChannelOut(BaseModel):
     updated_at: datetime
     model_config = {"from_attributes": True}
 
+
 class IntegrationCreate(BaseModel):
     name: str
     type: str
     config: dict[str, Any] = {}
 
+
 class IntegrationUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
     config: Optional[dict[str, Any]] = None
+
 
 class IntegrationOut(BaseModel):
     id: UUID
@@ -516,6 +536,7 @@ class IntegrationOut(BaseModel):
     updated_at: datetime
     model_config = {"from_attributes": True}
 
+
 class UserPreferenceOut(BaseModel):
     theme: str
     timezone: str
@@ -523,12 +544,14 @@ class UserPreferenceOut(BaseModel):
     compact_mode: bool
     default_dashboard_id: Optional[UUID] = None
 
+
 class UserPreferenceUpdate(BaseModel):
     theme: Optional[str] = None
     timezone: Optional[str] = None
     date_format: Optional[str] = None
     compact_mode: Optional[bool] = None
     default_dashboard_id: Optional[UUID] = None
+
 
 class AgentOut(BaseModel):
     id: UUID
@@ -585,6 +608,7 @@ class AgentHeartbeatResponse(BaseModel):
 
 
 # --- Enterprise ---
+
 
 class OrganizationCreate(BaseModel):
     name: str
@@ -1020,7 +1044,9 @@ class APIVersionOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 # --- Overview ---
+
 
 class OverviewStats(BaseModel):
     monitored_hosts: int
@@ -1031,3 +1057,96 @@ class OverviewStats(BaseModel):
     alerts_change: str
     health_change: str
     tx_change: str
+
+
+# --- Kubernetes ---
+
+
+class K8sClusterCreate(BaseModel):
+    name: str
+    api_server: str
+    auth_type: str = "kubeconfig"
+    auth_config: dict[str, Any] = {}
+
+
+class K8sClusterUpdate(BaseModel):
+    name: Optional[str] = None
+    api_server: Optional[str] = None
+    auth_type: Optional[str] = None
+    auth_config: Optional[dict[str, Any]] = None
+
+
+class K8sClusterOut(BaseModel):
+    id: UUID
+    name: str
+    api_server: str
+    auth_type: str
+    status: str
+    version: Optional[str]
+    node_count: int
+    namespace_count: int
+    pod_count: int
+    running_pods: int
+    cpu_capacity: Optional[str]
+    memory_capacity: Optional[str]
+    cpu_usage_percent: float
+    memory_usage_percent: float
+    last_seen: Optional[datetime]
+    error_message: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class K8sNamespaceOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    name: str
+    status: str
+    pod_count: int
+    created_at: Optional[datetime]
+    labels: dict[str, str] = {}
+
+    model_config = {"from_attributes": True}
+
+
+class K8sNodeOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    name: str
+    status: str
+    role: Optional[str]
+    kubelet_version: Optional[str]
+    os_image: Optional[str]
+    container_runtime: Optional[str]
+    cpu_capacity: Optional[str]
+    memory_capacity: Optional[str]
+    cpu_usage_percent: float
+    memory_usage_percent: float
+    pod_count: int
+    conditions: list[dict[str, Any]] = []
+    labels: dict[str, str] = {}
+    last_seen: Optional[datetime]
+    created_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sPodOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: str
+    name: str
+    node_name: Optional[str]
+    status: str
+    restart_count: int
+    container_count: int
+    ready_containers: int
+    cpu_usage: Optional[str]
+    memory_usage: Optional[str]
+    ip_address: Optional[str]
+    labels: dict[str, str] = {}
+    started_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}

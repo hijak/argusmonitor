@@ -1,6 +1,5 @@
 from uuid import UUID
 from datetime import datetime, timezone
-import random
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -8,13 +7,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Transaction, TransactionStep, TransactionRun, TransactionRunStep, User, Workspace
+from app.models import (
+    Transaction,
+    TransactionStep,
+    TransactionRun,
+    TransactionRunStep,
+    User,
+    Workspace,
+)
 from app.schemas import (
-    TransactionCreate, TransactionUpdate, TransactionOut,
-    TransactionRunOut, TransactionStepOut,
+    TransactionCreate,
+    TransactionUpdate,
+    TransactionOut,
+    TransactionRunOut,
+    TransactionStepOut,
 )
 from app.auth import get_current_user
 from app.services.workspace import get_current_workspace
+from app.services.checks import execute_transaction_run
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -98,7 +108,9 @@ async def update_transaction(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     result = await db.execute(
-        select(Transaction).options(selectinload(Transaction.steps)).where(Transaction.id == tx_id, Transaction.workspace_id == workspace.id)
+        select(Transaction)
+        .options(selectinload(Transaction.steps))
+        .where(Transaction.id == tx_id, Transaction.workspace_id == workspace.id)
     )
     tx = result.scalar_one_or_none()
     if not tx:
@@ -117,7 +129,11 @@ async def delete_transaction(
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ):
-    result = await db.execute(select(Transaction).where(Transaction.id == tx_id, Transaction.workspace_id == workspace.id))
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == tx_id, Transaction.workspace_id == workspace.id
+        )
+    )
     tx = result.scalar_one_or_none()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -132,48 +148,15 @@ async def run_transaction(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     result = await db.execute(
-        select(Transaction).options(selectinload(Transaction.steps)).where(Transaction.id == tx_id, Transaction.workspace_id == workspace.id)
+        select(Transaction)
+        .options(selectinload(Transaction.steps))
+        .where(Transaction.id == tx_id, Transaction.workspace_id == workspace.id)
     )
     tx = result.scalar_one_or_none()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    run = TransactionRun(transaction_id=tx.id, status="running")
-    db.add(run)
-    await db.flush()
-
-    total_ms = 0.0
-    all_success = True
-    for step in tx.steps:
-        step_duration = round(random.uniform(50, 500), 1)
-        step_success = random.random() > 0.05
-        total_ms += step_duration
-
-        run_step = TransactionRunStep(
-            run_id=run.id,
-            step_id=step.id,
-            order=step.order,
-            type=step.type,
-            label=step.label,
-            status="success" if step_success else "failed",
-            duration_ms=step_duration,
-            detail=step.config.get("url") or step.config.get("selector") or step.config.get("value", ""),
-            error_message=None if step_success else "Simulated step failure",
-            executed_at=datetime.now(timezone.utc),
-        )
-        db.add(run_step)
-
-        if not step_success:
-            all_success = False
-            break
-
-    run.status = "success" if all_success else "failed"
-    run.duration_ms = round(total_ms, 1)
-    run.completed_at = datetime.now(timezone.utc)
-    if not all_success:
-        run.error_message = "One or more steps failed"
-
-    await db.flush()
+    run = await execute_transaction_run(db, tx)
 
     result = await db.execute(
         select(TransactionRun)
@@ -191,7 +174,13 @@ async def list_runs(
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ):
-    tx = (await db.execute(select(Transaction).where(Transaction.id == tx_id, Transaction.workspace_id == workspace.id))).scalar_one_or_none()
+    tx = (
+        await db.execute(
+            select(Transaction).where(
+                Transaction.id == tx_id, Transaction.workspace_id == workspace.id
+            )
+        )
+    ).scalar_one_or_none()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     result = await db.execute(

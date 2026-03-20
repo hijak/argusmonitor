@@ -13,6 +13,7 @@ import OverviewPage from "./pages/OverviewPage";
 import InfrastructurePage from "./pages/InfrastructurePage";
 import ServicesPage from "./pages/ServicesPage";
 import TransactionsPage from "./pages/TransactionsPage";
+import KubernetesPage from "./pages/KubernetesPage";
 import AlertsPage from "./pages/AlertsPage";
 import IncidentsPage from "./pages/IncidentsPage";
 import DashboardsPage from "./pages/DashboardsPage";
@@ -63,6 +64,7 @@ function AuthenticatedRoutes() {
         <Route path="/infrastructure" element={<InfrastructurePage />} />
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/kubernetes" element={<KubernetesPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
         <Route path="/dashboards" element={<DashboardsPage />} />

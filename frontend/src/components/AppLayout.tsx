@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, Server, Globe, Zap, Bell, AlertTriangle,
   LayoutDashboard, FileText, BarChart3, Bot, Settings, CalendarDays,
-  ChevronLeft, Search, Command, Users, Building2
+  ChevronLeft, Search, Command, Users, Building2, Container
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -14,6 +14,7 @@ const navItems = [
   { label: "Infrastructure", icon: Server, path: "/infrastructure" },
   { label: "Services", icon: Globe, path: "/services" },
   { label: "Transactions", icon: Zap, path: "/transactions" },
+  { label: "Kubernetes", icon: Container, path: "/kubernetes" },
   { label: "Alerts", icon: Bell, path: "/alerts" },
   { label: "Incidents", icon: AlertTriangle, path: "/incidents" },
   { label: "Dashboards", icon: LayoutDashboard, path: "/dashboards" },

@@ -3,7 +3,12 @@ import logging
 
 from app.database import async_session
 from app.services.retention import apply_retention
-from app.services.workers import enqueue_monitor_jobs, enqueue_transaction_jobs, process_worker_jobs
+from app.services.workers import (
+    enqueue_monitor_jobs,
+    enqueue_transaction_jobs,
+    enqueue_k8s_jobs,
+    process_worker_jobs,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +21,13 @@ async def worker_loop():
             if tick % 4 == 0:
                 monitor_jobs = await enqueue_monitor_jobs(db)
                 transaction_jobs = await enqueue_transaction_jobs(db)
-                logger.info("Queued %s monitor jobs and %s transaction jobs", monitor_jobs, transaction_jobs)
+                k8s_jobs = await enqueue_k8s_jobs(db)
+                logger.info(
+                    "Queued %s monitor jobs, %s transaction jobs, %s k8s jobs",
+                    monitor_jobs,
+                    transaction_jobs,
+                    k8s_jobs,
+                )
             processed = await process_worker_jobs(db, limit=50)
             logger.info("Processed %s worker jobs", processed)
             if tick % (60 * 6) == 0:

@@ -302,4 +302,29 @@ export const api = {
 
   // Settings - Agents
   listAgents: () => request<any[]>("/settings/agents"),
+
+  // Kubernetes
+  listK8sClusters: () => request<any[]>("/kubernetes/clusters"),
+  createK8sCluster: (data: any) =>
+    request<any>("/kubernetes/clusters", { method: "POST", body: JSON.stringify(data) }),
+  getK8sCluster: (id: string) => request<any>(`/kubernetes/clusters/${id}`),
+  updateK8sCluster: (id: string, data: any) =>
+    request<any>(`/kubernetes/clusters/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteK8sCluster: (id: string) =>
+    request<void>(`/kubernetes/clusters/${id}`, { method: "DELETE" }),
+  discoverK8sCluster: (id: string) =>
+    request<any>(`/kubernetes/clusters/${id}/discover`, { method: "POST" }),
+  listK8sNamespaces: (clusterId: string) =>
+    request<any[]>(`/kubernetes/clusters/${clusterId}/namespaces`),
+  listK8sNodes: (clusterId: string) =>
+    request<any[]>(`/kubernetes/clusters/${clusterId}/nodes`),
+  listK8sPods: (clusterId: string, namespace?: string, status?: string) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    if (status) params.set("status", status);
+    const qs = params.toString();
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/pods${qs ? `?${qs}` : ""}`);
+  },
+  getK8sClusterStats: (clusterId: string) =>
+    request<any>(`/kubernetes/clusters/${clusterId}/stats`),
 };

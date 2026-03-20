@@ -5,25 +5,65 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Monitor, Transaction, WorkerJob
+from app.models import Monitor, Transaction, WorkerJob, K8sCluster
 from app.services.checks import execute_monitor_check, execute_transaction_run
 
 
 async def enqueue_monitor_jobs(db: AsyncSession) -> int:
-    monitors = (await db.execute(select(Monitor).where(Monitor.enabled.is_(True)))).scalars().all()
+    monitors = (
+        (await db.execute(select(Monitor).where(Monitor.enabled.is_(True))))
+        .scalars()
+        .all()
+    )
     count = 0
     for monitor in monitors:
-        db.add(WorkerJob(workspace_id=monitor.workspace_id, kind="monitor.check", payload={"monitor_id": str(monitor.id)}))
+        db.add(
+            WorkerJob(
+                workspace_id=monitor.workspace_id,
+                kind="monitor.check",
+                payload={"monitor_id": str(monitor.id)},
+            )
+        )
         count += 1
     await db.flush()
     return count
 
 
 async def enqueue_transaction_jobs(db: AsyncSession) -> int:
-    transactions = (await db.execute(select(Transaction).where(Transaction.enabled.is_(True)))).scalars().all()
+    transactions = (
+        (await db.execute(select(Transaction).where(Transaction.enabled.is_(True))))
+        .scalars()
+        .all()
+    )
     count = 0
     for tx in transactions:
-        db.add(WorkerJob(workspace_id=tx.workspace_id, kind="transaction.run", payload={"transaction_id": str(tx.id)}))
+        db.add(
+            WorkerJob(
+                workspace_id=tx.workspace_id,
+                kind="transaction.run",
+                payload={"transaction_id": str(tx.id)},
+            )
+        )
+        count += 1
+    await db.flush()
+    return count
+
+
+async def enqueue_k8s_jobs(db: AsyncSession) -> int:
+    clusters = (
+        (await db.execute(select(K8sCluster).where(K8sCluster.status != "unknown")))
+        .scalars()
+        .all()
+    )
+    count = 0
+    for cluster in clusters:
+        db.add(
+            WorkerJob(
+                workspace_id=cluster.workspace_id,
+                kind="k8s.discover",
+                payload={"cluster_id": str(cluster.id)},
+            )
+        )
         count += 1
     await db.flush()
     return count
@@ -31,13 +71,20 @@ async def enqueue_transaction_jobs(db: AsyncSession) -> int:
 
 async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
     jobs = (
-        await db.execute(
-            select(WorkerJob)
-            .where(WorkerJob.status == "queued", WorkerJob.scheduled_at <= datetime.now(timezone.utc))
-            .order_by(WorkerJob.scheduled_at.asc())
-            .limit(limit)
+        (
+            await db.execute(
+                select(WorkerJob)
+                .where(
+                    WorkerJob.status == "queued",
+                    WorkerJob.scheduled_at <= datetime.now(timezone.utc),
+                )
+                .order_by(WorkerJob.scheduled_at.asc())
+                .limit(limit)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     processed = 0
     for job in jobs:
@@ -51,9 +98,21 @@ async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
                 if monitor:
                     await execute_monitor_check(db, monitor)
             elif job.kind == "transaction.run":
-                transaction = await db.get(Transaction, job.payload.get("transaction_id"))
+                transaction = await db.get(
+                    Transaction, job.payload.get("transaction_id")
+                )
                 if transaction:
                     await execute_transaction_run(db, transaction)
+            elif job.kind == "k8s.discover":
+                cluster = await db.get(K8sCluster, job.payload.get("cluster_id"))
+                if cluster:
+                    from app.services.kubernetes import (
+                        discover_cluster,
+                        collect_cluster_metrics,
+                    )
+
+                    await discover_cluster(db, cluster)
+                    await collect_cluster_metrics(db, cluster)
             job.status = "completed"
             job.completed_at = datetime.now(timezone.utc)
             job.last_error = None
