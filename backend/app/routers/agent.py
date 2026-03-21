@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -8,19 +9,42 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import AIChatMessage, AgentAction, Host, HostMetric, User
+from app.models import AIChatMessage, AgentAction, Host, HostMetric, Service, User
 from app.schemas import AgentActionOut, AgentActionResultRequest, AgentHeartbeatRequest, AgentHeartbeatResponse
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
-def require_agent_token(x_agent_token: str = Header(default="")) -> None:
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def require_agent_host(
+    x_agent_token: str = Header(default=""),
+    db: AsyncSession = Depends(get_db),
+) -> Host | None:
+    if not x_agent_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing agent token")
+
+    token_hash = _hash_token(x_agent_token)
+    result = await db.execute(select(Host).where(Host.enrollment_token_hash == token_hash))
+    host = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+
+    if host:
+        if host.enrollment_revoked_at:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Enrollment token revoked")
+        if host.enrollment_scope not in {"install", "agent"}:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Enrollment token scope invalid")
+        if host.enrollment_token_expires_at and host.enrollment_token_expires_at < now:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Enrollment token expired")
+        return host
+
     settings = get_settings()
-    if not settings.agent_shared_token or x_agent_token != settings.agent_shared_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid agent token",
-        )
+    if settings.agent_shared_token and x_agent_token == settings.agent_shared_token:
+        return None
+
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid agent token")
 
 
 async def _ensure_agent_actions_schema(db: AsyncSession) -> None:
@@ -106,14 +130,17 @@ def _format_action_result_message(host: Host, action: AgentAction) -> str:
 async def heartbeat(
     req: AgentHeartbeatRequest,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(require_agent_token),
+    enrolled_host: Host | None = Depends(require_agent_host),
 ):
     await _ensure_agent_actions_schema(db)
 
-    result = await db.execute(select(Host).where(Host.name == req.name))
-    host = result.scalar_one_or_none()
-    status_value = derive_host_status(req.cpu_percent, req.memory_percent, req.disk_percent)
     now = datetime.now(timezone.utc)
+    status_value = derive_host_status(req.cpu_percent, req.memory_percent, req.disk_percent)
+    host = enrolled_host
+
+    if host is None:
+        result = await db.execute(select(Host).where(Host.name == req.name))
+        host = result.scalar_one_or_none()
 
     if host is None:
         host = Host(
@@ -125,7 +152,11 @@ async def heartbeat(
         )
         db.add(host)
         await db.flush()
+    elif enrolled_host is not None:
+        host.enrollment_token_used_at = now
+        host.enrollment_scope = "agent"
 
+    host.name = host.name or req.name
     host.type = req.type
     host.ip_address = req.ip_address
     host.os = req.os
@@ -138,6 +169,45 @@ async def heartbeat(
     host.status = status_value
     host.last_seen = now
 
+    if req.services and host.workspace_id:
+        existing_services_result = await db.execute(select(Service).where(Service.host_id == host.id))
+        existing_services = existing_services_result.scalars().all()
+        existing_by_key = {
+            (service.plugin_id or "", service.endpoint or service.name): service
+            for service in existing_services
+        }
+
+        seen_keys = set()
+        for service_report in req.services:
+            key = (service_report.plugin_id, service_report.endpoint or service_report.name)
+            seen_keys.add(key)
+            service = existing_by_key.get(key)
+            if service is None:
+                service = Service(
+                    workspace_id=host.workspace_id,
+                    host_id=host.id,
+                    name=service_report.name,
+                    plugin_id=service_report.plugin_id,
+                    service_type=service_report.service_type,
+                    endpoint=service_report.endpoint,
+                )
+                db.add(service)
+            service.name = service_report.name
+            service.status = service_report.status
+            service.url = service_report.endpoint
+            service.endpoint = service_report.endpoint
+            service.plugin_id = service_report.plugin_id
+            service.service_type = service_report.service_type
+            service.latency_ms = service_report.latency_ms
+            service.requests_per_min = service_report.requests_per_min
+            service.uptime_percent = service_report.uptime_percent
+            service.endpoints_count = service_report.endpoints_count
+            service.plugin_metadata = service_report.metadata or {}
+
+        for existing_key, existing_service in existing_by_key.items():
+            if existing_key not in seen_keys and existing_service.plugin_id:
+                existing_service.status = "unknown"
+
     metric = HostMetric(
         host_id=host.id,
         cpu_percent=req.cpu_percent,
@@ -145,6 +215,7 @@ async def heartbeat(
         disk_percent=req.disk_percent,
         network_in_bytes=req.network_in_bytes,
         network_out_bytes=req.network_out_bytes,
+        network_interfaces=[iface.model_dump() for iface in req.network_interfaces],
         recorded_at=now,
     )
     db.add(metric)
@@ -176,7 +247,7 @@ async def submit_action_result(
     action_id: UUID,
     req: AgentActionResultRequest,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(require_agent_token),
+    _: Host | None = Depends(require_agent_host),
 ):
     await _ensure_agent_actions_schema(db)
     result = await db.execute(select(AgentAction).where(AgentAction.id == action_id))

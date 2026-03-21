@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import LogEntry, User, Workspace
+from app.models import Host, LogEntry, User, Workspace
 from app.schemas import LogEntryCreate, LogEntryOut
 from app.auth import get_current_user
+from app.routers.agent import require_agent_host
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/logs", tags=["logs"])
@@ -39,18 +42,48 @@ async def list_logs(
     ]
 
 
+async def _resolve_ingest_workspace(
+    db: AsyncSession,
+    agent_host: Host | None,
+    x_workspace_id: str | None,
+) -> Workspace:
+    if agent_host and agent_host.workspace_id:
+        workspace = await db.get(Workspace, agent_host.workspace_id)
+        if workspace:
+            return workspace
+
+    if x_workspace_id:
+        workspace = await db.get(Workspace, x_workspace_id)
+        if workspace:
+            return workspace
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No workspace available for log ingest")
+
+
+def _enrich_log_metadata(req: LogEntryCreate, agent_host: Host | None) -> dict:
+    metadata = dict(req.metadata or {})
+    if agent_host:
+        metadata.setdefault("ingested_by", "agent")
+        metadata.setdefault("host_id", str(agent_host.id))
+        metadata.setdefault("host_name", agent_host.name)
+    return metadata
+
+
 @router.post("/ingest", response_model=LogEntryOut, status_code=201)
 async def ingest_log(
     req: LogEntryCreate,
     db: AsyncSession = Depends(get_db),
-    workspace: Workspace = Depends(get_current_workspace),
+    agent_host: Host | None = Depends(require_agent_host),
+    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
 ):
+    workspace = await _resolve_ingest_workspace(db, agent_host, x_workspace_id)
+    metadata = _enrich_log_metadata(req, agent_host)
     entry = LogEntry(
         workspace_id=workspace.id,
         level=req.level,
         service=req.service,
         message=req.message,
-        extra_data=req.metadata,
+        extra_data=metadata,
     )
     if req.timestamp:
         entry.timestamp = req.timestamp
@@ -67,18 +100,22 @@ async def ingest_log(
 async def ingest_logs_batch(
     entries: list[LogEntryCreate],
     db: AsyncSession = Depends(get_db),
-    workspace: Workspace = Depends(get_current_workspace),
+    agent_host: Host | None = Depends(require_agent_host),
+    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
 ):
+    workspace = await _resolve_ingest_workspace(db, agent_host, x_workspace_id)
     for req in entries:
         entry = LogEntry(
             workspace_id=workspace.id,
             level=req.level,
             service=req.service,
             message=req.message,
-            extra_data=req.metadata,
+            extra_data=_enrich_log_metadata(req, agent_host),
         )
         if req.timestamp:
             entry.timestamp = req.timestamp
+        else:
+            entry.timestamp = datetime.now(timezone.utc)
         db.add(entry)
     await db.flush()
-    return {"ingested": len(entries)}
+    return {"ingested": len(entries), "workspace_id": str(workspace.id)}

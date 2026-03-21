@@ -173,6 +173,17 @@ npm run dev  # Proxies /api to localhost:8000
 | POST | `/api/ai/explain-failure` | AI failure analysis |
 | POST | `/api/agent/heartbeat` | Standalone agent host heartbeat + metric ingestion |
 
+## Agent-side collectors
+
+When the standalone agent is deployed on a host, it can enrich service discovery with live collector data:
+
+- **PostgreSQL** via `ARGUS_POSTGRES_DSN`
+- **MySQL** via `ARGUS_MYSQL_DSN`
+- **Redis** via `ARGUS_REDIS_URL`
+- **RabbitMQ** via `ARGUS_RABBITMQ_API_URL` (+ optional username/password)
+
+The services UI surfaces collector health directly on the main Services page, and host detail panels now expose bandwidth history plus per-interface throughput snapshots.
+
 ## Database Schema
 
 Core entities: Users, Hosts, HostMetrics, Services, Monitors, MonitorResults, Transactions, TransactionSteps, TransactionRuns, TransactionRunSteps, AlertRules, AlertInstances, Incidents, IncidentEvents, LogEntries, Dashboards, AIChatMessages.

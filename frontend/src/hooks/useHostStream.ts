@@ -62,7 +62,7 @@ export function useHostMetricsStream(hostId: string | null, initialData: any, en
     if (!token) return;
 
     const params = new URLSearchParams({ token });
-    const source = new EventSource(`${API_BASE}/api/hosts/${hostId}/stream?${params.toString()}`);
+    const source = new EventSource(`${API_BASE}/api/hosts/${hostId}/metrics/stream?${params.toString()}`);
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);

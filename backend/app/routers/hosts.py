@@ -1,10 +1,13 @@
 import asyncio
+import hashlib
 import json
+import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +20,7 @@ from app.services.workspace import get_current_workspace
 router = APIRouter(prefix="/hosts", tags=["hosts"])
 LIVE_HOST_WINDOW = timedelta(seconds=120)
 STREAM_INTERVAL_SECONDS = 5
+DEFAULT_TOKEN_TTL_HOURS = 24
 
 
 def _host_sort_key(host: Host):
@@ -36,10 +40,44 @@ def _is_host_connected(host: Host) -> bool:
     return datetime.now(timezone.utc) - last_seen <= LIVE_HOST_WINDOW
 
 
+def _hash_enrollment_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _enrollment_status(host: Host) -> str:
+    now = datetime.now(timezone.utc)
+    if host.enrollment_revoked_at:
+        return "revoked"
+    if host.enrollment_token_used_at and _is_host_connected(host):
+        return "online"
+    if host.enrollment_token_used_at:
+        return "enrolled"
+    if host.enrollment_token_expires_at and host.enrollment_token_expires_at < now:
+        return "expired"
+    if host.enrollment_token_hash:
+        return "pending"
+    return "none"
+
+
+def _issue_enrollment_token(host: Host, ttl_hours: int = DEFAULT_TOKEN_TTL_HOURS, scope: str = "install") -> str:
+    raw = secrets.token_urlsafe(24)
+    host.enrollment_token_hash = _hash_enrollment_token(raw)
+    host.enrollment_token_expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
+    host.enrollment_token_used_at = None
+    host.enrollment_scope = scope
+    host.enrollment_revoked_at = None
+    return raw
+
+
 def _host_out(host: Host, spark: list[float]):
     payload = HostOut.model_validate(host).model_dump()
     payload["is_agent_connected"] = _is_host_connected(host)
     payload["data_source"] = "agent" if host.agent_version else "seeded"
+    payload["enrollment_pending"] = _enrollment_status(host) == "pending"
+    payload["enrollment_token_expires_at"] = host.enrollment_token_expires_at
+    payload["enrollment_token_used_at"] = host.enrollment_token_used_at
+    payload["enrollment_status"] = _enrollment_status(host)
+    payload["enrollment_scope"] = host.enrollment_scope or "install"
     return HostWithSparkline(
         **payload,
         spark=spark if spark else [host.cpu_percent] * 7,
@@ -77,9 +115,7 @@ async def _fetch_host_sparks(db: AsyncSession, host_ids: list[UUID], limit: int 
         select(
             HostMetric.host_id.label("host_id"),
             HostMetric.cpu_percent.label("cpu_percent"),
-            func.row_number()
-            .over(partition_by=HostMetric.host_id, order_by=HostMetric.recorded_at.desc())
-            .label("rn"),
+            func.row_number().over(partition_by=HostMetric.host_id, order_by=HostMetric.recorded_at.desc()).label("rn"),
         )
         .where(HostMetric.host_id.in_(host_ids))
         .subquery()
@@ -125,6 +161,7 @@ def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
     mem_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.memory_percent, 1)} for m in metrics if m.memory_percent is not None]
     disk_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.disk_percent, 1)} for m in metrics if m.disk_percent is not None]
 
+    latest_interfaces = metrics[-1].network_interfaces if metrics and getattr(metrics[-1], 'network_interfaces', None) else []
     return {
         "host": {
             "id": str(host.id),
@@ -142,10 +179,17 @@ def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
             "last_seen": host.last_seen.isoformat() if host.last_seen else None,
             "is_agent_connected": _is_host_connected(host),
             "data_source": "agent" if host.agent_version else "seeded",
+            "enrollment_status": _enrollment_status(host),
+            "enrollment_scope": host.enrollment_scope or "install",
+            "enrollment_token_expires_at": host.enrollment_token_expires_at.isoformat() if host.enrollment_token_expires_at else None,
+            "enrollment_token_used_at": host.enrollment_token_used_at.isoformat() if host.enrollment_token_used_at else None,
+            "network_interfaces": latest_interfaces,
         },
         "cpu": cpu_data,
         "memory": mem_data,
         "disk": disk_data,
+        "network_in": network_in_data,
+        "network_out": network_out_data,
     }
 
 
@@ -169,6 +213,7 @@ async def create_host(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     host = Host(workspace_id=workspace.id, **req.model_dump())
+    _issue_enrollment_token(host)
     db.add(host)
     await db.flush()
     await db.refresh(host)
@@ -264,24 +309,24 @@ async def get_host_metrics(
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
 
-    metrics_q = (
+    metrics_result = await db.execute(
         select(HostMetric)
         .where(HostMetric.host_id == host_id)
         .order_by(HostMetric.recorded_at.desc())
         .limit(48)
     )
-    metrics_result = await db.execute(metrics_q)
     metrics = list(reversed(metrics_result.scalars().all()))
     return _serialize_host_metrics(host, metrics)
 
 
-@router.get("/{host_id}/stream")
+@router.get("/{host_id}/metrics/stream")
 async def stream_host_metrics(
     host_id: UUID,
     request: Request,
     token: str = Query(...),
 ):
-    await _get_stream_user(token)
+    stream_user = await _get_stream_user(token)
+    workspace_id = await _get_user_workspace_id(stream_user.id)
 
     async def event_stream():
         last_payload = ""
@@ -290,20 +335,19 @@ async def stream_host_metrics(
                 break
 
             async with async_session() as db:
-                result = await db.execute(select(Host).where(Host.id == host_id))
+                result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace_id))
                 host = result.scalar_one_or_none()
                 if not host:
-                    yield f"data: {json.dumps({'error': 'Host not found'})}\n\n"
-                    break
-
-                metrics_result = await db.execute(
-                    select(HostMetric)
-                    .where(HostMetric.host_id == host_id)
-                    .order_by(HostMetric.recorded_at.desc())
-                    .limit(48)
-                )
-                metrics = list(reversed(metrics_result.scalars().all()))
-                payload = json.dumps(_serialize_host_metrics(host, metrics), separators=(",", ":"))
+                    payload = json.dumps({"host": None, "cpu": [], "memory": [], "disk": []}, separators=(",", ":"))
+                else:
+                    metrics_result = await db.execute(
+                        select(HostMetric)
+                        .where(HostMetric.host_id == host_id)
+                        .order_by(HostMetric.recorded_at.desc())
+                        .limit(48)
+                    )
+                    metrics = list(reversed(metrics_result.scalars().all()))
+                    payload = json.dumps(_serialize_host_metrics(host, metrics), separators=(",", ":"))
 
             if payload != last_payload:
                 yield f"data: {payload}\n\n"
@@ -322,6 +366,158 @@ async def stream_host_metrics(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/{host_id}/enrollment-token")
+async def rotate_host_enrollment_token(
+    host_id: UUID,
+    request: Request,
+    scope: str = Query("install"),
+    ttl_hours: int = Query(DEFAULT_TOKEN_TTL_HOURS, ge=1, le=168),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    if scope not in {"install", "agent"}:
+        raise HTTPException(status_code=400, detail="Unsupported enrollment scope")
+
+    result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace.id))
+    host = result.scalar_one_or_none()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+
+    token = _issue_enrollment_token(host, ttl_hours=ttl_hours, scope=scope)
+    await db.flush()
+    origin = str(request.base_url).rstrip("/")
+    install_path = f"/api/hosts/{host.id}/install.sh?token={token}"
+    return {
+        "host_id": str(host.id),
+        "token": token,
+        "scope": host.enrollment_scope,
+        "status": _enrollment_status(host),
+        "expires_at": host.enrollment_token_expires_at.isoformat() if host.enrollment_token_expires_at else None,
+        "revoked_at": host.enrollment_revoked_at.isoformat() if host.enrollment_revoked_at else None,
+        "install_url": f"{origin}{install_path}",
+        "command": f"curl -fsSL {origin}{install_path} | sudo bash",
+    }
+
+
+@router.delete("/{host_id}/enrollment-token")
+async def revoke_host_enrollment_token(
+    host_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    result = await db.execute(select(Host).where(Host.id == host_id, Host.workspace_id == workspace.id))
+    host = result.scalar_one_or_none()
+    if not host:
+        raise HTTPException(status_code=404, detail="Host not found")
+
+    host.enrollment_revoked_at = datetime.now(timezone.utc)
+    host.enrollment_token_hash = None
+    host.enrollment_token_expires_at = None
+    host.enrollment_scope = "install"
+    await db.flush()
+    return {"host_id": str(host.id), "status": _enrollment_status(host)}
+
+
+@router.get("/{host_id}/install.sh")
+async def get_host_install_script(
+    host_id: UUID,
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Host).where(Host.id == host_id))
+    host = result.scalar_one_or_none()
+    if not host or not host.enrollment_token_hash or _hash_enrollment_token(token) != host.enrollment_token_hash:
+        raise HTTPException(status_code=404, detail="Install token not found")
+    if host.enrollment_revoked_at:
+        raise HTTPException(status_code=410, detail="Install token revoked")
+    if host.enrollment_token_expires_at and host.enrollment_token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Install token expired")
+    origin = str(request.base_url).rstrip("/")
+    script = f'''#!/usr/bin/env bash
+set -euo pipefail
+
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+
+BASE_URL="{origin}"
+HOST_ID="{host.id}"
+HOST_TOKEN="{token}"
+
+curl -fsSL "$BASE_URL/api/hosts/$HOST_ID/agent-binary?token=$HOST_TOKEN" -o "$TMPDIR/argus-agent"
+chmod +x "$TMPDIR/argus-agent"
+
+cat > "$TMPDIR/argus-agent.env" <<EOF
+ARGUS_AGENT_SERVER_URL=$BASE_URL
+ARGUS_AGENT_TOKEN=$HOST_TOKEN
+ARGUS_AGENT_HOSTNAME=${{ARGUS_AGENT_HOSTNAME:-$(hostname)}}
+ARGUS_AGENT_IP_ADDRESS=${{ARGUS_AGENT_IP_ADDRESS:-}}
+ARGUS_AGENT_SERVICE_NAME=host-agent
+ARGUS_AGENT_HOST_TYPE={host.type}
+ARGUS_AGENT_TAGS={','.join(host.tags or [])}
+ARGUS_AGENT_LOG_FILES=/var/log/syslog,/var/log/auth.log
+ARGUS_AGENT_INTERVAL_SECONDS=30
+ARGUS_AGENT_VERIFY_TLS=true
+ARGUS_AGENT_DISK_PATH=/
+EOF
+
+cat > "$TMPDIR/argus-agent.service" <<'EOF'
+[Unit]
+Description=ArgusMonitor host agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/argus-agent/argus-agent.env
+ExecStart=/usr/local/bin/argus-agent
+Restart=always
+RestartSec=5
+WorkingDirectory=/var/lib/argus-agent
+StateDirectory=argus-agent
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/argus-agent
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo install -d /etc/argus-agent /var/lib/argus-agent /usr/local/bin
+sudo install -m 0755 "$TMPDIR/argus-agent" /usr/local/bin/argus-agent
+sudo install -m 0644 "$TMPDIR/argus-agent.env" /etc/argus-agent/argus-agent.env
+sudo install -m 0644 "$TMPDIR/argus-agent.service" /etc/systemd/system/argus-agent.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now argus-agent.service
+sudo systemctl status --no-pager --full argus-agent.service || true
+'''
+    return PlainTextResponse(script, media_type="text/x-shellscript; charset=utf-8")
+
+
+@router.get("/{host_id}/agent-binary")
+async def download_host_agent_binary(
+    host_id: UUID,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Host).where(Host.id == host_id))
+    host = result.scalar_one_or_none()
+    if not host or not host.enrollment_token_hash or _hash_enrollment_token(token) != host.enrollment_token_hash:
+        raise HTTPException(status_code=404, detail="Agent download not found")
+    if host.enrollment_revoked_at:
+        raise HTTPException(status_code=410, detail="Agent download revoked")
+    if host.enrollment_token_expires_at and host.enrollment_token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Agent download token expired")
+    binary_path = Path(__file__).resolve().parents[2] / "agent-binary" / "argus-agent"
+    if not binary_path.exists():
+        raise HTTPException(status_code=404, detail="Agent binary not available on this deployment")
+    return FileResponse(path=binary_path, filename="argus-agent", media_type="application/octet-stream")
 
 
 @router.delete("/{host_id}", status_code=204)

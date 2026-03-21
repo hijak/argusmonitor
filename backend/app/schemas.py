@@ -107,6 +107,11 @@ class HostOut(BaseModel):
     created_at: datetime
     is_agent_connected: bool = False
     data_source: str = "seeded"
+    enrollment_pending: bool = False
+    enrollment_status: str = "none"
+    enrollment_scope: str = "install"
+    enrollment_token_expires_at: Optional[datetime] = None
+    enrollment_token_used_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -149,6 +154,11 @@ class ServiceOut(BaseModel):
     name: str
     status: str
     url: Optional[str]
+    host_id: Optional[UUID] = None
+    plugin_id: Optional[str] = None
+    service_type: Optional[str] = None
+    endpoint: Optional[str] = None
+    plugin_metadata: dict[str, Any] = {}
     uptime_percent: float
     latency_ms: float
     requests_per_min: float
@@ -564,6 +574,29 @@ class AgentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AgentInterfaceReport(BaseModel):
+    name: str
+    rx_bytes_per_sec: float = 0
+    tx_bytes_per_sec: float = 0
+    is_up: bool = True
+    speed_mbps: Optional[int] = None
+    ipv4: Optional[str] = None
+
+
+class AgentServiceReport(BaseModel):
+    name: str
+    plugin_id: str
+    service_type: str
+    endpoint: Optional[str] = None
+    status: str = "healthy"
+    latency_ms: float = 0
+    requests_per_min: float = 0
+    uptime_percent: float = 100.0
+    endpoints_count: int = 1
+    tags: list[str] = []
+    metadata: dict[str, Any] = {}
+
+
 class AgentHeartbeatRequest(BaseModel):
     name: str
     type: str = "server"
@@ -577,6 +610,9 @@ class AgentHeartbeatRequest(BaseModel):
     uptime: Optional[str] = None
     network_in_bytes: Optional[float] = None
     network_out_bytes: Optional[float] = None
+    network_interfaces: list[AgentInterfaceReport] = []
+    capabilities: dict[str, Any] = {}
+    services: list[AgentServiceReport] = []
 
 
 class AgentActionOut(BaseModel):
@@ -1064,7 +1100,7 @@ class OverviewStats(BaseModel):
 
 class K8sClusterCreate(BaseModel):
     name: str
-    api_server: str
+    api_server: Optional[str] = None
     auth_type: str = "kubeconfig"
     auth_config: dict[str, Any] = {}
 
@@ -1147,6 +1183,249 @@ class K8sPodOut(BaseModel):
     ip_address: Optional[str]
     labels: dict[str, str] = {}
     started_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sDeploymentOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: str
+    name: str
+    status: str
+    desired_replicas: int
+    ready_replicas: int
+    available_replicas: int
+    updated_replicas: int
+    strategy: Optional[str]
+    labels: dict[str, str] = {}
+    created_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sStatefulSetOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: str
+    name: str
+    status: str
+    desired_replicas: int
+    ready_replicas: int
+    service_name: Optional[str]
+    labels: dict[str, str] = {}
+    created_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sDaemonSetOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: str
+    name: str
+    status: str
+    desired_number_scheduled: int
+    number_ready: int
+    updated_number_scheduled: int
+    labels: dict[str, str] = {}
+    created_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sJobOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: str
+    name: str
+    kind: str
+    status: str
+    completions: int
+    succeeded: int
+    failed: int
+    active: int
+    schedule: Optional[str]
+    labels: dict[str, str] = {}
+    created_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sServiceOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: str
+    name: str
+    service_type: str
+    cluster_ip: Optional[str]
+    external_ip: Optional[str]
+    ports: list[dict[str, Any]] = []
+    selector: dict[str, str] = {}
+    labels: dict[str, str] = {}
+    created_at: Optional[datetime]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class K8sEventOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    namespace: Optional[str]
+    involved_kind: Optional[str]
+    involved_name: Optional[str]
+    type: str
+    reason: Optional[str]
+    message: Optional[str]
+    event_time: Optional[datetime]
+    count: int
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+# --- Docker Swarm ---
+
+
+class SwarmClusterCreate(BaseModel):
+    name: str
+    docker_host: str = "unix:///var/run/docker.sock"
+    auth_type: str = "local"
+    auth_config: dict[str, Any] = {}
+
+
+class SwarmClusterUpdate(BaseModel):
+    name: Optional[str] = None
+    docker_host: Optional[str] = None
+    auth_type: Optional[str] = None
+    auth_config: Optional[dict[str, Any]] = None
+
+
+class SwarmClusterOut(BaseModel):
+    id: UUID
+    name: str
+    docker_host: str
+    auth_type: str
+    status: str
+    swarm_id: Optional[str]
+    manager_count: int
+    worker_count: int
+    node_count: int
+    service_count: int
+    task_count: int
+    stack_count: int
+    cpu_usage_percent: float
+    memory_usage_percent: float
+    last_seen: Optional[datetime]
+    error_message: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SwarmNodeOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    node_id: str
+    hostname: str
+    role: Optional[str]
+    availability: Optional[str]
+    status: Optional[str]
+    manager_status: Optional[str]
+    engine_version: Optional[str]
+    addr: Optional[str]
+    cpu_count: int
+    memory_bytes: int
+    labels: dict[str, str] = {}
+    last_seen: Optional[datetime]
+    created_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class SwarmServiceOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    service_id: str
+    name: str
+    image: Optional[str]
+    mode: Optional[str]
+    replicas_desired: int
+    replicas_running: int
+    update_status: Optional[str]
+    published_ports: list[dict[str, Any]] = []
+    stack: Optional[str]
+    labels: dict[str, str] = {}
+    last_seen: Optional[datetime]
+    created_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class SwarmTaskOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    task_id: str
+    service_name: Optional[str]
+    slot: int
+    node_name: Optional[str]
+    desired_state: Optional[str]
+    current_state: Optional[str]
+    error: Optional[str]
+    message: Optional[str]
+    container_id: Optional[str]
+    image: Optional[str]
+    stack: Optional[str]
+    last_seen: Optional[datetime]
+    created_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class SwarmNetworkOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    network_id: str
+    name: str
+    driver: Optional[str]
+    scope: Optional[str]
+    attachable: bool
+    ingress: bool
+    labels: dict[str, str] = {}
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class SwarmVolumeOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    name: str
+    driver: Optional[str]
+    scope: Optional[str]
+    labels: dict[str, str] = {}
+    options: dict[str, Any] = {}
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class SwarmEventOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    event_type: str
+    action: str
+    actor_id: Optional[str]
+    actor_name: Optional[str]
+    scope: Optional[str]
+    message: Optional[str]
+    event_time: Optional[datetime]
     last_seen: Optional[datetime]
 
     model_config = {"from_attributes": True}

@@ -182,62 +182,99 @@ async def discover_services(
 
     services_result = await db.execute(select(Service).where(Service.workspace_id == workspace.id))
     existing_services = services_result.scalars().all()
-    existing_urls = {service.url for service in existing_services if service.url}
+    existing_by_key = {
+        (str(service.host_id) if service.host_id else "", service.plugin_id or "", service.endpoint or service.url or service.name): service
+        for service in existing_services
+    }
 
     discovered = []
     created = 0
+    updated = 0
     for host in hosts[:25]:
-        for port, label in DEFAULT_DISCOVERY_PORTS:
+        for spec in DEFAULT_DISCOVERY_PORTS:
+            port = spec["port"]
+            label = spec["label"]
+            service_type = spec["service_type"]
+            plugin_id = spec["plugin_id"]
+            scheme = spec["scheme"]
+
             is_open = await _tcp_open(host.ip_address, port)
             if not is_open:
                 continue
 
-            scheme = "https" if port == 443 else "http"
-            default_port = (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
-            url = f"{scheme}://{host.ip_address}" + ("" if default_port else f":{port}")
-            if url in existing_urls:
-                continue
+            endpoint = f"{host.ip_address}:{port}"
+            url = None
+            if scheme:
+                default_port = (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
+                url = f"{scheme}://{host.ip_address}" + ("" if default_port else f":{port}")
 
-            service = Service(
-                workspace_id=workspace.id,
-                name=f"{host.name} {label}",
-                status="healthy",
-                url=url,
-                uptime_percent=100.0,
-                latency_ms=20 + (port % 30),
-                requests_per_min=0,
-                endpoints_count=1,
-                check_interval=60,
-            )
-            db.add(service)
-            await db.flush()
-            existing_urls.add(url)
-            created += 1
+            key = (str(host.id), plugin_id, endpoint)
+            service = existing_by_key.get(key)
+            if service is None:
+                service = Service(
+                    workspace_id=workspace.id,
+                    host_id=host.id,
+                    name=f"{host.name} {label}",
+                    status="healthy",
+                    url=url,
+                    endpoint=endpoint,
+                    plugin_id=plugin_id,
+                    service_type=service_type,
+                    plugin_metadata={"suggested": True, "source": "known-port-scan", "port": port},
+                    uptime_percent=100.0,
+                    latency_ms=20 + (port % 30),
+                    requests_per_min=0,
+                    endpoints_count=1,
+                    check_interval=60,
+                )
+                db.add(service)
+                await db.flush()
+                existing_by_key[key] = service
+                created += 1
+            else:
+                service.host_id = host.id
+                service.url = url
+                service.endpoint = endpoint
+                service.plugin_id = plugin_id
+                service.service_type = service_type
+                service.plugin_metadata = {**(service.plugin_metadata or {}), "suggested": True, "source": "known-port-scan", "port": port}
+                updated += 1
 
-            prometheus = await _is_prometheus_endpoint(url)
-            if prometheus:
-                existing_monitor = (
-                    await db.execute(select(Monitor).where(Monitor.workspace_id == workspace.id, Monitor.type == "prometheus", Monitor.target == f"{url.rstrip('/')}/metrics"))
-                ).scalars().first()
-                if not existing_monitor:
-                    db.add(
-                        Monitor(
-                            workspace_id=workspace.id,
-                            name=f"{service.name} Prometheus",
-                            type="prometheus",
-                            target=f"{url.rstrip('/')}/metrics",
-                            interval_seconds=60,
-                            timeout_seconds=15,
-                            enabled=True,
-                            config={"source": "service-discovery", "linked_service_id": str(service.id)},
-                            status="unknown",
+            prometheus = False
+            if url:
+                prometheus = await _is_prometheus_endpoint(url)
+                if prometheus:
+                    existing_monitor = (
+                        await db.execute(select(Monitor).where(Monitor.workspace_id == workspace.id, Monitor.type == "prometheus", Monitor.target == f"{url.rstrip('/')}/metrics"))
+                    ).scalars().first()
+                    if not existing_monitor:
+                        db.add(
+                            Monitor(
+                                workspace_id=workspace.id,
+                                name=f"{service.name} Prometheus",
+                                type="prometheus",
+                                target=f"{url.rstrip('/')}/metrics",
+                                interval_seconds=60,
+                                timeout_seconds=15,
+                                enabled=True,
+                                config={"source": "service-discovery", "linked_service_id": str(service.id)},
+                                status="unknown",
+                            )
                         )
-                    )
 
-            discovered.append({"host": host.name, "port": port, "url": url, "prometheus": prometheus})
+            discovered.append({
+                "host": host.name,
+                "host_id": str(host.id),
+                "port": port,
+                "endpoint": endpoint,
+                "url": url,
+                "plugin_id": plugin_id,
+                "service_type": service_type,
+                "prometheus": prometheus,
+            })
 
     await db.flush()
-    return {"created": created, "discovered": discovered[:50]}
+    return {"created": created, "updated": updated, "discovered": discovered[:100]}
 
 
 @router.get("/stream")

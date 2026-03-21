@@ -19,6 +19,7 @@ class AgentSettings:
     interval_seconds: int
     verify_tls: bool
     disk_path: str
+    ip_address: str | None
 
 
 def load_settings() -> AgentSettings:
@@ -34,4 +35,5 @@ def load_settings() -> AgentSettings:
         interval_seconds=int(os.getenv("ARGUS_AGENT_INTERVAL_SECONDS", "30")),
         verify_tls=os.getenv("ARGUS_AGENT_VERIFY_TLS", "true").lower() != "false",
         disk_path=os.getenv("ARGUS_AGENT_DISK_PATH", "/"),
+        ip_address=os.getenv("ARGUS_AGENT_IP_ADDRESS") or None,
     )

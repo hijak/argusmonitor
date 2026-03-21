@@ -25,7 +25,11 @@ class ArgusClient:
         if not entries:
             return
         async with httpx.AsyncClient(base_url=self._server_url, verify=self._verify_tls, timeout=10.0) as client:
-            response = await client.post("/api/logs/ingest/batch", json=entries)
+            response = await client.post(
+                "/api/logs/ingest/batch",
+                json=entries,
+                headers={"x-agent-token": self._token},
+            )
             response.raise_for_status()
         logger.info("Shipped %s log entries", len(entries))
 

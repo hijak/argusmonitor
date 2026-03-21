@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     String,
     Integer,
+    BigInteger,
     Float,
     Boolean,
     DateTime,
@@ -269,6 +270,11 @@ class Host(Base):
         UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )
     name = Column(String(255), nullable=False, index=True)
+    enrollment_token_hash = Column(String(64), index=True)
+    enrollment_token_expires_at = Column(DateTime(timezone=True))
+    enrollment_token_used_at = Column(DateTime(timezone=True))
+    enrollment_scope = Column(String(50), default="install")
+    enrollment_revoked_at = Column(DateTime(timezone=True))
     type = Column(
         String(50), nullable=False, default="server"
     )  # server, database, container, network
@@ -307,6 +313,7 @@ class HostMetric(Base):
     disk_percent = Column(Float)
     network_in_bytes = Column(Float)
     network_out_bytes = Column(Float)
+    network_interfaces = Column(JSON, default=list)
     recorded_at = Column(DateTime(timezone=True), default=utcnow, index=True)
 
     host = relationship("Host", back_populates="metrics")
@@ -319,6 +326,11 @@ class Service(Base):
     workspace_id = Column(
         UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )
+    host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="SET NULL"), index=True)
+    plugin_id = Column(String(100), index=True)
+    service_type = Column(String(100), index=True)
+    endpoint = Column(String(255))
+    plugin_metadata = Column(JSON, default=dict)
     name = Column(String(255), nullable=False, index=True)
     status = Column(String(50), nullable=False, default="unknown")
     url = Column(String(500))
@@ -1017,6 +1029,24 @@ class K8sCluster(Base):
     pods = relationship(
         "K8sPod", back_populates="cluster", cascade="all, delete-orphan"
     )
+    deployments = relationship(
+        "K8sDeployment", back_populates="cluster", cascade="all, delete-orphan"
+    )
+    statefulsets = relationship(
+        "K8sStatefulSet", back_populates="cluster", cascade="all, delete-orphan"
+    )
+    daemonsets = relationship(
+        "K8sDaemonSet", back_populates="cluster", cascade="all, delete-orphan"
+    )
+    jobs = relationship(
+        "K8sJob", back_populates="cluster", cascade="all, delete-orphan"
+    )
+    services = relationship(
+        "K8sService", back_populates="cluster", cascade="all, delete-orphan"
+    )
+    events = relationship(
+        "K8sEvent", back_populates="cluster", cascade="all, delete-orphan"
+    )
 
 
 class K8sNamespace(Base):
@@ -1096,3 +1126,279 @@ class K8sPod(Base):
     last_seen = Column(DateTime(timezone=True))
 
     cluster = relationship("K8sCluster", back_populates="pods")
+
+
+class K8sDeployment(Base):
+    __tablename__ = "k8s_deployments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("k8s_clusters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    namespace = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="unknown")
+    desired_replicas = Column(Integer, default=0)
+    ready_replicas = Column(Integer, default=0)
+    available_replicas = Column(Integer, default=0)
+    updated_replicas = Column(Integer, default=0)
+    strategy = Column(String(100))
+    labels = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("K8sCluster", back_populates="deployments")
+
+
+class K8sStatefulSet(Base):
+    __tablename__ = "k8s_statefulsets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("k8s_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    namespace = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="unknown")
+    desired_replicas = Column(Integer, default=0)
+    ready_replicas = Column(Integer, default=0)
+    service_name = Column(String(255))
+    labels = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("K8sCluster", back_populates="statefulsets")
+
+
+class K8sDaemonSet(Base):
+    __tablename__ = "k8s_daemonsets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("k8s_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    namespace = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="unknown")
+    desired_number_scheduled = Column(Integer, default=0)
+    number_ready = Column(Integer, default=0)
+    updated_number_scheduled = Column(Integer, default=0)
+    labels = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("K8sCluster", back_populates="daemonsets")
+
+
+class K8sJob(Base):
+    __tablename__ = "k8s_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("k8s_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    namespace = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    kind = Column(String(50), nullable=False, default="Job")
+    status = Column(String(50), nullable=False, default="unknown")
+    completions = Column(Integer, default=0)
+    succeeded = Column(Integer, default=0)
+    failed = Column(Integer, default=0)
+    active = Column(Integer, default=0)
+    schedule = Column(String(255))
+    labels = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("K8sCluster", back_populates="jobs")
+
+
+class K8sService(Base):
+    __tablename__ = "k8s_services"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("k8s_clusters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    namespace = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    service_type = Column(String(50), nullable=False, default="ClusterIP")
+    cluster_ip = Column(String(100))
+    external_ip = Column(String(255))
+    ports = Column(JSON, default=list)
+    selector = Column(JSON, default=dict)
+    labels = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("K8sCluster", back_populates="services")
+
+
+class K8sEvent(Base):
+    __tablename__ = "k8s_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("k8s_clusters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    namespace = Column(String(255), index=True)
+    involved_kind = Column(String(100))
+    involved_name = Column(String(255), index=True)
+    type = Column(String(50), nullable=False, default="Normal")
+    reason = Column(String(255))
+    message = Column(Text)
+    event_time = Column(DateTime(timezone=True))
+    count = Column(Integer, default=1)
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("K8sCluster", back_populates="events")
+
+
+class SwarmCluster(Base):
+    __tablename__ = "swarm_clusters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
+    name = Column(String(255), nullable=False, index=True)
+    docker_host = Column(String(500), nullable=False)
+    auth_type = Column(String(50), nullable=False, default="local")  # local, ssh, tcp
+    auth_config = Column(JSON, default=dict)
+    status = Column(String(50), nullable=False, default="unknown")
+    swarm_id = Column(String(255))
+    manager_count = Column(Integer, default=0)
+    worker_count = Column(Integer, default=0)
+    node_count = Column(Integer, default=0)
+    service_count = Column(Integer, default=0)
+    task_count = Column(Integer, default=0)
+    stack_count = Column(Integer, default=0)
+    cpu_usage_percent = Column(Float, default=0)
+    memory_usage_percent = Column(Float, default=0)
+    last_discovery = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+    error_message = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    nodes = relationship("SwarmNode", back_populates="cluster", cascade="all, delete-orphan")
+    services = relationship("SwarmService", back_populates="cluster", cascade="all, delete-orphan")
+    tasks = relationship("SwarmTask", back_populates="cluster", cascade="all, delete-orphan")
+    networks = relationship("SwarmNetwork", back_populates="cluster", cascade="all, delete-orphan")
+    volumes = relationship("SwarmVolume", back_populates="cluster", cascade="all, delete-orphan")
+    events = relationship("SwarmEvent", back_populates="cluster", cascade="all, delete-orphan")
+
+
+class SwarmNode(Base):
+    __tablename__ = "swarm_nodes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("swarm_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    node_id = Column(String(255), nullable=False, index=True)
+    hostname = Column(String(255), nullable=False, index=True)
+    role = Column(String(50))
+    availability = Column(String(50))
+    status = Column(String(50))
+    manager_status = Column(String(100))
+    engine_version = Column(String(100))
+    addr = Column(String(100))
+    cpu_count = Column(Integer, default=0)
+    memory_bytes = Column(BigInteger, default=0)
+    labels = Column(JSON, default=dict)
+    last_seen = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True))
+
+    cluster = relationship("SwarmCluster", back_populates="nodes")
+
+
+class SwarmService(Base):
+    __tablename__ = "swarm_services"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("swarm_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    service_id = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    image = Column(String(500))
+    mode = Column(String(50))
+    replicas_desired = Column(Integer, default=0)
+    replicas_running = Column(Integer, default=0)
+    update_status = Column(String(100))
+    published_ports = Column(JSON, default=list)
+    stack = Column(String(255), index=True)
+    labels = Column(JSON, default=dict)
+    last_seen = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True))
+
+    cluster = relationship("SwarmCluster", back_populates="services")
+
+
+class SwarmTask(Base):
+    __tablename__ = "swarm_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("swarm_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    task_id = Column(String(255), nullable=False, index=True)
+    service_name = Column(String(255), index=True)
+    slot = Column(Integer, default=0)
+    node_name = Column(String(255))
+    desired_state = Column(String(50))
+    current_state = Column(String(100))
+    error = Column(Text)
+    message = Column(Text)
+    container_id = Column(String(255))
+    image = Column(String(500))
+    stack = Column(String(255), index=True)
+    last_seen = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True))
+
+    cluster = relationship("SwarmCluster", back_populates="tasks")
+
+
+class SwarmNetwork(Base):
+    __tablename__ = "swarm_networks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("swarm_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    network_id = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    driver = Column(String(100))
+    scope = Column(String(50))
+    attachable = Column(Boolean, default=False)
+    ingress = Column(Boolean, default=False)
+    labels = Column(JSON, default=dict)
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("SwarmCluster", back_populates="networks")
+
+
+class SwarmVolume(Base):
+    __tablename__ = "swarm_volumes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("swarm_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    driver = Column(String(100))
+    scope = Column(String(50))
+    labels = Column(JSON, default=dict)
+    options = Column(JSON, default=dict)
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("SwarmCluster", back_populates="volumes")
+
+
+class SwarmEvent(Base):
+    __tablename__ = "swarm_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("swarm_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String(100), nullable=False)
+    action = Column(String(100), nullable=False)
+    actor_id = Column(String(255))
+    actor_name = Column(String(255), index=True)
+    scope = Column(String(50))
+    message = Column(Text)
+    event_time = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("SwarmCluster", back_populates="events")

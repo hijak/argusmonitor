@@ -6,6 +6,7 @@ from argus_agent.client import ArgusClient
 from argus_agent.collector import MetricsCollector
 from argus_agent.config import load_settings
 from argus_agent.logs import LogTailer
+from argus_agent.plugin_manager import PluginManager
 
 AGENT_VERSION = "0.1.0"
 
@@ -24,11 +25,16 @@ async def run() -> None:
     client = ArgusClient(settings.server_url, settings.token, settings.verify_tls)
     collector = MetricsCollector()
     tailer = LogTailer(settings.log_files)
+    plugin_manager = PluginManager()
 
     logger.info("Starting agent for host %s against %s", settings.hostname, settings.server_url)
     while True:
         payload = collector.snapshot(settings.hostname, settings.host_type, settings.tags, settings.disk_path)
+        if settings.ip_address:
+            payload["ip_address"] = settings.ip_address
         payload["agent_version"] = AGENT_VERSION
+        payload["capabilities"] = {"plugins": plugin_manager.plugin_ids}
+        payload["services"] = [service.__dict__ for service in plugin_manager.discover_services(settings.hostname, settings.host_type, settings.tags)]
 
         try:
             result = await client.send_heartbeat(payload)
