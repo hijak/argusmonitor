@@ -3,8 +3,8 @@ from urllib.parse import urlparse
 
 import pymysql
 
-from argus_agent.plugin_types import DiscoveryContext, DiscoveredService
-from argus_agent.plugins.common import process_exists, tcp_probe
+from vordr_agent.plugin_types import DiscoveryContext, DiscoveredService
+from vordr_agent.plugins.common import process_exists, tcp_probe
 
 
 def _fetch_scalar(cur, query: str):
@@ -28,7 +28,7 @@ class MySQLPlugin:
     display_name = "MySQL"
 
     def discover(self, ctx: DiscoveryContext) -> list[DiscoveredService]:
-        dsn = os.getenv("ARGUS_MYSQL_DSN")
+        dsn = os.getenv("VORDR_MYSQL_DSN")
         host = "127.0.0.1"
         port = 3306
         endpoint = f"{host}:{port}"

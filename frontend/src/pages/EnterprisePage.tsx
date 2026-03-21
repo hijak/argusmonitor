@@ -81,7 +81,7 @@ export default function EnterprisePage() {
   const [exportForm, setExportForm] = useState({ export_type: "audit-log", format: "json" });
   const [supportForm, setSupportForm] = useState({ subject: "", description: "", priority: "normal" });
   const [announcementForm, setAnnouncementForm] = useState({ title: "", message: "", severity: "info", starts_at: "", ends_at: "" });
-  const [notificationForm, setNotificationForm] = useState({ channel_id: "", subject: "ArgusMonitor enterprise test", text: "Enterprise notification test" });
+  const [notificationForm, setNotificationForm] = useState({ channel_id: "", subject: "Vordr enterprise test", text: "Enterprise notification test" });
 
   const { data: organizations = [] } = useQuery({ queryKey: ["enterprise-orgs"], queryFn: api.listOrganizations });
   const { data: workspaces = [] } = useQuery({

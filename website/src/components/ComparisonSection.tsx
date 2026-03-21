@@ -14,7 +14,7 @@ const ComparisonSection = () => (
   <section className="py-20 lg:py-28 border-t border-border">
     <div className="container mx-auto px-4 lg:px-8">
       <div className="mx-auto max-w-2xl text-center mb-14">
-        <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Why ArgusMonitor?</h2>
+        <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Why Vordr?</h2>
         <p className="text-muted-foreground text-lg">Built for operators who want clarity, not complexity — and now growing the right enterprise muscles.</p>
       </div>
       <div className="mx-auto max-w-3xl space-y-3">

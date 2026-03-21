@@ -1,6 +1,6 @@
 # Alerts
 
-ArgusMonitor should ship with useful default alert packs instead of making users start from a blank page.
+Vordr should ship with useful default alert packs instead of making users start from a blank page.
 
 ## Sensible defaults
 

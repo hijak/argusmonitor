@@ -1,6 +1,6 @@
 # Systemd Deployment
 
-ArgusMonitor prefers a native host agent managed by `systemd`.
+Vordr prefers a native host agent managed by `systemd`.
 
 ## Why systemd
 
@@ -15,11 +15,11 @@ This approach gives you:
 ## Example layout
 
 ```bash
-sudo install -d /etc/argus-agent /var/lib/argus-agent /usr/local/bin
-sudo install -m 0755 ./argus-agent /usr/local/bin/argus-agent
-sudo install -m 0644 ./argus-agent.env /etc/argus-agent/argus-agent.env
-sudo install -m 0644 ./argus-agent.service /etc/systemd/system/argus-agent.service
+sudo install -d /etc/vordr-agent /var/lib/vordr-agent /usr/local/bin
+sudo install -m 0755 ./vordr-agent /usr/local/bin/vordr-agent
+sudo install -m 0644 ./vordr-agent.env /etc/vordr-agent/vordr-agent.env
+sudo install -m 0644 ./vordr-agent.service /etc/systemd/system/vordr-agent.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now argus-agent.service
-sudo systemctl status argus-agent.service --no-pager
+sudo systemctl enable --now vordr-agent.service
+sudo systemctl status vordr-agent.service --no-pager
 ```

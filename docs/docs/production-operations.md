@@ -4,7 +4,7 @@ sidebar_position: 10
 
 # Production Operations
 
-Phase 2 moves ArgusMonitor toward a production-worthy deployment model.
+Phase 2 moves Vordr toward a production-worthy deployment model.
 
 ## What changed
 
@@ -16,7 +16,7 @@ Phase 2 moves ArgusMonitor toward a production-worthy deployment model.
 
 ## Worker model
 
-ArgusMonitor now separates:
+Vordr now separates:
 
 - **job scheduling**
 - **job execution**

@@ -187,7 +187,7 @@ OpenClaw exact-text `edit` failed on `website/src/components/PricingSection.tsx`
 
 ### Error
 ```
-Edit in ~/clawd/projects/argusmonitor/website/src/components/PricingSection.tsx (23 chars) failed
+Edit in ~/clawd/projects/vordr/website/src/components/PricingSection.tsx (23 chars) failed
 ```
 
 ### Context
@@ -216,7 +216,7 @@ OpenClaw exact-text `edit` failed on `docs/docusaurus.config.ts` because the req
 
 ### Error
 ```
-⚠️ 📝 Edit: in ~/clawd/projects/argusmonitor/docs/docusaurus.config.ts (120 chars) failed
+⚠️ 📝 Edit: in ~/clawd/projects/vordr/docs/docusaurus.config.ts (120 chars) failed
 ```
 
 ### Context
@@ -246,7 +246,7 @@ A verification command tried to run `npm run build` from the repository root eve
 
 ### Error
 ```
-npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/Users/jack/clawd/projects/argusmonitor/package.json'
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/Users/jack/clawd/projects/vordr/package.json'
 ```
 
 ### Context
@@ -312,7 +312,7 @@ ImportError: email-validator is not installed, run `pip install 'pydantic[email]
 
 ### Context
 - Operation attempted: `docker compose up -d --build backend frontend`
-- Environment: ArgusMonitor local Docker Compose deployment
+- Environment: Vordr local Docker Compose deployment
 - Trigger: backend app imports `EmailStr` in `backend/app/schemas.py`
 
 ### Suggested Fix

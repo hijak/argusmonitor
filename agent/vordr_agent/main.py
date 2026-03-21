@@ -1,12 +1,12 @@
 import asyncio
 import logging
 
-from argus_agent.actions import run_action
-from argus_agent.client import ArgusClient
-from argus_agent.collector import MetricsCollector
-from argus_agent.config import load_settings
-from argus_agent.logs import LogTailer
-from argus_agent.plugin_manager import PluginManager
+from vordr_agent.actions import run_action
+from vordr_agent.client import ArgusClient
+from vordr_agent.collector import MetricsCollector
+from vordr_agent.config import load_settings
+from vordr_agent.logs import LogTailer
+from vordr_agent.plugin_manager import PluginManager
 
 AGENT_VERSION = "0.1.0"
 
@@ -14,13 +14,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-logger = logging.getLogger("argus-agent")
+logger = logging.getLogger("vordr-agent")
 
 
 async def run() -> None:
     settings = load_settings()
     if not settings.token:
-        raise RuntimeError("ARGUS_AGENT_TOKEN is required")
+        raise RuntimeError("VORDR_AGENT_TOKEN is required")
 
     client = ArgusClient(settings.server_url, settings.token, settings.verify_tls)
     collector = MetricsCollector()

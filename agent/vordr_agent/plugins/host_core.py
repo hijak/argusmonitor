@@ -1,4 +1,4 @@
-from argus_agent.plugin_types import DiscoveryContext, DiscoveredService
+from vordr_agent.plugin_types import DiscoveryContext, DiscoveredService
 
 
 class HostCorePlugin:

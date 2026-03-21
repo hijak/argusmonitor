@@ -39,7 +39,7 @@ export interface Plugin {
   config: Record<string, string | boolean | number>;
 }
 
-const REPO_URL = "https://github.com/hijak/argusmonitor";
+const REPO_URL = "https://github.com/hijak/vordr";
 
 const plugins: Plugin[] = [
   {
@@ -55,18 +55,18 @@ const plugins: Plugin[] = [
     verified: true,
     tags: ["postgres", "sql", "replication", "connections"],
     repoUrl: REPO_URL,
-    sourcePath: "agent/argus_agent/plugins/postgres.py",
+    sourcePath: "agent/vordr_agent/plugins/postgres.py",
     status: "official",
     maturity: "stable",
     integration: "agent",
     summary: [
-      "Discovers PostgreSQL on the host and upgrades to live SQL-backed metrics when ARGUS_POSTGRES_DSN is set.",
+      "Discovers PostgreSQL on the host and upgrades to live SQL-backed metrics when VORDR_POSTGRES_DSN is set.",
       "Surfaces active/idle/total connections, database count, transaction counters, and replication lag.",
       "Feeds the Services page and service detail sheet with plugin metadata.",
     ],
     config: {
-      ARGUS_POSTGRES_DSN: "postgresql://argus:arguspass@127.0.0.1:5432/appdb",
-      ARGUS_POSTGRES_METRICS_URL: "optional",
+      VORDR_POSTGRES_DSN: "postgresql://argus:arguspass@127.0.0.1:5432/appdb",
+      VORDR_POSTGRES_METRICS_URL: "optional",
       integration: "agent",
     },
   },
@@ -83,17 +83,17 @@ const plugins: Plugin[] = [
     verified: true,
     tags: ["mysql", "mariadb", "sql", "threads"],
     repoUrl: REPO_URL,
-    sourcePath: "agent/argus_agent/plugins/mysql.py",
+    sourcePath: "agent/vordr_agent/plugins/mysql.py",
     status: "official",
     maturity: "stable",
     integration: "agent",
     summary: [
-      "Connects via ARGUS_MYSQL_DSN for richer live metrics instead of port-only guessing.",
+      "Connects via VORDR_MYSQL_DSN for richer live metrics instead of port-only guessing.",
       "Collects running/connected threads, slow queries, questions, bytes sent/received, and max connection utilization.",
       "Works against the argus-lab VM and now has the MySQL 8 auth deps sorted.",
     ],
     config: {
-      ARGUS_MYSQL_DSN: "mysql://argus:arguspass@127.0.0.1:3306/appdb",
+      VORDR_MYSQL_DSN: "mysql://argus:arguspass@127.0.0.1:3306/appdb",
       integration: "agent",
     },
   },
@@ -110,17 +110,17 @@ const plugins: Plugin[] = [
     verified: true,
     tags: ["redis", "info", "memory", "ops"],
     repoUrl: REPO_URL,
-    sourcePath: "agent/argus_agent/plugins/redis.py",
+    sourcePath: "agent/vordr_agent/plugins/redis.py",
     status: "official",
     maturity: "stable",
     integration: "agent",
     summary: [
-      "Promotes simple TCP discovery into real Redis INFO collection when ARGUS_REDIS_URL is configured.",
+      "Promotes simple TCP discovery into real Redis INFO collection when VORDR_REDIS_URL is configured.",
       "Tracks role, used memory, connected clients, keys, hit rate, commands processed, and instantaneous ops/sec.",
       "Shows plugin health badges such as info live or collector issue directly in the Services page.",
     ],
     config: {
-      ARGUS_REDIS_URL: "redis://127.0.0.1:6379/0",
+      VORDR_REDIS_URL: "redis://127.0.0.1:6379/0",
       integration: "agent",
     },
   },
@@ -137,19 +137,19 @@ const plugins: Plugin[] = [
     verified: true,
     tags: ["rabbitmq", "queues", "backlog", "management-api"],
     repoUrl: REPO_URL,
-    sourcePath: "agent/argus_agent/plugins/rabbitmq.py",
+    sourcePath: "agent/vordr_agent/plugins/rabbitmq.py",
     status: "official",
     maturity: "stable",
     integration: "agent",
     summary: [
-      "Uses ARGUS_RABBITMQ_API_URL with optional credentials for live management API-backed stats.",
+      "Uses VORDR_RABBITMQ_API_URL with optional credentials for live management API-backed stats.",
       "Collects queue totals, backlog, rates, channels, consumers, listeners, and cluster identity.",
       "Feeds plugin health badges like api live and backlog into the Services UI.",
     ],
     config: {
-      ARGUS_RABBITMQ_API_URL: "http://127.0.0.1:15672",
-      ARGUS_RABBITMQ_API_USERNAME: "argus",
-      ARGUS_RABBITMQ_API_PASSWORD: "arguspass",
+      VORDR_RABBITMQ_API_URL: "http://127.0.0.1:15672",
+      VORDR_RABBITMQ_API_USERNAME: "argus",
+      VORDR_RABBITMQ_API_PASSWORD: "arguspass",
       integration: "agent",
     },
   },
@@ -326,12 +326,12 @@ const Index = () => {
       <footer className="mt-8 border-t border-border bg-card/50 py-8">
         <div className="container mx-auto flex max-w-6xl flex-col gap-4 px-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Argus Monitor plugin directory · official plugins are sourced from the GitHub monolith until they split into their own repos.
+            Vordr plugin directory · official plugins are sourced from the GitHub monolith until they split into their own repos.
           </p>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
             <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Repository</a>
             <a href={`${REPO_URL}/pulls`} target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Open a PR</a>
-            <a href={`${REPO_URL}/tree/main/agent/argus_agent/plugins`} target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Plugin source</a>
+            <a href={`${REPO_URL}/tree/main/agent/vordr_agent/plugins`} target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">Plugin source</a>
           </div>
         </div>
       </footer>

@@ -3,8 +3,8 @@ from urllib.parse import urlparse
 
 import httpx
 
-from argus_agent.plugin_types import DiscoveryContext, DiscoveredService
-from argus_agent.plugins.common import process_exists, tcp_probe
+from vordr_agent.plugin_types import DiscoveryContext, DiscoveredService
+from vordr_agent.plugins.common import process_exists, tcp_probe
 
 
 class RabbitMQPlugin:
@@ -12,7 +12,7 @@ class RabbitMQPlugin:
     display_name = "RabbitMQ"
 
     def discover(self, ctx: DiscoveryContext) -> list[DiscoveredService]:
-        api_url = os.getenv("ARGUS_RABBITMQ_API_URL")
+        api_url = os.getenv("VORDR_RABBITMQ_API_URL")
         amqp_host = "127.0.0.1"
         amqp_port = 5672
         mgmt_host = "127.0.0.1"
@@ -41,8 +41,8 @@ class RabbitMQPlugin:
         }
 
         if api_url:
-            username = os.getenv("ARGUS_RABBITMQ_API_USERNAME")
-            password = os.getenv("ARGUS_RABBITMQ_API_PASSWORD")
+            username = os.getenv("VORDR_RABBITMQ_API_USERNAME")
+            password = os.getenv("VORDR_RABBITMQ_API_PASSWORD")
             metadata.update({"configured": True, "api_url": api_url})
             try:
                 auth = (username, password) if username is not None and password is not None else None

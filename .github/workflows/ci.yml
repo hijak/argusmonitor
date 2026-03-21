@@ -56,11 +56,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: argus-agent-linux-amd64
+            artifact: vordr-agent-linux-amd64
           - os: macos-latest
-            artifact: argus-agent-darwin-arm64
+            artifact: vordr-agent-darwin-arm64
           - os: windows-latest
-            artifact: argus-agent-windows-amd64.exe
+            artifact: vordr-agent-windows-amd64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +77,7 @@ jobs:
       - name: Build agent binary
         run: |
           cd agent
-          pyinstaller --clean --noconfirm argus-agent.spec
+          pyinstaller --clean --noconfirm vordr-agent.spec
 
       - name: Verify binary exists
         shell: bash

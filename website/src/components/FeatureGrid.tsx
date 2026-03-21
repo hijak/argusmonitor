@@ -21,7 +21,7 @@ const FeatureGrid = () => (
     <div className="container mx-auto px-4 lg:px-8">
       <div className="mx-auto max-w-2xl text-center mb-14">
         <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Operational visibility first. Enterprise foundations next.</h2>
-        <p className="text-muted-foreground text-lg">ArgusMonitor still keeps the product lean, but it now has the beginnings of the boring adult features buyers expect.</p>
+        <p className="text-muted-foreground text-lg">Vordr still keeps the product lean, but it now has the beginnings of the boring adult features buyers expect.</p>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {features.map((f, i) => (

@@ -1,6 +1,6 @@
 import { Activity, GitPullRequest, PackageSearch } from "lucide-react";
 
-const REPO_URL = "https://github.com/hijak/argusmonitor";
+const REPO_URL = "https://github.com/hijak/vordr";
 
 export function HeroSection() {
   return (
@@ -19,14 +19,14 @@ export function HeroSection() {
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
             <Activity className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-semibold tracking-tight text-foreground">Argus Monitor</span>
+          <span className="text-lg font-semibold tracking-tight text-foreground">Vordr</span>
         </div>
 
         <h1
           className="max-w-3xl text-balance text-3xl font-bold leading-[1.05] tracking-tight text-foreground opacity-0 animate-fade-up sm:text-4xl md:text-5xl"
           style={{ animationDelay: "200ms" }}
         >
-          Official plugin directory for Argus Monitor
+          Official plugin directory for Vordr
         </h1>
 
         <p

@@ -16,8 +16,8 @@ COPY . .
 
 RUN set -eux; \
     mkdir -p /app/agent-binary; \
-    if [ -f "/app/agent-binary/argus-agent" ]; then \
-      chmod +x /app/agent-binary/argus-agent; \
+    if [ -f "/app/agent-binary/vordr-agent" ]; then \
+      chmod +x /app/agent-binary/vordr-agent; \
     else \
       echo "Agent binary not provided; endpoint /api/hosts/{id}/agent-binary will return 404" >&2; \
     fi

@@ -64,7 +64,7 @@ export default function SettingsPage() {
   return (
     <motion.div className="p-6 space-y-6 max-w-2xl" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
-        <PageHeader title="Settings" description="Manage your ArgusMonitor configuration" />
+        <PageHeader title="Settings" description="Manage your Vordr configuration" />
       </motion.div>
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card p-5">
@@ -78,7 +78,7 @@ export default function SettingsPage() {
           <StatusBadge variant={meta?.demo_mode ? "warning" : "healthy"}>{meta?.demo_mode ? "Demo" : "Live"}</StatusBadge>
         </div>
         <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Toggle with <span className="font-mono">ARGUS_DEMO_MODE=true</span> before starting the backend.
+          Toggle with <span className="font-mono">VORDR_DEMO_MODE=true</span> before starting the backend.
         </div>
       </motion.div>
 
@@ -551,12 +551,12 @@ function AgentsSection() {
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-3">
         <h3 className="text-sm font-medium">Install Agent</h3>
-        <p className="text-xs text-muted-foreground">Run this command on any host to install the ArgusMonitor agent:</p>
+        <p className="text-xs text-muted-foreground">Run this command on any host to install the Vordr agent:</p>
         <div className="flex items-center gap-2">
           <code className="flex-1 rounded bg-muted px-3 py-2.5 text-xs font-mono text-muted-foreground overflow-x-auto">
-            curl -fsSL https://get.argusmonitor.io/agent | sudo bash -s -- --token YOUR_AGENT_TOKEN
+            curl -fsSL https://get.vordr.io/agent | sudo bash -s -- --token YOUR_AGENT_TOKEN
           </code>
-          <button onClick={() => navigator.clipboard.writeText("curl -fsSL https://get.argusmonitor.io/agent | sudo bash -s -- --token YOUR_AGENT_TOKEN")}
+          <button onClick={() => navigator.clipboard.writeText("curl -fsSL https://get.vordr.io/agent | sudo bash -s -- --token YOUR_AGENT_TOKEN")}
             className="rounded-md border border-border p-2 text-muted-foreground hover:bg-surface-hover shrink-0">
             <Copy className="h-3.5 w-3.5" />
           </button>

@@ -4,7 +4,7 @@ sidebar_position: 23
 
 # Stage 4 Auth and Provisioning
 
-This slice moves ArgusMonitor beyond enterprise admin configuration and into live identity/provisioning flows.
+This slice moves Vordr beyond enterprise admin configuration and into live identity/provisioning flows.
 
 ## Landed
 

@@ -3,16 +3,16 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'ArgusMonitor Docs',
+  title: 'Vordr Docs',
   tagline: 'AI-powered infrastructure and service monitoring.',
   favicon: 'img/favicon.ico',
   future: {
     v4: true,
   },
-  url: 'https://docs.argusmonitor.com',
+  url: 'https://docs.vordr.com',
   baseUrl: '/',
   organizationName: 'hijak',
-  projectName: 'argusmonitor',
+  projectName: 'vordr',
   onBrokenLinks: 'throw',
   i18n: {
     defaultLocale: 'en',
@@ -24,7 +24,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/hijak/argusmonitor/tree/main/docs/',
+          editUrl: 'https://github.com/hijak/vordr/tree/main/docs/',
         },
         blog: false,
         theme: {
@@ -41,10 +41,10 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'ArgusMonitor Docs',
+      title: 'Vordr Docs',
       hideOnScroll: true,
       logo: {
-        alt: 'ArgusMonitor Logo',
+        alt: 'Vordr Logo',
         src: 'img/logo.svg',
       },
       items: [
@@ -55,12 +55,12 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/hijak/argusmonitor',
+          href: 'https://github.com/hijak/vordr',
           label: 'GitHub',
           position: 'right',
         },
         {
-          href: 'mailto:plutus.ghost@gmail.com?subject=ArgusMonitor%20Demo',
+          href: 'mailto:plutus.ghost@gmail.com?subject=Vordr%20Demo',
           label: 'Book Demo',
           position: 'right',
         },
@@ -82,19 +82,19 @@ const config: Config = {
           items: [
             {label: 'Monitoring + AI', to: '/docs/pricing-ai'},
             {label: 'Hosted vs Self-Hosted', to: '/docs/hosted-vs-self-hosted'},
-            {label: 'GitHub', href: 'https://github.com/hijak/argusmonitor'},
+            {label: 'GitHub', href: 'https://github.com/hijak/vordr'},
           ],
         },
         {
           title: 'Build',
           items: [
-            {label: 'Frontend', href: 'https://github.com/hijak/argusmonitor/tree/main/frontend'},
-            {label: 'Backend', href: 'https://github.com/hijak/argusmonitor/tree/main/backend'},
-            {label: 'Book Demo', href: 'mailto:plutus.ghost@gmail.com?subject=ArgusMonitor%20Demo'},
+            {label: 'Frontend', href: 'https://github.com/hijak/vordr/tree/main/frontend'},
+            {label: 'Backend', href: 'https://github.com/hijak/vordr/tree/main/backend'},
+            {label: 'Book Demo', href: 'mailto:plutus.ghost@gmail.com?subject=Vordr%20Demo'},
           ],
         },
       ],
-      copyright: `© ${new Date().getFullYear()} ArgusMonitor — calm observability, less noise.`,
+      copyright: `© ${new Date().getFullYear()} Vordr — calm observability, less noise.`,
     },
     prism: {
       theme: prismThemes.github,

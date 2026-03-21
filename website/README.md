@@ -1,6 +1,6 @@
-# ArgusMonitor Website
+# Vordr Website
 
-Marketing site for **ArgusMonitor**, vendored into the main product repo under `website/`.
+Marketing site for **Vordr**, vendored into the main product repo under `website/`.
 
 ## Purpose
 
@@ -11,7 +11,7 @@ This directory contains the public-facing landing site for the product:
 - pricing and upgrade path
 - launch/demo CTA surface
 
-It is intentionally styled to match the main ArgusMonitor app:
+It is intentionally styled to match the main Vordr app:
 - warm dark background
 - amber primary accents
 - cyan secondary accents

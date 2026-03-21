@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from argus_agent.plugin_types import DiscoveredService, DiscoveryContext, ServicePlugin
-from argus_agent.plugins.host_core import HostCorePlugin
-from argus_agent.plugins.mysql import MySQLPlugin
-from argus_agent.plugins.postgres import PostgresPlugin
-from argus_agent.plugins.rabbitmq import RabbitMQPlugin
-from argus_agent.plugins.redis import RedisPlugin
+from vordr_agent.plugin_types import DiscoveredService, DiscoveryContext, ServicePlugin
+from vordr_agent.plugins.host_core import HostCorePlugin
+from vordr_agent.plugins.mysql import MySQLPlugin
+from vordr_agent.plugins.postgres import PostgresPlugin
+from vordr_agent.plugins.rabbitmq import RabbitMQPlugin
+from vordr_agent.plugins.redis import RedisPlugin
 
 
 class PluginManager:

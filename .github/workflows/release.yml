@@ -60,28 +60,28 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact: argus-agent-linux-amd64
-            binary: argus-agent
+            artifact: vordr-agent-linux-amd64
+            binary: vordr-agent
           - os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
-            artifact: argus-agent-linux-arm64
-            binary: argus-agent
+            artifact: vordr-agent-linux-arm64
+            binary: vordr-agent
           - os: macos-15-intel
             goos: darwin
             goarch: amd64
-            artifact: argus-agent-darwin-amd64
-            binary: argus-agent
+            artifact: vordr-agent-darwin-amd64
+            binary: vordr-agent
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact: argus-agent-darwin-arm64
-            binary: argus-agent
+            artifact: vordr-agent-darwin-arm64
+            binary: vordr-agent
           - os: windows-latest
             goos: windows
             goarch: amd64
-            artifact: argus-agent-windows-amd64
-            binary: argus-agent.exe
+            artifact: vordr-agent-windows-amd64
+            binary: vordr-agent.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +98,7 @@ jobs:
       - name: Build agent binary
         run: |
           cd agent
-          pyinstaller --clean --noconfirm argus-agent.spec
+          pyinstaller --clean --noconfirm vordr-agent.spec
 
       - name: Rename binary
         shell: bash
@@ -121,16 +121,16 @@ jobs:
       - name: Download all agent artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: argus-agent-*
+          pattern: vordr-agent-*
           path: release-assets
           merge-multiple: true
 
       - name: Make binaries executable
-        run: chmod +x release-assets/argus-agent-linux-* release-assets/argus-agent-darwin-* || true
+        run: chmod +x release-assets/vordr-agent-linux-* release-assets/vordr-agent-darwin-* || true
 
       - name: Generate checksums
         working-directory: release-assets
-        run: sha256sum argus-agent-* > checksums-sha256.txt
+        run: sha256sum vordr-agent-* > checksums-sha256.txt
 
       - name: Generate changelog
         run: |
@@ -156,22 +156,22 @@ jobs:
 
           | Platform | Architecture | Binary |
           |----------|-------------|--------|
-          | Linux | amd64 | \`argus-agent-linux-amd64\` |
-          | Linux | arm64 | \`argus-agent-linux-arm64\` |
-          | macOS | Intel | \`argus-agent-darwin-amd64\` |
-          | macOS | Apple Silicon | \`argus-agent-darwin-arm64\` |
-          | Windows | amd64 | \`argus-agent-windows-amd64\` |
+          | Linux | amd64 | \`vordr-agent-linux-amd64\` |
+          | Linux | arm64 | \`vordr-agent-linux-arm64\` |
+          | macOS | Intel | \`vordr-agent-darwin-amd64\` |
+          | macOS | Apple Silicon | \`vordr-agent-darwin-arm64\` |
+          | Windows | amd64 | \`vordr-agent-windows-amd64\` |
 
           ### Quick Install
 
           \`\`\`bash
           # Linux (amd64)
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/argus-agent-linux-amd64 -o /usr/local/bin/argus-agent
-          chmod +x /usr/local/bin/argus-agent
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/vordr-agent-linux-amd64 -o /usr/local/bin/vordr-agent
+          chmod +x /usr/local/bin/vordr-agent
 
           # macOS (Apple Silicon)
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/argus-agent-darwin-arm64 -o /usr/local/bin/argus-agent
-          chmod +x /usr/local/bin/argus-agent
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/vordr-agent-darwin-arm64 -o /usr/local/bin/vordr-agent
+          chmod +x /usr/local/bin/vordr-agent
           \`\`\`
           EOF
 

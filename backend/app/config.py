@@ -3,7 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    app_name: str = "ArgusMonitor"
+    app_name: str = "Vordr"
     debug: bool = False
 
     database_url: str = ""
@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = "https://api.openai.com/v1"
-    openai_app_name: str = "ArgusMonitor"
+    openai_app_name: str = "Vordr"
     openai_site_url: str = ""
-    agent_shared_token: str = "argus-agent-dev-token"
+    agent_shared_token: str = "vordr-agent-dev-token"
 
     cors_origins: str = "http://localhost:8080,http://localhost:5173,http://frontend:8080"
 
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     monitoring_default_timeout: int = 30
     demo_mode: bool = False
 
-    model_config = {"env_prefix": "ARGUS_", "env_file": ".env"}
+    model_config = {"env_prefix": "VORDR_", "env_file": ".env"}
 
 
 @lru_cache

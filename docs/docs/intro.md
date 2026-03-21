@@ -3,9 +3,9 @@ sidebar_position: 1
 slug: /intro
 ---
 
-# ArgusMonitor Docs
+# Vordr Docs
 
-ArgusMonitor is an AI-powered monitoring platform for homelabs, startups, and increasingly, teams that need serious operational foundations without swallowing a bloated enterprise suite whole.
+Vordr is an AI-powered monitoring platform for homelabs, startups, and increasingly, teams that need serious operational foundations without swallowing a bloated enterprise suite whole.
 
 It combines:
 
@@ -19,7 +19,7 @@ It combines:
 
 ## What makes it different
 
-ArgusMonitor is built around a simple idea:
+Vordr is built around a simple idea:
 
 > **operational clarity first, enterprise foundations where they matter**
 

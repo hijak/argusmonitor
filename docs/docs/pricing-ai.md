@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Pricing, AI Credits, and BYOK
 
-ArgusMonitor’s commercial direction is:
+Vordr’s commercial direction is:
 
 > **lean operations platform first, paid intelligence and team features where useful**
 

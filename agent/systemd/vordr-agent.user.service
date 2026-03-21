@@ -1,0 +1,15 @@
+[Unit]
+Description=Vordr host agent (user)
+After=default.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/vordr-agent/vordr-agent.env
+ExecStart=%h/.local/bin/vordr-agent
+Restart=always
+RestartSec=5
+WorkingDirectory=%h/.local/share/vordr-agent
+
+[Install]
+WantedBy=default.target

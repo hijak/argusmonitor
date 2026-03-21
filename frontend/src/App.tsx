@@ -47,7 +47,7 @@ function LoadingScreen() {
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary animate-pulse">
           <Activity className="h-6 w-6 text-primary-foreground" />
         </div>
-        <p className="text-sm text-muted-foreground">Loading ArgusMonitor...</p>
+        <p className="text-sm text-muted-foreground">Loading Vordr...</p>
       </div>
     </div>
   );

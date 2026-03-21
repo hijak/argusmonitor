@@ -21,7 +21,7 @@ const Navbar = () => {
         {/* Logo */}
         <a href="/" className="flex items-center gap-2.5 font-display text-lg font-bold text-foreground">
           <Activity className="h-6 w-6 text-primary" />
-          ArgusMonitor
+          Vordr
         </a>
 
         {/* Desktop links */}

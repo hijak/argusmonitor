@@ -4,11 +4,11 @@ sidebar_position: 3
 
 # Hosted vs Self-Hosted
 
-ArgusMonitor is designed to support both a hosted control-plane model and a self-hosted deployment model.
+Vordr is designed to support both a hosted control-plane model and a self-hosted deployment model.
 
 ## Hosted
 
-Hosted ArgusMonitor means:
+Hosted Vordr means:
 
 - the control plane is managed for you
 - you only install agents on the nodes you care about
@@ -26,7 +26,7 @@ Hosted is ideal for:
 
 ## Self-Hosted
 
-Self-hosted ArgusMonitor means:
+Self-hosted Vordr means:
 
 - you run the backend and UI yourself
 - agents still report from your monitored infrastructure
@@ -48,4 +48,4 @@ Right now, the product direction is:
 - keep the core lean
 - allow self-hosted evaluation
 - make hosted easier to adopt
-- add enterprise buyer essentials without turning ArgusMonitor into an overbuilt monitoring dinosaur
+- add enterprise buyer essentials without turning Vordr into an overbuilt monitoring dinosaur

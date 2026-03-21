@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("ArgusMonitor API starting up...")
+    logger.info("Vordr API starting up...")
     logger.info(
         "Database startup complete; expecting Alembic migrations to manage schema"
     )
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
 settings = get_settings()
 
 app = FastAPI(
-    title="ArgusMonitor API",
+    title="Vordr API",
     description="Production-grade monitoring and observability platform",
     version="1.0.0",
     lifespan=lifespan,

@@ -1,6 +1,6 @@
-# ArgusMonitor Docs
+# Vordr Docs
 
-Self-hosted documentation site for ArgusMonitor using **Docusaurus**.
+Self-hosted documentation site for Vordr using **Docusaurus**.
 
 ## Local development
 
@@ -33,4 +33,4 @@ This docs site covers:
 ## Target
 
 Intended deployment target:
-- `docs.argusmonitor.com`
+- `docs.vordr.com`

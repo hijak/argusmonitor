@@ -42,7 +42,7 @@ export default function ReportsPage() {
   };
 
   const handleExport = (name: string) => {
-    const content = `ArgusMonitor Report\n\nName: ${name}\nGenerated: ${new Date().toLocaleString()}\n\nData: ${JSON.stringify(reports.find((r) => r.name === name), null, 2)}`;
+    const content = `Vordr Report\n\nName: ${name}\nGenerated: ${new Date().toLocaleString()}\n\nData: ${JSON.stringify(reports.find((r) => r.name === name), null, 2)}`;
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

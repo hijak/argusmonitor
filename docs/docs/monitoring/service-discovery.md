@@ -1,6 +1,6 @@
 # Service Discovery
 
-ArgusMonitor supports lightweight service discovery so users do not need to define every obvious service by hand.
+Vordr supports lightweight service discovery so users do not need to define every obvious service by hand.
 
 ## Current design direction
 
@@ -23,6 +23,6 @@ A good baseline discovery flow is:
 
 ## Prometheus-aware discovery
 
-When ArgusMonitor discovers a likely web service, it can probe for a Prometheus-compatible `/metrics` endpoint.
+When Vordr discovers a likely web service, it can probe for a Prometheus-compatible `/metrics` endpoint.
 
-If one is found, ArgusMonitor can automatically create a Prometheus-style monitor for that endpoint so customers can migrate existing exporter-based environments more easily.
+If one is found, Vordr can automatically create a Prometheus-style monitor for that endpoint so customers can migrate existing exporter-based environments more easily.

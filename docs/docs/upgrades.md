@@ -4,7 +4,7 @@ sidebar_position: 12
 
 # Upgrades
 
-ArgusMonitor upgrades should be migration-first and reversible where possible.
+Vordr upgrades should be migration-first and reversible where possible.
 
 ## Upgrade flow
 

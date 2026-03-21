@@ -1,4 +1,4 @@
-from argus_agent.main import run
+from vordr_agent.main import run
 
 import asyncio
 

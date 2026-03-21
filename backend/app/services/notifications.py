@@ -38,7 +38,7 @@ async def _send_slack(channel: NotificationChannel, payload: dict[str, Any]) -> 
     if not webhook_url:
         return {"success": False, "message": "Slack webhook URL missing"}
 
-    text = payload.get("text") or payload.get("message") or "ArgusMonitor test notification"
+    text = payload.get("text") or payload.get("message") or "Vordr test notification"
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.post(webhook_url, json={"text": text})
         response.raise_for_status()
@@ -63,10 +63,10 @@ async def _send_email(channel: NotificationChannel, payload: dict[str, Any]) -> 
         return {"success": False, "message": "Email recipients missing"}
 
     message = EmailMessage()
-    message["Subject"] = payload.get("subject", "ArgusMonitor notification")
+    message["Subject"] = payload.get("subject", "Vordr notification")
     message["From"] = smtp_from
     message["To"] = ", ".join(recipients)
-    message.set_content(payload.get("text") or payload.get("message") or "ArgusMonitor notification")
+    message.set_content(payload.get("text") or payload.get("message") or "Vordr notification")
 
     with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as smtp:
         if settings.smtp_starttls:

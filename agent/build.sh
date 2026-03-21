@@ -11,6 +11,6 @@ python -m pip install --upgrade pip
 python -m pip install -r "${ROOT_DIR}/requirements.txt" -r "${ROOT_DIR}/requirements-build.txt"
 
 cd "${ROOT_DIR}"
-pyinstaller --clean --noconfirm argus-agent.spec
+pyinstaller --clean --noconfirm vordr-agent.spec
 
-echo "Built binary at ${ROOT_DIR}/dist/argus-agent"
+echo "Built binary at ${ROOT_DIR}/dist/vordr-agent"

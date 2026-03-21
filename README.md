@@ -1,4 +1,4 @@
-# ArgusMonitor
+# Vordr
 
 A modern, production-grade monitoring and observability platform with AI-powered transactional monitoring.
 
@@ -115,8 +115,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Start PostgreSQL and Redis separately, then:
-# Set ARGUS_DATABASE_URL and ARGUS_DATABASE_URL_SYNC to your PostgreSQL connection strings
-# Set ARGUS_REDIS_URL to your Redis connection string
+# Set VORDR_DATABASE_URL and VORDR_DATABASE_URL_SYNC to your PostgreSQL connection strings
+# Set VORDR_REDIS_URL to your Redis connection string
 # See docker-compose.yml for the format
 
 python -m seed  # Seed demo data
@@ -134,13 +134,13 @@ npm run dev  # Proxies /api to localhost:8000
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ARGUS_SECRET_KEY` | (dev default) | JWT signing key - **change in production** |
-| `ARGUS_OPENAI_API_KEY` | (empty) | OpenAI API key for AI features. Optional - falls back to built-in intelligence |
-| `ARGUS_OPENAI_MODEL` | gpt-4o-mini | OpenAI model to use |
-| `ARGUS_AGENT_SHARED_TOKEN` | argus-agent-dev-token | Shared token required by standalone host agents |
-| `ARGUS_DATABASE_URL` | (compose default) | PostgreSQL async connection string |
-| `ARGUS_REDIS_URL` | (compose default) | Redis connection string |
-| `ARGUS_CORS_ORIGINS` | localhost origins | Comma-separated allowed origins |
+| `VORDR_SECRET_KEY` | (dev default) | JWT signing key - **change in production** |
+| `VORDR_OPENAI_API_KEY` | (empty) | OpenAI API key for AI features. Optional - falls back to built-in intelligence |
+| `VORDR_OPENAI_MODEL` | gpt-4o-mini | OpenAI model to use |
+| `VORDR_AGENT_SHARED_TOKEN` | vordr-agent-dev-token | Shared token required by standalone host agents |
+| `VORDR_DATABASE_URL` | (compose default) | PostgreSQL async connection string |
+| `VORDR_REDIS_URL` | (compose default) | Redis connection string |
+| `VORDR_CORS_ORIGINS` | localhost origins | Comma-separated allowed origins |
 
 ## API Routes
 
@@ -177,10 +177,10 @@ npm run dev  # Proxies /api to localhost:8000
 
 When the standalone agent is deployed on a host, it can enrich service discovery with live collector data:
 
-- **PostgreSQL** via `ARGUS_POSTGRES_DSN`
-- **MySQL** via `ARGUS_MYSQL_DSN`
-- **Redis** via `ARGUS_REDIS_URL`
-- **RabbitMQ** via `ARGUS_RABBITMQ_API_URL` (+ optional username/password)
+- **PostgreSQL** via `VORDR_POSTGRES_DSN`
+- **MySQL** via `VORDR_MYSQL_DSN`
+- **Redis** via `VORDR_REDIS_URL`
+- **RabbitMQ** via `VORDR_RABBITMQ_API_URL` (+ optional username/password)
 
 The services UI surfaces collector health directly on the main Services page, and host detail panels now expose bandwidth history plus per-interface throughput snapshots.
 
@@ -236,10 +236,10 @@ argus-monitor/
 ├── agent/
 │   ├── README.md               # Standalone host agent docs
 │   ├── build.sh                # One-file binary build script
-│   ├── argus-agent.spec        # PyInstaller spec for single binary
+│   ├── vordr-agent.spec        # PyInstaller spec for single binary
 │   ├── requirements.txt        # Agent runtime dependencies
 │   ├── requirements-build.txt  # Agent build-time dependencies
-│   └── argus_agent/            # Agent collector, client, and daemon loop
+│   └── vordr_agent/            # Agent collector, client, and daemon loop
 ├── frontend/
 │   ├── Dockerfile
 │   ├── nginx.conf              # Production proxy config

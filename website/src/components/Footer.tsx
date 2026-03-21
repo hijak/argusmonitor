@@ -34,7 +34,7 @@ const Footer = () => (
       <div className="grid sm:grid-cols-4 gap-8">
         <div>
           <a href="/" className="flex items-center gap-2 font-display font-bold text-foreground mb-3">
-            <Activity className="h-5 w-5 text-primary" /> ArgusMonitor
+            <Activity className="h-5 w-5 text-primary" /> Vordr
           </a>
           <p className="text-sm text-muted-foreground leading-relaxed">AI-powered monitoring for modern infrastructure.</p>
         </div>
@@ -52,7 +52,7 @@ const Footer = () => (
         ))}
       </div>
       <div className="mt-10 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} ArgusMonitor. All rights reserved.
+        © {new Date().getFullYear()} Vordr. All rights reserved.
       </div>
     </div>
   </footer>

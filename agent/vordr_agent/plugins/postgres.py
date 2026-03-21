@@ -4,8 +4,8 @@ from urllib.parse import urlparse
 import httpx
 import psycopg
 
-from argus_agent.plugin_types import DiscoveryContext, DiscoveredService
-from argus_agent.plugins.common import process_exists, tcp_probe
+from vordr_agent.plugin_types import DiscoveryContext, DiscoveredService
+from vordr_agent.plugins.common import process_exists, tcp_probe
 
 
 def _safe_fetch_scalar(cur, query: str):
@@ -22,7 +22,7 @@ class PostgresPlugin:
     display_name = "PostgreSQL"
 
     def discover(self, ctx: DiscoveryContext) -> list[DiscoveredService]:
-        dsn = os.getenv("ARGUS_POSTGRES_DSN")
+        dsn = os.getenv("VORDR_POSTGRES_DSN")
         endpoint = "127.0.0.1:5432"
         alive, latency = tcp_probe("127.0.0.1", 5432)
         metadata = {"port": 5432, "discovery": "tcp+process"}
@@ -87,7 +87,7 @@ class PostgresPlugin:
                 metadata["metrics_mode"] = "sql-error"
                 metadata["sql_error"] = str(exc)
 
-                metrics_url = os.getenv("ARGUS_POSTGRES_METRICS_URL")
+                metrics_url = os.getenv("VORDR_POSTGRES_METRICS_URL")
                 if metrics_url:
                     try:
                         response = httpx.get(metrics_url, timeout=1.5)

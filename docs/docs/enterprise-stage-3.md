@@ -4,7 +4,7 @@ sidebar_position: 20
 
 # Enterprise Stage 3
 
-Stage 3 completes the next enterprise layer for ArgusMonitor:
+Stage 3 completes the next enterprise layer for Vordr:
 
 - SCIM token + group mapping foundations
 - SAML provider configuration

@@ -8,7 +8,7 @@ hiddenimports += collect_submodules("anyio")
 
 
 a = Analysis(
-    ["argus_agent/main.py"],
+    ["vordr_agent/main.py"],
     pathex=[],
     binaries=[],
     datas=[],
@@ -28,7 +28,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="argus-agent",
+    name="vordr-agent",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

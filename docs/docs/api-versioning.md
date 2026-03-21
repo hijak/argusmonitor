@@ -4,7 +4,7 @@ sidebar_position: 21
 
 # API Versioning
 
-ArgusMonitor now exposes API version records through the enterprise admin surface.
+Vordr now exposes API version records through the enterprise admin surface.
 
 ## Purpose
 

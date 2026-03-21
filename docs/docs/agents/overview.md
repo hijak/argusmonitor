@@ -1,6 +1,6 @@
 # Agent Overview
 
-ArgusMonitor uses lightweight agents to collect host-level monitoring signals and report them back to the control plane.
+Vordr uses lightweight agents to collect host-level monitoring signals and report them back to the control plane.
 
 ## Agent responsibilities
 

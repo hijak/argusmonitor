@@ -199,7 +199,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Activity className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="min-w-0">
-                <span className="block text-sm font-bold tracking-tight text-foreground">ArgusMonitor</span>
+                <span className="block text-sm font-bold tracking-tight text-foreground">Vordr</span>
                 {meta?.demo_mode && (
                   <span className="block text-[10px] font-medium uppercase tracking-wide text-amber-500">Demo mode</span>
                 )}
@@ -280,7 +280,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 Menu
               </button>
               <div className="min-w-0 text-right">
-                <div className="truncate text-sm font-semibold text-foreground">{currentSection?.label ?? "ArgusMonitor"}</div>
+                <div className="truncate text-sm font-semibold text-foreground">{currentSection?.label ?? "Vordr"}</div>
                 <div className="text-[11px] text-muted-foreground">Sidebar collapsed on mobile by default</div>
               </div>
             </div>

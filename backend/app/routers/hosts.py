@@ -450,54 +450,54 @@ BASE_URL="{origin}"
 HOST_ID="{host.id}"
 HOST_TOKEN="{token}"
 
-curl -fsSL "$BASE_URL/api/hosts/$HOST_ID/agent-binary?token=$HOST_TOKEN" -o "$TMPDIR/argus-agent"
-chmod +x "$TMPDIR/argus-agent"
+curl -fsSL "$BASE_URL/api/hosts/$HOST_ID/agent-binary?token=$HOST_TOKEN" -o "$TMPDIR/vordr-agent"
+chmod +x "$TMPDIR/vordr-agent"
 
-cat > "$TMPDIR/argus-agent.env" <<EOF
-ARGUS_AGENT_SERVER_URL=$BASE_URL
-ARGUS_AGENT_TOKEN=$HOST_TOKEN
-ARGUS_AGENT_HOSTNAME=${{ARGUS_AGENT_HOSTNAME:-$(hostname)}}
-ARGUS_AGENT_IP_ADDRESS=${{ARGUS_AGENT_IP_ADDRESS:-}}
-ARGUS_AGENT_SERVICE_NAME=host-agent
-ARGUS_AGENT_HOST_TYPE={host.type}
-ARGUS_AGENT_TAGS={','.join(host.tags or [])}
-ARGUS_AGENT_LOG_FILES=/var/log/syslog,/var/log/auth.log
-ARGUS_AGENT_INTERVAL_SECONDS=30
-ARGUS_AGENT_VERIFY_TLS=true
-ARGUS_AGENT_DISK_PATH=/
+cat > "$TMPDIR/vordr-agent.env" <<EOF
+VORDR_AGENT_SERVER_URL=$BASE_URL
+VORDR_AGENT_TOKEN=$HOST_TOKEN
+VORDR_AGENT_HOSTNAME=${{VORDR_AGENT_HOSTNAME:-$(hostname)}}
+VORDR_AGENT_IP_ADDRESS=${{VORDR_AGENT_IP_ADDRESS:-}}
+VORDR_AGENT_SERVICE_NAME=host-agent
+VORDR_AGENT_HOST_TYPE={host.type}
+VORDR_AGENT_TAGS={','.join(host.tags or [])}
+VORDR_AGENT_LOG_FILES=/var/log/syslog,/var/log/auth.log
+VORDR_AGENT_INTERVAL_SECONDS=30
+VORDR_AGENT_VERIFY_TLS=true
+VORDR_AGENT_DISK_PATH=/
 EOF
 
-cat > "$TMPDIR/argus-agent.service" <<'EOF'
+cat > "$TMPDIR/vordr-agent.service" <<'EOF'
 [Unit]
-Description=ArgusMonitor host agent
+Description=Vordr host agent
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=/etc/argus-agent/argus-agent.env
-ExecStart=/usr/local/bin/argus-agent
+EnvironmentFile=/etc/vordr-agent/vordr-agent.env
+ExecStart=/usr/local/bin/vordr-agent
 Restart=always
 RestartSec=5
-WorkingDirectory=/var/lib/argus-agent
-StateDirectory=argus-agent
+WorkingDirectory=/var/lib/vordr-agent
+StateDirectory=vordr-agent
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/argus-agent
+ReadWritePaths=/var/lib/vordr-agent
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-sudo install -d /etc/argus-agent /var/lib/argus-agent /usr/local/bin
-sudo install -m 0755 "$TMPDIR/argus-agent" /usr/local/bin/argus-agent
-sudo install -m 0644 "$TMPDIR/argus-agent.env" /etc/argus-agent/argus-agent.env
-sudo install -m 0644 "$TMPDIR/argus-agent.service" /etc/systemd/system/argus-agent.service
+sudo install -d /etc/vordr-agent /var/lib/vordr-agent /usr/local/bin
+sudo install -m 0755 "$TMPDIR/vordr-agent" /usr/local/bin/vordr-agent
+sudo install -m 0644 "$TMPDIR/vordr-agent.env" /etc/vordr-agent/vordr-agent.env
+sudo install -m 0644 "$TMPDIR/vordr-agent.service" /etc/systemd/system/vordr-agent.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now argus-agent.service
-sudo systemctl status --no-pager --full argus-agent.service || true
+sudo systemctl enable --now vordr-agent.service
+sudo systemctl status --no-pager --full vordr-agent.service || true
 '''
     return PlainTextResponse(script, media_type="text/x-shellscript; charset=utf-8")
 
@@ -516,10 +516,10 @@ async def download_host_agent_binary(
         raise HTTPException(status_code=410, detail="Agent download revoked")
     if host.enrollment_token_expires_at and host.enrollment_token_expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="Agent download token expired")
-    binary_path = Path(__file__).resolve().parents[2] / "agent-binary" / "argus-agent"
+    binary_path = Path(__file__).resolve().parents[2] / "agent-binary" / "vordr-agent"
     if not binary_path.exists():
         raise HTTPException(status_code=404, detail="Agent binary not available on this deployment")
-    return FileResponse(path=binary_path, filename="argus-agent", media_type="application/octet-stream")
+    return FileResponse(path=binary_path, filename="vordr-agent", media_type="application/octet-stream")
 
 
 @router.delete("/{host_id}", status_code=204)

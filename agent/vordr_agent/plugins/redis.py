@@ -3,8 +3,8 @@ from urllib.parse import urlparse
 
 import redis
 
-from argus_agent.plugin_types import DiscoveryContext, DiscoveredService
-from argus_agent.plugins.common import process_exists, tcp_probe
+from vordr_agent.plugin_types import DiscoveryContext, DiscoveredService
+from vordr_agent.plugins.common import process_exists, tcp_probe
 
 
 class RedisPlugin:
@@ -12,7 +12,7 @@ class RedisPlugin:
     display_name = "Redis"
 
     def discover(self, ctx: DiscoveryContext) -> list[DiscoveredService]:
-        redis_url = os.getenv("ARGUS_REDIS_URL")
+        redis_url = os.getenv("VORDR_REDIS_URL")
         host = "127.0.0.1"
         port = 6379
         endpoint = f"{host}:{port}"

@@ -1,6 +1,6 @@
-# Argus Monitor Plugin Directory
+# Vordr Plugin Directory
 
-This is the public-facing plugin catalogue for Argus Monitor.
+This is the public-facing plugin catalogue for Vordr.
 
 Right now it is intentionally simple and still lives inside the main monolith repo. The near-term goal is to expose the official plugins we already ship, then accept GitHub pull requests for new plugins from contributors.
 

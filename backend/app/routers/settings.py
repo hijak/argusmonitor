@@ -191,7 +191,7 @@ async def test_notification_channel(
     delivery = await deliver_notification(
         channel,
         {
-            "subject": "ArgusMonitor test notification",
+            "subject": "Vordr test notification",
             "text": f"Test notification delivered via {channel.type} to {channel.name}",
             "message": f"Test notification delivered via {channel.type} to {channel.name}",
         },

@@ -1,6 +1,6 @@
 # Read-only Host Inspections
 
-ArgusMonitor supports a model where the control plane can queue **bounded read-only inspection actions** for monitored hosts.
+Vordr supports a model where the control plane can queue **bounded read-only inspection actions** for monitored hosts.
 
 ## Why this exists
 

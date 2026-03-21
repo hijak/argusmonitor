@@ -34,19 +34,19 @@ services:
     ports:
       - "8000:8000"
     environment:
-      ARGUS_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
-      ARGUS_DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
-      ARGUS_REDIS_URL: redis://redis:6379/0
-      ARGUS_SECRET_KEY: ${ARGUS_SECRET_KEY:-change-me-in-production-use-a-real-secret-key}
-      ARGUS_OPENAI_API_KEY: ${ARGUS_OPENAI_API_KEY:-}
-      ARGUS_OPENAI_MODEL: ${ARGUS_OPENAI_MODEL:-gpt-4o-mini}
-      ARGUS_OPENAI_BASE_URL: ${ARGUS_OPENAI_BASE_URL:-https://api.openai.com/v1}
-      ARGUS_OPENAI_APP_NAME: ${ARGUS_OPENAI_APP_NAME:-ArgusMonitor}
-      ARGUS_OPENAI_SITE_URL: ${ARGUS_OPENAI_SITE_URL:-}
-      ARGUS_DEMO_MODE: ${ARGUS_DEMO_MODE:-false}
-      ARGUS_CORS_ORIGINS: "http://localhost:8080,http://localhost:5173,http://frontend:8080"
-      ARGUS_DEBUG: "false"
-      ARGUS_SCHEDULER_ENABLED: "false"
+      VORDR_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
+      VORDR_DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
+      VORDR_REDIS_URL: redis://redis:6379/0
+      VORDR_SECRET_KEY: ${VORDR_SECRET_KEY:-change-me-in-production-use-a-real-secret-key}
+      VORDR_OPENAI_API_KEY: ${VORDR_OPENAI_API_KEY:-}
+      VORDR_OPENAI_MODEL: ${VORDR_OPENAI_MODEL:-gpt-4o-mini}
+      VORDR_OPENAI_BASE_URL: ${VORDR_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      VORDR_OPENAI_APP_NAME: ${VORDR_OPENAI_APP_NAME:-Vordr}
+      VORDR_OPENAI_SITE_URL: ${VORDR_OPENAI_SITE_URL:-}
+      VORDR_DEMO_MODE: ${VORDR_DEMO_MODE:-false}
+      VORDR_CORS_ORIGINS: "http://localhost:8080,http://localhost:5173,http://frontend:8080"
+      VORDR_DEBUG: "false"
+      VORDR_SCHEDULER_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,18 +60,18 @@ services:
       dockerfile: Dockerfile
     command: ["python", "-m", "app.worker"]
     environment:
-      ARGUS_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
-      ARGUS_DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
-      ARGUS_REDIS_URL: redis://redis:6379/0
-      ARGUS_SECRET_KEY: ${ARGUS_SECRET_KEY:-change-me-in-production-use-a-real-secret-key}
-      ARGUS_OPENAI_API_KEY: ${ARGUS_OPENAI_API_KEY:-}
-      ARGUS_OPENAI_MODEL: ${ARGUS_OPENAI_MODEL:-gpt-4o-mini}
-      ARGUS_OPENAI_BASE_URL: ${ARGUS_OPENAI_BASE_URL:-https://api.openai.com/v1}
-      ARGUS_OPENAI_APP_NAME: ${ARGUS_OPENAI_APP_NAME:-ArgusMonitor}
-      ARGUS_OPENAI_SITE_URL: ${ARGUS_OPENAI_SITE_URL:-}
-      ARGUS_DEMO_MODE: ${ARGUS_DEMO_MODE:-false}
-      ARGUS_DEBUG: "false"
-      ARGUS_SCHEDULER_ENABLED: "false"
+      VORDR_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
+      VORDR_DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-argus}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-argus}
+      VORDR_REDIS_URL: redis://redis:6379/0
+      VORDR_SECRET_KEY: ${VORDR_SECRET_KEY:-change-me-in-production-use-a-real-secret-key}
+      VORDR_OPENAI_API_KEY: ${VORDR_OPENAI_API_KEY:-}
+      VORDR_OPENAI_MODEL: ${VORDR_OPENAI_MODEL:-gpt-4o-mini}
+      VORDR_OPENAI_BASE_URL: ${VORDR_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      VORDR_OPENAI_APP_NAME: ${VORDR_OPENAI_APP_NAME:-Vordr}
+      VORDR_OPENAI_SITE_URL: ${VORDR_OPENAI_SITE_URL:-}
+      VORDR_DEMO_MODE: ${VORDR_DEMO_MODE:-false}
+      VORDR_DEBUG: "false"
+      VORDR_SCHEDULER_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy

@@ -4,7 +4,7 @@ sidebar_position: 22
 
 # SCIM and SAML
 
-ArgusMonitor Stage 3 adds configuration and admin foundations for SCIM and SAML.
+Vordr Stage 3 adds configuration and admin foundations for SCIM and SAML.
 
 ## SCIM
 

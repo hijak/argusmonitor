@@ -1,6 +1,6 @@
 # AI Copilot
 
-ArgusMonitor’s AI copilot is intended to be grounded in live monitoring context rather than acting like a generic chatbot.
+Vordr’s AI copilot is intended to be grounded in live monitoring context rather than acting like a generic chatbot.
 
 ## What it should know
 

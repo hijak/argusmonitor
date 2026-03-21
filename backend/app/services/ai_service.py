@@ -6,7 +6,7 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are Argus, an AI monitoring assistant for the ArgusMonitor platform.
+SYSTEM_PROMPT = """You are Argus, an AI monitoring assistant for the Vordr platform.
 You help users understand their infrastructure health, create monitoring configurations,
 analyze incidents, and troubleshoot issues.
 

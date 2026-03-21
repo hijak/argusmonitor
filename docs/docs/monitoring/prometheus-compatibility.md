@@ -1,21 +1,21 @@
 # Prometheus Compatibility
 
-ArgusMonitor can discover and ingest **Prometheus-compatible metrics endpoints** that you operate or are authorized to monitor.
+Vordr can discover and ingest **Prometheus-compatible metrics endpoints** that you operate or are authorized to monitor.
 
 ## What this means
 
-ArgusMonitor is not trying to replace the entire Prometheus ecosystem overnight.
+Vordr is not trying to replace the entire Prometheus ecosystem overnight.
 
 The current compatibility layer is aimed at migration and coexistence:
 
 - detect likely `/metrics` endpoints during service discovery
 - create Prometheus-style monitors automatically for discovered endpoints
 - scrape Prometheus text exposition format
-- map a useful subset of metrics into ArgusMonitor host/service state
+- map a useful subset of metrics into Vordr host/service state
 
 ## Current metric mapping
 
-ArgusMonitor currently looks for a practical subset of metrics, including patterns like:
+Vordr currently looks for a practical subset of metrics, including patterns like:
 
 - CPU utilisation
 - memory utilisation
@@ -31,7 +31,7 @@ This is for:
 
 - customer migration from Prometheus/exporter-based setups
 - coexistence with existing exporters
-- pulling basic operational signals into ArgusMonitor dashboards/alerts
+- pulling basic operational signals into Vordr dashboards/alerts
 
 ## Honest limits
 

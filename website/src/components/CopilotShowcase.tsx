@@ -49,7 +49,7 @@ const CopilotShowcase = () => (
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <Bot className="h-4 w-4 text-secondary" />
-          <span className="font-display font-semibold text-sm text-foreground">ArgusMonitor Copilot</span>
+          <span className="font-display font-semibold text-sm text-foreground">Vordr Copilot</span>
           <span className="ml-auto text-[10px] font-mono text-muted-foreground">context: 4 hosts, 12 services</span>
         </div>
         <div className="p-4 space-y-4 max-h-[480px] overflow-y-auto">

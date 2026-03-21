@@ -1,6 +1,6 @@
-# ArgusMonitor Frontend
+# Vordr Frontend
 
-React 18 + Vite + TypeScript frontend for ArgusMonitor.
+React 18 + Vite + TypeScript frontend for Vordr.
 
 ## Run
 

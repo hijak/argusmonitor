@@ -4,7 +4,7 @@ sidebar_position: 11
 
 # Backup and Restore
 
-If ArgusMonitor is running in production, backups are not optional.
+If Vordr is running in production, backups are not optional.
 
 ## Back up
 
@@ -17,7 +17,7 @@ At minimum, back up:
 ## PostgreSQL example
 
 ```bash
-pg_dump "$DATABASE_URL" > argusmonitor-backup.sql
+pg_dump "$DATABASE_URL" > vordr-backup.sql
 ```
 
 For larger installs, use compressed/custom dumps or physical backups.
@@ -25,7 +25,7 @@ For larger installs, use compressed/custom dumps or physical backups.
 ## Restore
 
 ```bash
-psql "$DATABASE_URL" < argusmonitor-backup.sql
+psql "$DATABASE_URL" < vordr-backup.sql
 ```
 
 Then run:
