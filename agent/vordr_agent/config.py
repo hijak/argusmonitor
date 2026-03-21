@@ -1,13 +1,14 @@
 import os
 import socket
 from dataclasses import dataclass
+from typing import Optional
 
 
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-@dataclass(slots=True)
+@dataclass
 class AgentSettings:
     server_url: str
     token: str
@@ -19,7 +20,7 @@ class AgentSettings:
     interval_seconds: int
     verify_tls: bool
     disk_path: str
-    ip_address: str | None
+    ip_address: Optional[str]
 
 
 def load_settings() -> AgentSettings:

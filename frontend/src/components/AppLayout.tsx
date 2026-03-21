@@ -34,6 +34,7 @@ const navItems = [
   { label: "Transactions", icon: Zap, path: "/transactions" },
   { label: "Kubernetes", icon: Container, path: "/kubernetes" },
   { label: "Docker Swarm", icon: Boxes, path: "/swarm" },
+  { label: "Proxmox", icon: MonitorSmartphone, path: "/proxmox" },
   { label: "Alerts", icon: Bell, path: "/alerts" },
   { label: "Incidents", icon: AlertTriangle, path: "/incidents" },
   { label: "Dashboards", icon: LayoutDashboard, path: "/dashboards" },

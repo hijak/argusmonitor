@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 @dataclass
@@ -9,7 +9,7 @@ class DiscoveredService:
     name: str
     plugin_id: str
     service_type: str
-    endpoint: str | None = None
+    endpoint: Optional[str] = None
     status: str = "healthy"
     latency_ms: float = 0.0
     requests_per_min: float = 0.0

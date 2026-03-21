@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from vordr_agent.plugin_types import DiscoveredService, DiscoveryContext, ServicePlugin
+from vordr_agent.plugins.docker_local import DockerLocalPlugin
 from vordr_agent.plugins.host_core import HostCorePlugin
 from vordr_agent.plugins.mysql import MySQLPlugin
 from vordr_agent.plugins.postgres import PostgresPlugin
@@ -16,6 +17,7 @@ class PluginManager:
             MySQLPlugin(),
             RabbitMQPlugin(),
             RedisPlugin(),
+            DockerLocalPlugin(),
         ]
 
     @property

@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import httpx
 
@@ -33,7 +34,7 @@ class ArgusClient:
             response.raise_for_status()
         logger.info("Shipped %s log entries", len(entries))
 
-    async def submit_action_result(self, action_id: str, status: str, result: dict | None = None, error_text: str | None = None) -> dict:
+    async def submit_action_result(self, action_id: str, status: str, result: Optional[dict] = None, error_text: Optional[str] = None) -> dict:
         async with httpx.AsyncClient(base_url=self._server_url, verify=self._verify_tls, timeout=30.0) as client:
             response = await client.post(
                 f"/api/agent/actions/{action_id}/result",
