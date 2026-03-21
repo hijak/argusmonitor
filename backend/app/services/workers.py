@@ -89,6 +89,26 @@ async def enqueue_swarm_jobs(db: AsyncSession) -> int:
     return count
 
 
+async def enqueue_proxmox_jobs(db: AsyncSession) -> int:
+    clusters = (
+        (await db.execute(select(ProxmoxCluster).where(ProxmoxCluster.status != "unknown")))
+        .scalars()
+        .all()
+    )
+    count = 0
+    for cluster in clusters:
+        db.add(
+            WorkerJob(
+                workspace_id=cluster.workspace_id,
+                kind="proxmox.discover",
+                payload={"cluster_id": str(cluster.id)},
+            )
+        )
+        count += 1
+    await db.flush()
+    return count
+
+
 async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
     jobs = (
         (

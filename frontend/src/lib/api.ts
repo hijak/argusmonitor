@@ -388,4 +388,16 @@ export const api = {
   listSwarmVolumes: (clusterId: string) => request<any[]>(`/swarm/clusters/${clusterId}/volumes`),
   listSwarmEvents: (clusterId: string, limit = 100) => request<any[]>(`/swarm/clusters/${clusterId}/events?limit=${limit}`),
   getSwarmClusterStats: (clusterId: string) => request<any>(`/swarm/clusters/${clusterId}/stats`),
+
+  // Proxmox
+  listProxmoxClusters: () => request<any[]>(`/proxmox/clusters`),
+  createProxmoxCluster: (data: any) => request<any>(`/proxmox/clusters`, { method: "POST", body: JSON.stringify(data) }),
+  discoverProxmoxCluster: (clusterId: string) => request<any>(`/proxmox/clusters/${clusterId}/discover`, { method: "POST" }),
+  deleteProxmoxCluster: (clusterId: string) => request<void>(`/proxmox/clusters/${clusterId}`, { method: "DELETE" }),
+  listProxmoxNodes: (clusterId: string) => request<any[]>(`/proxmox/clusters/${clusterId}/nodes`),
+  listProxmoxVMs: (clusterId: string, search?: string) => request<any[]>(`/proxmox/clusters/${clusterId}/vms${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  listProxmoxContainers: (clusterId: string, search?: string) => request<any[]>(`/proxmox/clusters/${clusterId}/containers${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  listProxmoxStorage: (clusterId: string) => request<any[]>(`/proxmox/clusters/${clusterId}/storage`),
+  listProxmoxTasks: (clusterId: string, limit = 100) => request<any[]>(`/proxmox/clusters/${clusterId}/tasks?limit=${limit}`),
+  getProxmoxClusterStats: (clusterId: string) => request<any>(`/proxmox/clusters/${clusterId}/stats`),
 };

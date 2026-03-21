@@ -1402,3 +1402,145 @@ class SwarmEvent(Base):
     last_seen = Column(DateTime(timezone=True))
 
     cluster = relationship("SwarmCluster", back_populates="events")
+
+
+class ProxmoxCluster(Base):
+    __tablename__ = "proxmox_clusters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True)
+    name = Column(String(255), nullable=False, index=True)
+    base_url = Column(String(500), nullable=False)
+    token_id = Column(String(255))
+    token_secret = Column(Text)
+    username = Column(String(255))
+    password = Column(Text)
+    verify_tls = Column(Boolean, nullable=False, default=True)
+    status = Column(String(50), nullable=False, default="unknown")
+    cluster_name = Column(String(255))
+    version = Column(String(100))
+    node_count = Column(Integer, default=0)
+    vm_count = Column(Integer, default=0)
+    container_count = Column(Integer, default=0)
+    storage_count = Column(Integer, default=0)
+    last_discovery = Column(DateTime(timezone=True))
+    last_seen = Column(DateTime(timezone=True))
+    error_message = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    nodes = relationship("ProxmoxNode", back_populates="cluster", cascade="all, delete-orphan")
+    vms = relationship("ProxmoxVM", back_populates="cluster", cascade="all, delete-orphan")
+    containers = relationship("ProxmoxContainer", back_populates="cluster", cascade="all, delete-orphan")
+    storage = relationship("ProxmoxStorage", back_populates="cluster", cascade="all, delete-orphan")
+    tasks = relationship("ProxmoxTask", back_populates="cluster", cascade="all, delete-orphan")
+
+
+class ProxmoxNode(Base):
+    __tablename__ = "proxmox_nodes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("proxmox_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    node = Column(String(255), nullable=False, index=True)
+    status = Column(String(50))
+    level = Column(String(50))
+    ip_address = Column(String(100))
+    cpu_percent = Column(Float, default=0)
+    memory_used_bytes = Column(BigInteger, default=0)
+    memory_total_bytes = Column(BigInteger, default=0)
+    rootfs_used_bytes = Column(BigInteger, default=0)
+    rootfs_total_bytes = Column(BigInteger, default=0)
+    uptime_seconds = Column(BigInteger, default=0)
+    max_cpu = Column(Integer, default=0)
+    ssl_fingerprint = Column(String(255))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("ProxmoxCluster", back_populates="nodes")
+
+
+class ProxmoxVM(Base):
+    __tablename__ = "proxmox_vms"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("proxmox_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    vmid = Column(Integer, nullable=False, index=True)
+    node = Column(String(255))
+    name = Column(String(255), nullable=False, index=True)
+    status = Column(String(50))
+    cpu_percent = Column(Float, default=0)
+    memory_used_bytes = Column(BigInteger, default=0)
+    memory_total_bytes = Column(BigInteger, default=0)
+    disk_used_bytes = Column(BigInteger, default=0)
+    disk_total_bytes = Column(BigInteger, default=0)
+    uptime_seconds = Column(BigInteger, default=0)
+    max_cpu = Column(Integer, default=0)
+    template = Column(Boolean, default=False)
+    tags = Column(String(500))
+    pool = Column(String(255))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("ProxmoxCluster", back_populates="vms")
+
+
+class ProxmoxContainer(Base):
+    __tablename__ = "proxmox_containers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("proxmox_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    vmid = Column(Integer, nullable=False, index=True)
+    node = Column(String(255))
+    name = Column(String(255), nullable=False, index=True)
+    status = Column(String(50))
+    cpu_percent = Column(Float, default=0)
+    memory_used_bytes = Column(BigInteger, default=0)
+    memory_total_bytes = Column(BigInteger, default=0)
+    disk_used_bytes = Column(BigInteger, default=0)
+    disk_total_bytes = Column(BigInteger, default=0)
+    uptime_seconds = Column(BigInteger, default=0)
+    max_cpu = Column(Integer, default=0)
+    template = Column(Boolean, default=False)
+    tags = Column(String(500))
+    pool = Column(String(255))
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("ProxmoxCluster", back_populates="containers")
+
+
+class ProxmoxStorage(Base):
+    __tablename__ = "proxmox_storage"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("proxmox_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    storage = Column(String(255), nullable=False, index=True)
+    node = Column(String(255))
+    storage_type = Column(String(100))
+    status = Column(String(50))
+    shared = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=True)
+    content = Column(String(500))
+    used_bytes = Column(BigInteger, default=0)
+    total_bytes = Column(BigInteger, default=0)
+    available_bytes = Column(BigInteger, default=0)
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("ProxmoxCluster", back_populates="storage")
+
+
+class ProxmoxTask(Base):
+    __tablename__ = "proxmox_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("proxmox_clusters.id", ondelete="CASCADE"), nullable=False, index=True)
+    upid = Column(String(500), nullable=False, index=True)
+    node = Column(String(255))
+    user = Column(String(255))
+    task_type = Column(String(100))
+    resource_id = Column(String(255))
+    status = Column(String(100))
+    start_time = Column(DateTime(timezone=True))
+    end_time = Column(DateTime(timezone=True))
+    duration_seconds = Column(Integer)
+    description = Column(Text)
+    last_seen = Column(DateTime(timezone=True))
+
+    cluster = relationship("ProxmoxCluster", back_populates="tasks")

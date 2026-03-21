@@ -1429,3 +1429,141 @@ class SwarmEventOut(BaseModel):
     last_seen: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+
+class ProxmoxClusterCreate(BaseModel):
+    name: str
+    base_url: str
+    token_id: Optional[str] = None
+    token_secret: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    verify_tls: bool = True
+
+
+class ProxmoxClusterUpdate(BaseModel):
+    name: Optional[str] = None
+    base_url: Optional[str] = None
+    token_id: Optional[str] = None
+    token_secret: Optional[str] = None
+    verify_tls: Optional[bool] = None
+
+
+class ProxmoxClusterOut(BaseModel):
+    id: UUID
+    name: str
+    base_url: str
+    verify_tls: bool
+    status: str
+    cluster_name: Optional[str]
+    version: Optional[str]
+    node_count: int
+    vm_count: int
+    container_count: int
+    storage_count: int
+    last_discovery: Optional[datetime]
+    last_seen: Optional[datetime]
+    error_message: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProxmoxNodeOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    node: str
+    status: Optional[str]
+    level: Optional[str]
+    ip_address: Optional[str]
+    cpu_percent: float
+    memory_used_bytes: int
+    memory_total_bytes: int
+    rootfs_used_bytes: int
+    rootfs_total_bytes: int
+    uptime_seconds: int
+    max_cpu: int
+    ssl_fingerprint: Optional[str]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class ProxmoxVMOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    vmid: int
+    node: Optional[str]
+    name: str
+    status: Optional[str]
+    cpu_percent: float
+    memory_used_bytes: int
+    memory_total_bytes: int
+    disk_used_bytes: int
+    disk_total_bytes: int
+    uptime_seconds: int
+    max_cpu: int
+    template: bool
+    tags: Optional[str]
+    pool: Optional[str]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class ProxmoxContainerOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    vmid: int
+    node: Optional[str]
+    name: str
+    status: Optional[str]
+    cpu_percent: float
+    memory_used_bytes: int
+    memory_total_bytes: int
+    disk_used_bytes: int
+    disk_total_bytes: int
+    uptime_seconds: int
+    max_cpu: int
+    template: bool
+    tags: Optional[str]
+    pool: Optional[str]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class ProxmoxStorageOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    storage: str
+    node: Optional[str]
+    storage_type: Optional[str]
+    status: Optional[str]
+    shared: bool
+    enabled: bool
+    content: Optional[str]
+    used_bytes: int
+    total_bytes: int
+    available_bytes: int
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class ProxmoxTaskOut(BaseModel):
+    id: UUID
+    cluster_id: UUID
+    upid: str
+    node: Optional[str]
+    user: Optional[str]
+    task_type: Optional[str]
+    resource_id: Optional[str]
+    status: Optional[str]
+    start_time: Optional[datetime]
+    end_time: Optional[datetime]
+    duration_seconds: Optional[int]
+    description: Optional[str]
+    last_seen: Optional[datetime]
+
+    model_config = {"from_attributes": True}

@@ -21,6 +21,7 @@ import {
   Container,
   Boxes,
   Menu,
+  MonitorSmartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/CommandPalette";
