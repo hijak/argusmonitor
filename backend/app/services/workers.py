@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Monitor, Transaction, WorkerJob, K8sCluster, SwarmCluster
+from app.models import Monitor, Transaction, WorkerJob, K8sCluster, SwarmCluster, ProxmoxCluster
 from app.services.checks import execute_monitor_check, execute_transaction_run
 
 

@@ -103,4 +103,4 @@ app.include_router(proxmox.router, prefix="/api")
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "argus-monitor-api"}
+    return {"status": "ok", "service": "vordr-api"}

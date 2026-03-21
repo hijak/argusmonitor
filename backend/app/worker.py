@@ -4,9 +4,11 @@ import logging
 from app.database import async_session
 from app.services.retention import apply_retention
 from app.services.workers import (
-    enqueue_monitor_jobs,
-    enqueue_transaction_jobs,
     enqueue_k8s_jobs,
+    enqueue_monitor_jobs,
+    enqueue_proxmox_jobs,
+    enqueue_swarm_jobs,
+    enqueue_transaction_jobs,
     process_worker_jobs,
 )
 
@@ -22,11 +24,15 @@ async def worker_loop():
                 monitor_jobs = await enqueue_monitor_jobs(db)
                 transaction_jobs = await enqueue_transaction_jobs(db)
                 k8s_jobs = await enqueue_k8s_jobs(db)
+                swarm_jobs = await enqueue_swarm_jobs(db)
+                proxmox_jobs = await enqueue_proxmox_jobs(db)
                 logger.info(
-                    "Queued %s monitor jobs, %s transaction jobs, %s k8s jobs",
+                    "Queued %s monitor jobs, %s transaction jobs, %s k8s jobs, %s swarm jobs, %s proxmox jobs",
                     monitor_jobs,
                     transaction_jobs,
                     k8s_jobs,
+                    swarm_jobs,
+                    proxmox_jobs,
                 )
             processed = await process_worker_jobs(db, limit=50)
             logger.info("Processed %s worker jobs", processed)
