@@ -107,6 +107,14 @@ services:
       - "8789:8080"
     restart: unless-stopped
 
+  plugin-directory:
+    build:
+      context: ./plugin-directory
+      dockerfile: Dockerfile
+    ports:
+      - "8790:8080"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:

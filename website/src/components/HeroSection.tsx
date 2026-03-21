@@ -244,13 +244,14 @@ const HeroSection = () => (
         </motion.h1>
 
         <motion.p custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mx-auto max-w-3xl text-lg leading-relaxed text-muted-foreground">
-          Host monitoring, service discovery, alerts, dashboards, and AI-assisted operations — now moving toward serious buyer readiness with workspaces, RBAC, OIDC SSO, audit logs, maintenance windows, silences, and real notification delivery.
+          Host monitoring, service discovery, alerts, dashboards, AI-assisted operations, and now an official plugin directory for collectors and UI integrations — all moving toward serious buyer readiness with workspaces, RBAC, OIDC SSO, audit logs, maintenance windows, silences, and real notification delivery.
         </motion.p>
 
         <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible" className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Button asChild variant="hero" size="lg"><a href={START_URL} target="_blank" rel="noreferrer">Start Free</a></Button>
           <Button asChild variant="hero-outline" size="lg"><a href={DEMO_URL}>Book Demo</a></Button>
           <Button asChild variant="secondary" size="lg"><a href={APP_URL} target="_blank" rel="noreferrer">Open App</a></Button>
+          <Button asChild variant="secondary" size="lg"><a href={PLUGIN_DIRECTORY_URL} target="_blank" rel="noreferrer">Browse Plugins</a></Button>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground">
             <Github className="h-4 w-4" /> View on GitHub
           </a>
@@ -260,6 +261,7 @@ const HeroSection = () => (
           <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><KeyRound className="h-3.5 w-3.5 text-primary" /> OIDC SSO foundation</span>
           <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Audit logs + RBAC</span>
           <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Bell className="h-3.5 w-3.5 text-primary" /> Real email / Slack / webhook delivery</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Globe className="h-3.5 w-3.5 text-primary" /> Official plugin directory</span>
         </motion.div>
       </div>
 

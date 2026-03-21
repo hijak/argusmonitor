@@ -14,6 +14,7 @@ const columns = [
     title: "Resources",
     links: [
       { label: "Docs", href: DOCS_URL },
+      { label: "Plugin Directory", href: PLUGIN_DIRECTORY_URL },
       { label: "GitHub", href: GITHUB_URL },
       { label: "Contact", href: "mailto:plutus.ghost@gmail.com" },
     ],

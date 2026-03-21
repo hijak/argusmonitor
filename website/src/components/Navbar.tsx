@@ -8,6 +8,7 @@ const navLinks = [
   { label: "Features", href: "#features" },
   { label: "AI Copilot", href: "#copilot" },
   { label: "Pricing", href: "#pricing" },
+  { label: "Plugin Directory", href: PLUGIN_DIRECTORY_URL },
   { label: "Docs", href: DOCS_URL },
 ];
 
