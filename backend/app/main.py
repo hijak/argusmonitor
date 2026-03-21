@@ -26,6 +26,7 @@ from app.routers import (
     enterprise,
     scim,
     kubernetes,
+    swarm,
 )
 from app.routers import settings as settings_router
 
@@ -95,6 +96,7 @@ app.include_router(enterprise.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(scim.router, prefix="/api")
 app.include_router(kubernetes.router, prefix="/api")
+app.include_router(swarm.router, prefix="/api")
 
 
 @app.get("/api/health")

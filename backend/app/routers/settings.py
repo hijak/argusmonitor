@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.config import get_settings
 from app.models import User, ApiKey, NotificationChannel, Integration, UserPreference, Host
 from app.schemas import (
     ProfileUpdate, PasswordChange, UserOut,
@@ -314,6 +315,22 @@ async def update_preferences(
 
 # --- Agents ---
 
+@router.get("/agent-install")
+async def get_agent_install_info(user: User = Depends(get_current_user)):
+    settings = get_settings()
+    token = settings.agent_shared_token or "YOUR_AGENT_TOKEN"
+    return {
+        "token": token,
+        "command": "Create or select a host in Infrastructure to generate a same-origin install command.",
+        "script_url": "/api/hosts/{host_id}/install.sh?token={enrollment_token}",
+        "notes": [
+            "Install commands are now generated per host from the Infrastructure page.",
+            "The install URL should use the same origin as the app you are viewing.",
+            "Legacy shared-token installs remain only for backward compatibility during migration.",
+        ],
+    }
+
+
 @router.get("/agents", response_model=list[AgentOut])
 async def list_agents(
     db: AsyncSession = Depends(get_db),
@@ -321,15 +338,18 @@ async def list_agents(
 ):
     result = await db.execute(select(Host).where(Host.agent_version.isnot(None)).order_by(Host.name))
     hosts = result.scalars().all()
-    # Also include all hosts as potential agents
     if not hosts:
         result = await db.execute(select(Host).order_by(Host.name))
         hosts = result.scalars().all()
     return [
         AgentOut(
-            id=h.id, name=h.name, ip_address=h.ip_address,
+            id=h.id,
+            name=h.name,
+            ip_address=h.ip_address,
             agent_version=h.agent_version or "1.0.0",
-            status=h.status, os=h.os, last_seen=h.last_seen,
+            status=h.status,
+            os=h.os,
+            last_seen=h.last_seen,
         )
         for h in hosts
     ]

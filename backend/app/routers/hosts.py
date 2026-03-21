@@ -160,6 +160,8 @@ def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
     cpu_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.cpu_percent, 1)} for m in metrics if m.cpu_percent is not None]
     mem_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.memory_percent, 1)} for m in metrics if m.memory_percent is not None]
     disk_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.disk_percent, 1)} for m in metrics if m.disk_percent is not None]
+    network_in_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.network_in_bytes or 0, 2)} for m in metrics]
+    network_out_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.network_out_bytes or 0, 2)} for m in metrics]
 
     latest_interfaces = metrics[-1].network_interfaces if metrics and getattr(metrics[-1], 'network_interfaces', None) else []
     return {

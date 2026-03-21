@@ -206,6 +206,8 @@ export const api = {
     request<any[]>(`/enterprise/workspaces${organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`),
   createWorkspace: (data: { organization_id: string; name: string; slug: string; timezone?: string }) =>
     request<any>("/enterprise/workspaces", { method: "POST", body: JSON.stringify(data) }),
+  listWorkspaceMembers: (workspaceId: string) =>
+    request<any[]>(`/enterprise/workspaces/${workspaceId}/members`),
   addWorkspaceMember: (workspaceId: string, data: { user_id: string; role: string }) =>
     request<any>(`/enterprise/workspaces/${workspaceId}/members`, { method: "POST", body: JSON.stringify(data) }),
   listAuditLogs: (workspaceId?: string, limit?: number) =>
@@ -259,6 +261,8 @@ export const api = {
   listAnnouncements: () => request<any[]>("/enterprise/announcements"),
   createAnnouncement: (data: any) =>
     request<any>("/enterprise/announcements", { method: "POST", body: JSON.stringify(data) }),
+  deliverEnterpriseNotification: (channelId: string, data: { subject?: string; text: string; message?: string }) =>
+    request<any>(`/enterprise/notifications/${channelId}/deliver`, { method: "POST", body: JSON.stringify(data) }),
   listApiVersions: () => request<any[]>("/enterprise/api-versions"),
 
   // Settings - Profile
@@ -301,6 +305,15 @@ export const api = {
     request<any>("/settings/preferences", { method: "PUT", body: JSON.stringify(data) }),
 
   // Settings - Agents
+  rotateHostEnrollmentToken: (hostId: string, options?: { scope?: string; ttlHours?: number }) => {
+    const params = new URLSearchParams();
+    if (options?.scope) params.set("scope", options.scope);
+    if (options?.ttlHours) params.set("ttl_hours", String(options.ttlHours));
+    const qs = params.toString();
+    return request<{ host_id: string; token: string; scope: string; status: string; expires_at: string | null; revoked_at?: string | null; install_url: string; command: string }>(`/hosts/${hostId}/enrollment-token${qs ? `?${qs}` : ""}`, { method: "POST" });
+  },
+  revokeHostEnrollmentToken: (hostId: string) => request<{ host_id: string; status: string }>(`/hosts/${hostId}/enrollment-token`, { method: "DELETE" }),
+  getAgentInstallInfo: () => request<{ token: string; command: string; script_url: string; notes: string[] }>("/settings/agent-install"),
   listAgents: () => request<any[]>("/settings/agents"),
 
   // Kubernetes
@@ -325,6 +338,54 @@ export const api = {
     const qs = params.toString();
     return request<any[]>(`/kubernetes/clusters/${clusterId}/pods${qs ? `?${qs}` : ""}`);
   },
+  listK8sDeployments: (clusterId: string, namespace?: string) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    const qs = params.toString();
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/deployments${qs ? `?${qs}` : ""}`);
+  },
+  listK8sStatefulSets: (clusterId: string, namespace?: string) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    const qs = params.toString();
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/statefulsets${qs ? `?${qs}` : ""}`);
+  },
+  listK8sDaemonSets: (clusterId: string, namespace?: string) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    const qs = params.toString();
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/daemonsets${qs ? `?${qs}` : ""}`);
+  },
+  listK8sJobs: (clusterId: string, namespace?: string) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    const qs = params.toString();
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/jobs${qs ? `?${qs}` : ""}`);
+  },
+  listK8sServices: (clusterId: string, namespace?: string) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    const qs = params.toString();
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/services${qs ? `?${qs}` : ""}`);
+  },
+  listK8sEvents: (clusterId: string, namespace?: string, limit = 100) => {
+    const params = new URLSearchParams();
+    if (namespace) params.set("namespace", namespace);
+    params.set("limit", String(limit));
+    return request<any[]>(`/kubernetes/clusters/${clusterId}/events?${params.toString()}`);
+  },
   getK8sClusterStats: (clusterId: string) =>
     request<any>(`/kubernetes/clusters/${clusterId}/stats`),
+
+  listSwarmClusters: () => request<any[]>(`/swarm/clusters`),
+  createSwarmCluster: (data: any) => request<any>(`/swarm/clusters`, { method: "POST", body: data }),
+  discoverSwarmCluster: (clusterId: string) => request<any>(`/swarm/clusters/${clusterId}/discover`, { method: "POST" }),
+  deleteSwarmCluster: (clusterId: string) => request<void>(`/swarm/clusters/${clusterId}`, { method: "DELETE" }),
+  listSwarmNodes: (clusterId: string) => request<any[]>(`/swarm/clusters/${clusterId}/nodes`),
+  listSwarmServices: (clusterId: string, stack?: string) => request<any[]>(`/swarm/clusters/${clusterId}/services${stack ? `?stack=${encodeURIComponent(stack)}` : ""}`),
+  listSwarmTasks: (clusterId: string, stack?: string) => request<any[]>(`/swarm/clusters/${clusterId}/tasks${stack ? `?stack=${encodeURIComponent(stack)}` : ""}`),
+  listSwarmNetworks: (clusterId: string) => request<any[]>(`/swarm/clusters/${clusterId}/networks`),
+  listSwarmVolumes: (clusterId: string) => request<any[]>(`/swarm/clusters/${clusterId}/volumes`),
+  listSwarmEvents: (clusterId: string, limit = 100) => request<any[]>(`/swarm/clusters/${clusterId}/events?limit=${limit}`),
+  getSwarmClusterStats: (clusterId: string) => request<any>(`/swarm/clusters/${clusterId}/stats`),
 };

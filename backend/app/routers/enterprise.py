@@ -198,6 +198,30 @@ async def add_workspace_member(
     return WorkspaceMembershipOut.model_validate(membership, from_attributes=True)
 
 
+@router.get("/workspaces/{workspace_id}/members", response_model=list[WorkspaceMembershipOut])
+async def list_workspace_members(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    workspace = await db.get(Workspace, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    await require_workspace_role(
+        db,
+        workspace_id=workspace_id,
+        user_id=current_user.id,
+        allowed_roles={"owner", "admin", "member", "viewer"},
+    )
+
+    result = await db.execute(
+        select(WorkspaceMembership)
+        .where(WorkspaceMembership.workspace_id == workspace_id)
+        .order_by(WorkspaceMembership.created_at.asc())
+    )
+    return result.scalars().all()
+
+
 @router.get("/audit-logs", response_model=list[AuditLogOut])
 async def list_audit_logs(
     workspace_id: UUID | None = None,

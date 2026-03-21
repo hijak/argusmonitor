@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import AIChatMessage, AIChatSession, AgentAction, AlertInstance, Host, Incident, Service, TransactionRun, User
+from app.models import AIChatMessage, AIChatSession, AgentAction, AlertInstance, Host, Incident, Service, TransactionRun, User, K8sCluster, K8sNamespace, K8sPod, K8sDeployment, K8sService, K8sEvent, K8sStatefulSet, K8sDaemonSet, K8sJob
 from app.schemas import AIChatRequest, AIChatResponse, AIChatSessionCreate, AIChatSessionOut, AIGenerateTransactionRequest, AIExplainFailureRequest
 from app.auth import get_current_user
 from app.services.ai_service import AIService
@@ -76,6 +76,211 @@ def _maybe_parse_host_inspection_request(message: str) -> tuple[str, dict] | Non
     path = "/var" if "/var" in lowered else "/home" if "/home" in lowered else "/"
     mode = "files" if "files" in lowered and "folders" not in lowered else "both"
     return host_name, {"kind": "largest_paths", "params": {"path": path, "limit": 15, "mode": mode}}
+
+
+def _is_kubernetes_question(message: str) -> bool:
+    lowered = message.lower()
+    return any(term in lowered for term in [
+        "kubernetes", "k8s", "cluster", "pod", "pods", "deployment", "deployments",
+        "namespace", "namespaces", "daemonset", "statefulset", "cronjob", "jobs", "service mesh"
+    ])
+
+
+def _detect_kubernetes_intent(message: str, kube_context: dict) -> dict:
+    lowered = message.lower()
+    namespaces = kube_context.get("namespaces") or []
+    namespace_names = [ns.get("name", "") for ns in namespaces]
+    matched_namespace = next((ns for ns in namespace_names if ns and ns.lower() in lowered), None)
+
+    return {
+        "namespace": matched_namespace,
+        "asks_health": any(term in lowered for term in ["unhealthy", "broken", "health", "problem", "issues", "warning", "warnings", "failed", "error"]),
+        "asks_restarts": any(term in lowered for term in ["restart", "restarts", "crashloop", "crash loop"]),
+        "asks_exposure": any(term in lowered for term in ["exposed", "external", "public", "internet", "loadbalancer", "nodeport", "reachable"]),
+        "asks_workloads": any(term in lowered for term in ["running", "what is running", "workload", "workloads", "pods", "deployments", "services"]),
+        "asks_relationships": any(term in lowered for term in ["related", "behind", "connected", "uses", "what serves", "which service", "which pod"]),
+    }
+
+
+async def _build_kubernetes_context(db: AsyncSession) -> dict:
+    clusters_result = await db.execute(select(K8sCluster).order_by(K8sCluster.last_seen.desc().nullslast(), K8sCluster.name).limit(6))
+    namespaces_result = await db.execute(select(K8sNamespace).order_by(K8sNamespace.name).limit(200))
+    pods_result = await db.execute(select(K8sPod).order_by(K8sPod.restart_count.desc(), K8sPod.namespace, K8sPod.name).limit(40))
+    deployments_result = await db.execute(select(K8sDeployment).order_by(K8sDeployment.namespace, K8sDeployment.name).limit(60))
+    statefulsets_result = await db.execute(select(K8sStatefulSet).order_by(K8sStatefulSet.namespace, K8sStatefulSet.name).limit(40))
+    daemonsets_result = await db.execute(select(K8sDaemonSet).order_by(K8sDaemonSet.namespace, K8sDaemonSet.name).limit(40))
+    jobs_result = await db.execute(select(K8sJob).order_by(K8sJob.namespace, K8sJob.kind, K8sJob.name).limit(60))
+    services_result = await db.execute(select(K8sService).order_by(K8sService.namespace, K8sService.name).limit(80))
+    warning_events_result = await db.execute(
+        select(K8sEvent)
+        .where(K8sEvent.type == "Warning")
+        .order_by(K8sEvent.event_time.desc().nullslast(), K8sEvent.last_seen.desc())
+        .limit(20)
+    )
+
+    clusters = [{
+        "id": str(c.id),
+        "name": c.name,
+        "status": c.status,
+        "version": c.version,
+        "node_count": c.node_count,
+        "pod_count": c.pod_count,
+        "running_pods": c.running_pods,
+        "namespace_count": c.namespace_count,
+        "cpu_usage_percent": round(c.cpu_usage_percent or 0, 1),
+        "memory_usage_percent": round(c.memory_usage_percent or 0, 1),
+        "error_message": c.error_message,
+    } for c in clusters_result.scalars().all()]
+
+    namespaces = [{
+        "name": ns.name,
+        "status": ns.status,
+        "pod_count": ns.pod_count,
+    } for ns in namespaces_result.scalars().all()]
+
+    pods = [{
+        "name": p.name,
+        "namespace": p.namespace,
+        "status": p.status,
+        "restart_count": p.restart_count,
+        "ready": f"{p.ready_containers}/{p.container_count}",
+        "node_name": p.node_name,
+        "cpu_usage": p.cpu_usage,
+        "memory_usage": p.memory_usage,
+    } for p in pods_result.scalars().all()]
+
+    deployments = [{
+        "name": d.name,
+        "namespace": d.namespace,
+        "status": d.status,
+        "ready": f"{d.ready_replicas}/{d.desired_replicas}",
+        "available_replicas": d.available_replicas,
+        "updated_replicas": d.updated_replicas,
+    } for d in deployments_result.scalars().all()]
+
+    statefulsets = [{
+        "name": s.name,
+        "namespace": s.namespace,
+        "status": s.status,
+        "ready": f"{s.ready_replicas}/{s.desired_replicas}",
+        "service_name": s.service_name,
+    } for s in statefulsets_result.scalars().all()]
+
+    daemonsets = [{
+        "name": d.name,
+        "namespace": d.namespace,
+        "status": d.status,
+        "ready": f"{d.number_ready}/{d.desired_number_scheduled}",
+        "updated_number_scheduled": d.updated_number_scheduled,
+    } for d in daemonsets_result.scalars().all()]
+
+    jobs = [{
+        "name": j.name,
+        "namespace": j.namespace,
+        "kind": j.kind,
+        "status": j.status,
+        "schedule": j.schedule,
+        "active": j.active,
+        "failed": j.failed,
+    } for j in jobs_result.scalars().all()]
+
+    services = [{
+        "name": s.name,
+        "namespace": s.namespace,
+        "type": s.service_type,
+        "cluster_ip": s.cluster_ip,
+        "external_ip": s.external_ip,
+        "ports": s.ports or [],
+        "is_externally_exposed": bool(s.external_ip) or s.service_type in {"LoadBalancer", "NodePort"},
+    } for s in services_result.scalars().all()]
+
+    warning_events = [{
+        "namespace": e.namespace,
+        "reason": e.reason,
+        "message": e.message,
+        "involved_kind": e.involved_kind,
+        "involved_name": e.involved_name,
+    } for e in warning_events_result.scalars().all()]
+
+    namespace_names = sorted({p["namespace"] for p in pods} | {d["namespace"] for d in deployments} | {s["namespace"] for s in services})
+    namespace_summary = []
+    for ns in namespace_names[:30]:
+        ns_pods = [p for p in pods if p["namespace"] == ns]
+        ns_deployments = [d for d in deployments if d["namespace"] == ns]
+        ns_services = [s for s in services if s["namespace"] == ns]
+        ns_warnings = [w for w in warning_events if w["namespace"] == ns]
+        unhealthy = [d for d in ns_deployments if d["status"] != "healthy"]
+        namespace_summary.append({
+            "name": ns,
+            "pod_count": len(ns_pods),
+            "deployment_count": len(ns_deployments),
+            "service_count": len(ns_services),
+            "warning_event_count": len(ns_warnings),
+            "unhealthy_deployments": [d["name"] for d in unhealthy[:6]],
+        })
+
+    top_restarting_pods = sorted(pods, key=lambda p: (-int(p.get("restart_count") or 0), p["namespace"], p["name"]))[:8]
+    unhealthy_deployments = [d for d in deployments if d["status"] != "healthy"][:10]
+    exposed_services = [s for s in services if s["is_externally_exposed"]][:12]
+
+    deployment_relationships = []
+    pod_lookup_by_ns = {}
+    for p in pods:
+        pod_lookup_by_ns.setdefault(p["namespace"], []).append(p)
+    service_lookup_by_ns = {}
+    for s in services:
+        service_lookup_by_ns.setdefault(s["namespace"], []).append(s)
+
+    for d in deployments[:20]:
+        related_pods = [p["name"] for p in pod_lookup_by_ns.get(d["namespace"], []) if p["name"].startswith(d["name"])][:6]
+        related_services = [s["name"] for s in service_lookup_by_ns.get(d["namespace"], [])][:4]
+        deployment_relationships.append({
+            "deployment": d["name"],
+            "namespace": d["namespace"],
+            "pods": related_pods,
+            "services": related_services,
+        })
+
+    warning_lines = [
+        f"{e['namespace'] or 'cluster'} · {e['involved_kind'] or 'Object'}/{e['involved_name'] or '-'} · {e['reason'] or 'Warning'}"
+        for e in warning_events
+    ]
+
+    return {
+        "summary": {
+            "cluster_count": len(clusters),
+            "node_count": sum(c["node_count"] for c in clusters),
+            "pod_count": sum(c["pod_count"] for c in clusters),
+            "deployment_count": len(deployments),
+            "statefulset_count": len(statefulsets),
+            "daemonset_count": len(daemonsets),
+            "job_count": len(jobs),
+            "service_count": len(services),
+            "namespace_count": len(namespace_summary),
+            "warning_event_count": len(warning_events),
+        },
+        "clusters": clusters,
+        "namespaces": namespace_summary,
+        "top_restarting_pods": top_restarting_pods,
+        "deployments": deployments,
+        "unhealthy_deployments": unhealthy_deployments,
+        "statefulsets": statefulsets,
+        "daemonsets": daemonsets,
+        "jobs": jobs,
+        "services": services,
+        "exposed_services": exposed_services,
+        "deployment_relationships": deployment_relationships,
+        "warning_events": warning_events,
+        "warnings": warning_lines,
+        "evidence": {
+            "clusters": [c["name"] for c in clusters[:4]],
+            "namespaces": [n["name"] for n in namespace_summary[:8]],
+            "restart_pods": [f"{p['namespace']}/{p['name']}" for p in top_restarting_pods[:6]],
+            "unhealthy_deployments": [f"{d['namespace']}/{d['name']}" for d in unhealthy_deployments[:6]],
+            "exposed_services": [f"{s['namespace']}/{s['name']}" for s in exposed_services[:6]],
+            "warning_events": [f"{(e.get('namespace') or 'cluster')}: {(e.get('involved_kind') or 'Object')}/{(e.get('involved_name') or '-')} · {(e.get('reason') or 'Warning')}" for e in warning_events[:6]],
+        },
+    }
 
 
 async def _build_monitoring_context(db: AsyncSession) -> dict:
@@ -222,6 +427,10 @@ async def chat(
         messages = [{"role": m.role, "content": m.content} for m in history]
 
         monitoring_context = await _build_monitoring_context(db)
+        if _is_kubernetes_question(req.message):
+            kube_context = await _build_kubernetes_context(db)
+            monitoring_context["kubernetes"] = kube_context
+            monitoring_context["kubernetes_intent"] = _detect_kubernetes_intent(req.message, kube_context)
         response_text = await ai.chat(messages, monitoring_context=monitoring_context)
 
     assistant_msg = AIChatMessage(

@@ -8,7 +8,7 @@ import { ChevronLeft, RefreshCw, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -33,6 +33,20 @@ const PIE_COLORS: Record<string, string> = {
   critical: "hsl(0, 72%, 51%)",
   unknown: "hsl(25, 4%, 64%)",
 };
+
+function GlowDefs({ id, color }: { id: string; color: string }) {
+  return (
+    <filter id={id} x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feFlood floodColor={color} floodOpacity="0.2" result="flood" />
+      <feComposite in="flood" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  );
+}
 
 interface NodeData {
   id: string;
@@ -171,34 +185,23 @@ function ChartWidget({ widget, chartType, onNodeClick }: { widget: any; chartTyp
       <div className="p-4">
         <ResponsiveContainer width="100%" height={240}>
           <Chart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(20, 6%, 20%)" />
-            <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} />
+            <CartesianGrid vertical={false} stroke="hsl(20 6% 20% / 0.45)" />
+            <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} tickMargin={8} />
             <YAxis tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} width={40} />
-            <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 8, fontSize: 12 }} />
+            <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 10, fontSize: 12, boxShadow: "0 0 24px rgba(0,0,0,0.35)" }} cursor={{ stroke: "hsl(25 4% 64% / 0.25)" }} />
             <defs>
               {nodes.map((n, i) => {
                 const color = CHART_PALETTE[i % CHART_PALETTE.length];
-                return (
-                  <filter key={n.id} id={`glow-${widget.id}-${n.id}`} x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="5" result="blur" />
-                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    <feFlood floodColor={color} floodOpacity="0.18" result="flood" />
-                    <feComposite in="flood" in2="blur" operator="in" result="glow" />
-                    <feMerge>
-                      <feMergeNode in="glow" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                );
+                return <GlowDefs key={n.id} id={`glow-${widget.id}-${n.id}`} color={color} />;
               })}
             </defs>
             {nodes.map((n, i) => {
               if (hiddenSeries.has(n.name)) return null;
               const color = CHART_PALETTE[i % CHART_PALETTE.length];
               return chartType === "area" ? (
-                <Area key={n.id} type="monotone" dataKey={n.name} stroke={color} fill={color} fillOpacity={0.1} strokeWidth={2} dot={false} filter={`url(#glow-${widget.id}-${n.id})`} />
+                <Area key={n.id} type="bump" dataKey={n.name} stroke={color} fill={color} fillOpacity={0.12} strokeWidth={2.5} dot={false} filter={`url(#glow-${widget.id}-${n.id})`} />
               ) : (
-                <Line key={n.id} type="monotone" dataKey={n.name} stroke={color} strokeWidth={2} dot={false} filter={`url(#glow-${widget.id}-${n.id})`} />
+                <Line key={n.id} type="bump" dataKey={n.name} stroke={color} strokeWidth={2.5} dot={false} filter={`url(#glow-${widget.id}-${n.id})`} />
               );
             })}
           </Chart>
@@ -235,14 +238,21 @@ function BarChartWidget({ widget, onNodeClick }: { widget: any; onNodeClick: (n:
       <div className="p-4">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={barData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(20, 6%, 20%)" />
+            <defs>
+              {barData.map((entry, i) => {
+                const color = STATUS_COLORS[entry.status || "unknown"] || CHART_PALETTE[i % CHART_PALETTE.length];
+                return <GlowDefs key={entry.id || i} id={`bar-glow-${widget.id}-${i}`} color={color} />;
+              })}
+            </defs>
+            <CartesianGrid vertical={false} stroke="hsl(20 6% 20% / 0.45)" />
             <XAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={50} />
             <YAxis tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} width={35} />
-            <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 8, fontSize: 12 }} />
-            <Bar dataKey="value" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(_: any, idx: number) => onNodeClick(nodes[idx], widget.title)}>
-              {barData.map((entry, i) => (
-                <Cell key={i} fill={STATUS_COLORS[entry.status || "unknown"] || CHART_PALETTE[i % CHART_PALETTE.length]} />
-              ))}
+            <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 10, fontSize: 12, boxShadow: "0 0 24px rgba(0,0,0,0.35)" }} cursor={{ fill: "hsl(25 4% 64% / 0.08)" }} />
+            <Bar dataKey="value" radius={[6, 6, 0, 0]} cursor="pointer" onClick={(_: any, idx: number) => onNodeClick(nodes[idx], widget.title)}>
+              {barData.map((entry, i) => {
+                const color = STATUS_COLORS[entry.status || "unknown"] || CHART_PALETTE[i % CHART_PALETTE.length];
+                return <Cell key={i} fill={color} filter={`url(#bar-glow-${widget.id}-${i})`} />;
+              })}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -260,12 +270,19 @@ function PieChartWidget({ widget }: { widget: any }) {
       <div className="p-4 flex items-center justify-center">
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
+            <defs>
+              {data.map((entry: any, i: number) => {
+                const color = PIE_COLORS[entry.name] || CHART_PALETTE[i % CHART_PALETTE.length];
+                return <GlowDefs key={entry.name || i} id={`pie-glow-${widget.id}-${i}`} color={color} />;
+              })}
+            </defs>
             <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" nameKey="name" paddingAngle={2} label={({ name, value }) => `${name}: ${value}`}>
-              {data.map((entry: any, i: number) => (
-                <Cell key={i} fill={PIE_COLORS[entry.name] || CHART_PALETTE[i % CHART_PALETTE.length]} />
-              ))}
+              {data.map((entry: any, i: number) => {
+                const color = PIE_COLORS[entry.name] || CHART_PALETTE[i % CHART_PALETTE.length];
+                return <Cell key={i} fill={color} filter={`url(#pie-glow-${widget.id}-${i})`} />;
+              })}
             </Pie>
-            <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 8, fontSize: 12 }} />
+            <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 10, fontSize: 12, boxShadow: "0 0 24px rgba(0,0,0,0.35)" }} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -450,15 +467,16 @@ function NodeDetailModal({ node, widgetTitle, onClose }: { node: NodeData; widge
                 <AreaChart data={data}>
                   <defs>
                     <linearGradient id="nodeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(25, 95%, 53%)" stopOpacity={0.3} />
+                      <stop offset="5%" stopColor="hsl(25, 95%, 53%)" stopOpacity={0.28} />
                       <stop offset="95%" stopColor="hsl(25, 95%, 53%)" stopOpacity={0} />
                     </linearGradient>
+                    <GlowDefs id="nodeTrendGlow" color="hsl(25, 95%, 53%)" />
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(20, 6%, 20%)" />
-                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} />
+                  <CartesianGrid vertical={false} stroke="hsl(20 6% 20% / 0.45)" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} tickMargin={8} />
                   <YAxis tick={{ fontSize: 10, fill: "hsl(25, 4%, 64%)" }} tickLine={false} axisLine={false} width={45} />
-                  <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 8, fontSize: 12 }} />
-                  <Area type="monotone" dataKey="value" stroke="hsl(25, 95%, 53%)" fill="url(#nodeGrad)" strokeWidth={2} dot={false} />
+                  <Tooltip contentStyle={{ background: "hsl(20, 8%, 15%)", border: "1px solid hsl(20, 6%, 25%)", borderRadius: 10, fontSize: 12, boxShadow: "0 0 24px rgba(0,0,0,0.35)" }} cursor={{ stroke: "hsl(25 4% 64% / 0.25)" }} />
+                  <Area type="bump" dataKey="value" stroke="hsl(25, 95%, 53%)" fill="url(#nodeGrad)" strokeWidth={2.5} dot={false} filter="url(#nodeTrendGlow)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

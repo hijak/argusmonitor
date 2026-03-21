@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Monitor, Transaction, WorkerJob, K8sCluster
+from app.models import Monitor, Transaction, WorkerJob, K8sCluster, SwarmCluster
 from app.services.checks import execute_monitor_check, execute_transaction_run
 
 
@@ -69,6 +69,26 @@ async def enqueue_k8s_jobs(db: AsyncSession) -> int:
     return count
 
 
+async def enqueue_swarm_jobs(db: AsyncSession) -> int:
+    clusters = (
+        (await db.execute(select(SwarmCluster).where(SwarmCluster.status != "unknown")))
+        .scalars()
+        .all()
+    )
+    count = 0
+    for cluster in clusters:
+        db.add(
+            WorkerJob(
+                workspace_id=cluster.workspace_id,
+                kind="swarm.discover",
+                payload={"cluster_id": str(cluster.id)},
+            )
+        )
+        count += 1
+    await db.flush()
+    return count
+
+
 async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
     jobs = (
         (
@@ -113,6 +133,13 @@ async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
 
                     await discover_cluster(db, cluster)
                     await collect_cluster_metrics(db, cluster)
+            elif job.kind == "swarm.discover":
+                cluster = await db.get(SwarmCluster, job.payload.get("cluster_id"))
+                if cluster:
+                    from app.services.swarm import discover_swarm_cluster, collect_swarm_metrics
+
+                    await discover_swarm_cluster(db, cluster)
+                    await collect_swarm_metrics(db, cluster)
             job.status = "completed"
             job.completed_at = datetime.now(timezone.utc)
             job.last_error = None

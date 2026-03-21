@@ -189,7 +189,7 @@ export default function OverviewPage() {
         </div>
       </motion.div>
 
-      <HostDetailModal hostId={selectedHostId} onClose={() => setSelectedHostId(null)} />
+      <HostDetailModal hostId={selectedHostId} variant="compact" onClose={() => setSelectedHostId(null)} />
     </motion.div>
   );
 }

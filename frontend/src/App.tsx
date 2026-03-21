@@ -14,6 +14,7 @@ import InfrastructurePage from "./pages/InfrastructurePage";
 import ServicesPage from "./pages/ServicesPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import KubernetesPage from "./pages/KubernetesPage";
+import SwarmPage from "./pages/SwarmPage";
 import AlertsPage from "./pages/AlertsPage";
 import IncidentsPage from "./pages/IncidentsPage";
 import DashboardsPage from "./pages/DashboardsPage";
@@ -65,6 +66,7 @@ function AuthenticatedRoutes() {
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/kubernetes" element={<KubernetesPage />} />
+        <Route path="/swarm" element={<SwarmPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/incidents" element={<IncidentsPage />} />
         <Route path="/dashboards" element={<DashboardsPage />} />

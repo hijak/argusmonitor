@@ -10,12 +10,22 @@ SYSTEM_PROMPT = """You are Argus, an AI monitoring assistant for the ArgusMonito
 You help users understand their infrastructure health, create monitoring configurations,
 analyze incidents, and troubleshoot issues.
 
-You have access to monitoring data including hosts, services, transactions, alerts, and incidents.
+You have access to monitoring data including hosts, services, transactions, alerts, incidents, and sometimes Kubernetes cluster state.
 Be concise, technical, and actionable in your responses.
 When suggesting monitoring configurations, provide specific step-by-step details.
 Format responses with markdown for readability.
 If live monitoring context is provided, ground your answer in that context and cite concrete values.
-If the requested host/service is not present in the provided context, say so plainly instead of inventing details."""
+If the requested host/service/cluster resource is not present in the provided context, say so plainly instead of inventing details.
+Do not imply you checked systems or resources that are not present in the context block.
+
+Response style rules:
+- Prefer short headings and compact bullets over long paragraphs.
+- Start with the direct answer or top finding.
+- When summarizing state, use sections like: **Summary**, **Findings**, **Warnings**, **Next steps**.
+- If the user asks about Kubernetes, only answer from the Kubernetes context provided. If it is missing or partial, say that clearly.
+- Avoid motivational filler and generic AI phrasing.
+- If there are warnings/errors in the context, surface them prominently.
+"""
 
 TRANSACTION_PROMPT = """You are a monitoring automation expert. Given a user's description of a workflow,
 generate a JSON array of transaction monitoring steps.
@@ -207,6 +217,132 @@ class AIService:
                         f"- Last seen: {host.get('last_seen') or 'unknown'}\n"
                         f"- Tags: {', '.join(host.get('tags') or []) or 'none'}"
                     )
+
+        if any(term in msg for term in ["kubernetes", "k8s", "cluster", "pod", "pods", "deployment", "deployments", "namespace", "namespaces", "daemonset", "statefulset", "cronjob", "job", "service"]) and context.get("kubernetes"):
+            kube = context.get("kubernetes") or {}
+            intent = context.get("kubernetes_intent") or {}
+            summary = kube.get("summary") or {}
+            clusters = kube.get("clusters") or []
+            warnings = kube.get("warnings") or []
+            top_pods = kube.get("top_restarting_pods") or []
+            unhealthy = kube.get("unhealthy_deployments") or []
+            namespaces = kube.get("namespaces") or []
+            exposed = kube.get("exposed_services") or []
+            relationships = kube.get("deployment_relationships") or []
+            deployments = kube.get("deployments") or []
+            services = kube.get("services") or []
+            target_ns = intent.get("namespace")
+
+            lines = []
+            if target_ns:
+                ns = next((n for n in namespaces if n.get('name') == target_ns), None)
+                ns_deployments = [d for d in deployments if d.get('namespace') == target_ns]
+                ns_services = [s for s in services if s.get('namespace') == target_ns]
+                ns_warnings = [w for w in kube.get('warning_events', []) if w.get('namespace') == target_ns]
+                ns_restarts = [p for p in top_pods if p.get('namespace') == target_ns]
+                lines += [
+                    "## Summary",
+                    f"- Namespace **{target_ns}** has **{ns.get('pod_count', 0) if ns else 0}** pods, **{len(ns_deployments)}** deployments, **{len(ns_services)}** services, and **{len(ns_warnings)}** warning events.",
+                ]
+                if ns and ns.get('unhealthy_deployments'):
+                    lines += ["", "## Warnings"]
+                    lines.extend([f"- Unhealthy deployment: **{name}**" for name in ns.get('unhealthy_deployments')])
+                if ns_services:
+                    lines += ["", "## Services"]
+                    for svc in ns_services[:6]:
+                        endpoint = svc.get('external_ip') or svc.get('type')
+                        lines.append(f"- **{svc.get('name')}** — {svc.get('type')} · {endpoint}")
+                if ns_restarts:
+                    lines += ["", "## Restart hotspots"]
+                    lines.extend([f"- **{p.get('name')}** — {p.get('restart_count', 0)} restarts" for p in ns_restarts[:5]])
+                if ns_warnings:
+                    lines += ["", "## Recent warnings"]
+                    lines.extend([f"- {w.get('involved_kind') or 'Object'}/{w.get('involved_name') or '-'} · {w.get('reason') or 'Warning'}" for w in ns_warnings[:6]])
+                lines += ["", "## Next steps", "- Inspect the namespace warning events first, then check any restart-heavy pods and unhealthy deployments."]
+                lines += ["", "## Evidence"]
+                lines.extend([f"- namespace: `{target_ns}`"])
+                lines.extend([f"- deployment: `{target_ns}/{d.get('name')}`" for d in ns_deployments[:4]])
+                lines.extend([f"- service: `{target_ns}/{s.get('name')}`" for s in ns_services[:4]])
+                lines.extend([f"- pod: `{target_ns}/{p.get('name')}`" for p in ns_restarts[:4]])
+                lines.extend([f"- warning: `{target_ns}` · {w.get('involved_kind') or 'Object'}/{w.get('involved_name') or '-'} · {w.get('reason') or 'Warning'}" for w in ns_warnings[:4]])
+                return "\n".join(lines)
+
+            lines = [
+                "## Summary",
+                f"- **{summary.get('cluster_count', 0)}** cluster(s), **{summary.get('node_count', 0)}** nodes, **{summary.get('pod_count', 0)}** pods",
+                f"- **{summary.get('deployment_count', 0)}** deployments, **{summary.get('service_count', 0)}** services, **{summary.get('namespace_count', 0)}** namespaces",
+                f"- **{summary.get('warning_event_count', 0)}** warning event(s)",
+            ]
+            if clusters:
+                lines += ["", "## Findings"]
+                for c in clusters[:5]:
+                    cpu = c.get('cpu_usage_percent', 0)
+                    mem = c.get('memory_usage_percent', 0)
+                    lines.append(f"- **{c.get('name')}** — {c.get('status')} · v{c.get('version') or '?'} · {c.get('node_count', 0)} nodes · {c.get('pod_count', 0)} pods · CPU {cpu}% · MEM {mem}%")
+            if intent.get('asks_health') and (warnings or unhealthy):
+                lines += ["", "## Warnings"]
+                if unhealthy:
+                    for d in unhealthy[:8]:
+                        lines.append(f"- Unhealthy deployment: **{d.get('name')}** in `{d.get('namespace')}` — ready {d.get('ready')} · status {d.get('status')}")
+                for w in warnings[:8]:
+                    lines.append(f"- {w}")
+            if intent.get('asks_restarts') and top_pods:
+                lines += ["", "## Restart hotspots"]
+                lines.extend([f"- **{p.get('name')}** in `{p.get('namespace')}` — {p.get('restart_count', 0)} restarts · ready {p.get('ready')} · node `{p.get('node_name') or '-'}" for p in top_pods[:8]])
+            if intent.get('asks_exposure') and exposed:
+                lines += ["", "## Exposed services"]
+                for svc in exposed[:10]:
+                    endpoint = svc.get('external_ip') or svc.get('type')
+                    lines.append(f"- **{svc.get('name')}** in `{svc.get('namespace')}` — {svc.get('type')} · {endpoint}")
+            if intent.get('asks_relationships') and relationships:
+                lines += ["", "## Relationships"]
+                for rel in relationships[:8]:
+                    pods_text = ', '.join(rel.get('pods')[:3]) or 'no matching pods in snapshot'
+                    svc_text = ', '.join(rel.get('services')[:3]) or 'no visible services in namespace'
+                    lines.append(f"- **{rel.get('deployment')}** in `{rel.get('namespace')}` → pods: {pods_text} → services: {svc_text}")
+            if intent.get('asks_workloads') and namespaces:
+                lines += ["", "## Key namespaces"]
+                for ns in sorted(namespaces, key=lambda n: (-n.get('warning_event_count', 0), -n.get('pod_count', 0), n.get('name')))[:8]:
+                    suffix = f" · unhealthy: {', '.join(ns.get('unhealthy_deployments')[:3])}" if ns.get('unhealthy_deployments') else ""
+                    lines.append(f"- **{ns.get('name')}** — {ns.get('pod_count', 0)} pods · {ns.get('deployment_count', 0)} deployments · {ns.get('service_count', 0)} services · {ns.get('warning_event_count', 0)} warnings{suffix}")
+            if not any([intent.get('asks_health'), intent.get('asks_restarts'), intent.get('asks_exposure'), intent.get('asks_relationships'), intent.get('asks_workloads')]):
+                if warnings or unhealthy:
+                    lines += ["", "## Warnings"]
+                    lines.extend([f"- {w}" for w in warnings[:6]])
+                if top_pods:
+                    lines += ["", "## Restart hotspots"]
+                    lines.extend([f"- **{p.get('name')}** in `{p.get('namespace')}` — {p.get('restart_count', 0)} restarts" for p in top_pods[:5]])
+            lines += ["", "## Next steps"]
+            if warnings or unhealthy:
+                lines.append("- Investigate the warning events and unhealthy deployments first; they are the highest-signal issues in the current snapshot.")
+            else:
+                lines.append("- No obvious warning-heavy failure stands out from the current snapshot; ask about a namespace, workload, exposure, or restarts for a sharper answer.")
+            if top_pods and (intent.get('asks_restarts') or not any([intent.get('asks_health'), intent.get('asks_exposure'), intent.get('asks_relationships')])):
+                lines.append("- Check the restart hotspots to see whether they map to crash loops, rollout churn, or readiness failures.")
+            if exposed and intent.get('asks_exposure'):
+                lines.append("- Review externally exposed services to confirm only intended workloads are reachable outside the cluster.")
+
+            evidence = kube.get('evidence') or {}
+            lines += ["", "## Evidence"]
+            if intent.get('asks_health'):
+                lines.extend([f"- deployment: `{item}`" for item in evidence.get('unhealthy_deployments', [])[:6]])
+                lines.extend([f"- warning: {item}" for item in evidence.get('warning_events', [])[:6]])
+            elif intent.get('asks_restarts'):
+                lines.extend([f"- pod: `{item}`" for item in evidence.get('restart_pods', [])[:6]])
+            elif intent.get('asks_exposure'):
+                lines.extend([f"- service: `{item}`" for item in evidence.get('exposed_services', [])[:6]])
+            elif intent.get('asks_workloads'):
+                lines.extend([f"- namespace: `{item}`" for item in evidence.get('namespaces', [])[:6]])
+                lines.extend([f"- cluster: `{item}`" for item in evidence.get('clusters', [])[:4]])
+            elif intent.get('asks_relationships'):
+                lines.extend([f"- deployment: `{rel.get('namespace')}/{rel.get('deployment')}`" for rel in relationships[:6]])
+            else:
+                lines.extend([f"- cluster: `{item}`" for item in evidence.get('clusters', [])[:4]])
+                lines.extend([f"- namespace: `{item}`" for item in evidence.get('namespaces', [])[:4]])
+                lines.extend([f"- warning: {item}" for item in evidence.get('warning_events', [])[:4]])
+            if lines[-1] == "## Evidence":
+                lines.append("- No specific evidence items were available in the current snapshot.")
+            return "\n".join(lines)
 
         if "alert" in msg or "explain" in msg:
             if alerts:
