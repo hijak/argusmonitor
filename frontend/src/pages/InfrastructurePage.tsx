@@ -208,6 +208,7 @@ function MobileHostCard({ host, onClick, onDelete }: { host: any; onClick: () =>
 export default function InfrastructurePage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<HostType | "all">("all");
+  const [page, setPage] = useState(0);
   const [selectedHostId, setSelectedHostId] = useState<string | null>(null);
   const [hostToDelete, setHostToDelete] = useState<any | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -269,6 +270,27 @@ export default function InfrastructurePage() {
       toast.success("Enrollment token refreshed");
     },
     onError: (error: Error) => toast.error(error.message || "Failed to refresh install command"),
+  });
+
+  const revokeEnrollmentMutation = useMutation({
+    mutationFn: (hostId: string) => api.revokeHostEnrollmentToken(hostId),
+    onSuccess: (data) => {
+      setEnrollmentInfo((current) =>
+        current
+          ? {
+              ...current,
+              token: "",
+              command: "",
+              install_url: "",
+              expires_at: null,
+            }
+          : null,
+      );
+      queryClient.invalidateQueries({ queryKey: ["hosts"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
+      toast.success(`Enrollment token ${data.status}`);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to revoke enrollment token"),
   });
 
   const deleteHostMutation = useMutation({

@@ -188,7 +188,6 @@ function getPluginFooter(service: any) {
 export default function ServicesPage() {
   const queryClient = useQueryClient();
   const [selectedService, setSelectedService] = useState<any | null>(null);
-  const [selectedHost, setSelectedHost] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(0);
@@ -208,11 +207,6 @@ export default function ServicesPage() {
   const totalServices = serviceResponse?.total || 0;
   const totalPages = Math.max(1, Math.ceil(totalServices / PAGE_SIZE));
 
-  const { data: hosts = [] } = useQuery({
-    queryKey: ["hosts", "services-page"],
-    queryFn: () => api.listHosts(),
-  });
-
   const discoverMutation = useMutation({
     mutationFn: api.discoverServices,
     onSuccess: (result) => {
@@ -231,11 +225,16 @@ export default function ServicesPage() {
     onError: (error: Error) => toast.error(error.message || "Failed to add default alerts"),
   });
 
-  const hostMap = useMemo(() => {
-    const map = new Map<string, any>();
-    hosts.forEach((host: any) => map.set(host.id, host));
-    return map;
-  }, [hosts]);
+  const toHostSummary = (service: any) => {
+    if (!service?.host_id) return null;
+    return {
+      id: service.host_id,
+      name: service.host_name,
+      status: service.host_status,
+      type: service.host_type,
+      ip_address: service.host_ip_address,
+    };
+  };
 
   const grouped = useMemo(() => {
     const groups = new Map<string, { key: string; host: any | null; services: any[] }>();
@@ -245,7 +244,7 @@ export default function ServicesPage() {
       if (!groups.has(key)) {
         groups.set(key, {
           key,
-          host: svc.host_id ? hostMap.get(svc.host_id) || null : null,
+          host: toHostSummary(svc),
           services: [],
         });
       }
@@ -273,7 +272,7 @@ export default function ServicesPage() {
         const bName = b.host?.name || "Unassigned";
         return aName.localeCompare(bName);
       });
-  }, [services, hostMap]);
+  }, [services]);
 
   const totals = useMemo(() => {
     const critical = services.filter((svc: any) => normalizeStatus(svc.status) === "critical").length;
@@ -433,7 +432,6 @@ export default function ServicesPage() {
                       key={svc.id}
                       onClick={() => {
                         setSelectedService(svc);
-                        setSelectedHost(host || null);
                       }}
                       className="group cursor-pointer rounded-2xl border border-border bg-background/60 p-3 transition-all hover:border-primary/30 hover:bg-surface-hover sm:p-4"
                     >
@@ -552,12 +550,11 @@ export default function ServicesPage() {
 
       <ServiceDetailSheet
         service={selectedService}
-        host={selectedHost}
+        host={selectedService ? toHostSummary(selectedService) : null}
         open={!!selectedService}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedService(null);
-            setSelectedHost(null);
           }
         }}
       />

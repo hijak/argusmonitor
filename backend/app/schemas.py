@@ -162,6 +162,10 @@ class ServiceOut(BaseModel):
     status: str
     url: Optional[str]
     host_id: Optional[UUID] = None
+    host_name: Optional[str] = None
+    host_status: Optional[str] = None
+    host_type: Optional[str] = None
+    host_ip_address: Optional[str] = None
     plugin_id: Optional[str] = None
     service_type: Optional[str] = None
     endpoint: Optional[str] = None

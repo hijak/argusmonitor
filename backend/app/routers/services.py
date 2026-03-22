@@ -2,7 +2,7 @@ import asyncio
 import json
 import socket
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import httpx
@@ -21,17 +21,17 @@ from app.services.workspace import get_current_workspace
 router = APIRouter(prefix="/services", tags=["services"])
 STREAM_INTERVAL_SECONDS = 5
 DEFAULT_DISCOVERY_PORTS = [
-    (80, "HTTP"),
-    (443, "HTTPS"),
-    (3000, "Web UI"),
-    (5432, "PostgreSQL"),
-    (6379, "Redis"),
-    (8000, "API"),
-    (8080, "HTTP Alt"),
-    (8096, "Service"),
-    (8200, "Vault"),
-    (8787, "Web App"),
-    (9123, "TTS"),
+    {"port": 80, "label": "HTTP", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 443, "label": "HTTPS", "service_type": "https", "plugin_id": None, "scheme": "https"},
+    {"port": 3000, "label": "Web UI", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 5432, "label": "PostgreSQL", "service_type": "postgresql", "plugin_id": "postgres", "scheme": None},
+    {"port": 6379, "label": "Redis", "service_type": "redis", "plugin_id": "redis", "scheme": None},
+    {"port": 8000, "label": "API", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 8080, "label": "HTTP Alt", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 8096, "label": "Service", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 8200, "label": "Vault", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 8787, "label": "Web App", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 9123, "label": "TTS", "service_type": "http", "plugin_id": None, "scheme": "http"},
 ]
 DEFAULT_ALERT_RULES = [
     {
@@ -123,13 +123,62 @@ def _downsample_metric_points(points: list[ServiceMetric], max_points: int = 120
     return sampled[-max_points:]
 
 
-def _service_to_out(service: Service, history: list[ServiceMetric] | None = None) -> ServiceWithSparkline:
+def _service_to_out(
+    service: Service,
+    history: list[ServiceMetric] | None = None,
+    *,
+    host_name: str | None = None,
+    host_status: str | None = None,
+    host_type: str | None = None,
+    host_ip_address: str | None = None,
+) -> ServiceWithSparkline:
     if history:
         spark = [round(point.latency_ms or 0, 1) for point in history[-7:]]
     else:
         base_latency = service.latency_ms or 50
         spark = [round(base_latency * (0.9 + 0.2 * (i % 3) / 3), 1) for i in range(7)]
-    return ServiceWithSparkline(**ServiceOut.model_validate(service).model_dump(), spark=spark)
+    payload = ServiceOut.model_validate(service).model_dump()
+    payload.update({
+        "host_name": host_name,
+        "host_status": host_status,
+        "host_type": host_type,
+        "host_ip_address": host_ip_address,
+    })
+    return ServiceWithSparkline(**payload, spark=spark)
+
+
+def _bucket_service_metric_points(points: list[ServiceMetric], bucket_seconds: int) -> list[ServiceMetric]:
+    if len(points) <= 1 or bucket_seconds <= 1:
+        return points
+
+    buckets: dict[int, list[ServiceMetric]] = {}
+    for point in points:
+        ts = point.recorded_at
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        bucket_key = int(ts.timestamp()) // bucket_seconds
+        buckets.setdefault(bucket_key, []).append(point)
+
+    aggregated: list[ServiceMetric] = []
+    for bucket_key in sorted(buckets):
+        bucket = buckets[bucket_key]
+        sample = bucket[-1]
+
+        def avg(attr: str) -> float:
+            values = [float(getattr(item, attr) or 0) for item in bucket]
+            return sum(values) / max(len(values), 1)
+
+        aggregated.append(
+            ServiceMetric(
+                id=sample.id,
+                service_id=sample.service_id,
+                latency_ms=avg("latency_ms"),
+                requests_per_min=avg("requests_per_min"),
+                uptime_percent=avg("uptime_percent"),
+                recorded_at=sample.recorded_at,
+            )
+        )
+    return aggregated
 
 
 async def _fetch_service_sparks(db: AsyncSession, workspace_id: UUID, service_ids: list[UUID], limit: int = 7) -> dict[UUID, list[ServiceMetric]]:
@@ -197,29 +246,43 @@ async def _query_services(
     total = int(total_result.scalar() or 0)
 
     result = await db.execute(
-        select(Service)
+        select(Service, Host.name, Host.status, Host.type, Host.ip_address)
+        .outerjoin(Host, Host.id == Service.host_id)
         .where(*filters)
         .order_by(Service.name)
         .limit(limit)
         .offset(offset)
     )
-    services = result.scalars().all()
+    rows = result.all()
+    services = [row[0] for row in rows]
     if not services:
         return [], total
 
     sparks = await _fetch_service_sparks(db, workspace_id, [service.id for service in services])
+    row_map = {service.id: row for service, *row in rows}
     return [
-        _service_to_out(service, sparks.get(service.id, []))
+        _service_to_out(
+            service,
+            sparks.get(service.id, []),
+            host_name=row_map[service.id][0],
+            host_status=row_map[service.id][1],
+            host_type=row_map[service.id][2],
+            host_ip_address=row_map[service.id][3],
+        )
         for service in services
     ], total
 
 
-async def _tcp_open(host: str, port: int, timeout: float = 0.35) -> bool:
+def _tcp_open_sync(host: str, port: int, timeout: float = 0.35) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
     except OSError:
         return False
+
+
+async def _tcp_open(host: str, port: int, timeout: float = 0.35) -> bool:
+    return await asyncio.to_thread(_tcp_open_sync, host, port, timeout)
 
 
 async def _is_prometheus_endpoint(url: str, timeout: float = 1.5) -> bool:
@@ -321,14 +384,14 @@ async def discover_services(
     created = 0
     updated = 0
     for host in hosts[:25]:
-        for spec in DEFAULT_DISCOVERY_PORTS:
+        scan_results = await asyncio.gather(*[_tcp_open(host.ip_address, spec["port"]) for spec in DEFAULT_DISCOVERY_PORTS])
+        for spec, is_open in zip(DEFAULT_DISCOVERY_PORTS, scan_results):
             port = spec["port"]
             label = spec["label"]
             service_type = spec["service_type"]
             plugin_id = spec["plugin_id"]
             scheme = spec["scheme"]
 
-            is_open = await _tcp_open(host.ip_address, port)
             if not is_open:
                 continue
 
@@ -425,7 +488,7 @@ async def stream_services(
                 if not workspace_id:
                     payload = json.dumps({"services": []}, separators=(",", ":"))
                 else:
-                    services = await _query_services(db, workspace_id)
+                    services, _total = await _query_services(db, workspace_id)
                     payload = json.dumps({"services": [service.model_dump(mode="json") for service in services]}, separators=(",", ":"))
             if payload != last_payload:
                 yield f"data: {payload}\n\n"

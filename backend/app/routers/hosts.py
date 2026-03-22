@@ -134,26 +134,46 @@ async def _fetch_host_sparks(db: AsyncSession, host_ids: list[UUID], limit: int 
     return sparks
 
 
+def _host_filters(
+    workspace_id: UUID,
+    type: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+):
+    filters = [Host.workspace_id == workspace_id]
+    if type:
+        filters.append(Host.type == type)
+    if status:
+        filters.append(Host.status == status)
+    if search:
+        term = f"%{search}%"
+        filters.append(or_(Host.name.ilike(term), Host.ip_address.ilike(term)))
+    return filters
+
+
 async def _query_hosts_payload(
     db: AsyncSession,
     workspace_id: UUID,
     type: str | None = None,
     status: str | None = None,
     search: str | None = None,
-) -> list[HostWithSparkline]:
-    q = select(Host).where(Host.workspace_id == workspace_id).order_by(Host.name)
-    if type:
-        q = q.where(Host.type == type)
-    if status:
-        q = q.where(Host.status == status)
-    if search:
-        term = f"%{search}%"
-        q = q.where(or_(Host.name.ilike(term), Host.ip_address.ilike(term)))
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+) -> tuple[list[HostWithSparkline], int]:
+    filters = _host_filters(workspace_id, type=type, status=status, search=search)
+
+    total_result = await db.execute(select(func.count()).select_from(Host).where(*filters))
+    total = int(total_result.scalar() or 0)
+
+    q = select(Host).where(*filters).order_by(Host.name)
+    if limit is not None:
+        q = q.limit(limit).offset(offset)
 
     result = await db.execute(q)
-    hosts = sorted(result.scalars().all(), key=_host_sort_key)
+    hosts = result.scalars().all()
     sparks = await _fetch_host_sparks(db, [h.id for h in hosts])
-    return [_host_out(host, sparks.get(host.id, [])) for host in hosts]
+    return ([_host_out(host, sparks.get(host.id, [])) for host in hosts], total)
 
 
 def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
@@ -195,16 +215,27 @@ def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
     }
 
 
-@router.get("", response_model=list[HostWithSparkline])
+@router.get("", response_model=HostListResponse)
 async def list_hosts(
     type: str | None = None,
     status: str | None = None,
     search: str | None = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ):
-    return await _query_hosts_payload(db, workspace.id, type=type, status=status, search=search)
+    items, total = await _query_hosts_payload(
+        db,
+        workspace.id,
+        type=type,
+        status=status,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return HostListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.post("", response_model=HostOut, status_code=201)
@@ -243,7 +274,7 @@ async def stream_hosts(
                 if not workspace_id:
                     payload = json.dumps({"hosts": []}, separators=(",", ":"))
                 else:
-                    hosts = await _query_hosts_payload(db, workspace_id, type=type, status=status, search=search)
+                    hosts, _total = await _query_hosts_payload(db, workspace_id, type=type, status=status, search=search)
                     payload = json.dumps({"hosts": [h.model_dump(mode="json") for h in hosts]}, separators=(",", ":"))
 
             if payload != last_payload:

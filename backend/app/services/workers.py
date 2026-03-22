@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,14 +14,37 @@ from app.services.checks import execute_monitor_check, execute_transaction_run
 logger = logging.getLogger(__name__)
 
 
+async def _existing_payload_ids(db: AsyncSession, kind: str, payload_key: str) -> set[str]:
+    jobs = (
+        (
+            await db.execute(
+                select(WorkerJob).where(
+                    WorkerJob.kind == kind,
+                    WorkerJob.status.in_(["queued", "running"]),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return {
+        str((job.payload or {}).get(payload_key))
+        for job in jobs
+        if (job.payload or {}).get(payload_key)
+    }
+
+
 async def enqueue_monitor_jobs(db: AsyncSession) -> int:
     monitors = (
         (await db.execute(select(Monitor).where(Monitor.enabled.is_(True))))
         .scalars()
         .all()
     )
+    queued_monitor_ids = await _existing_payload_ids(db, "monitor.check", "monitor_id")
     count = 0
     for monitor in monitors:
+        if str(monitor.id) in queued_monitor_ids:
+            continue
         db.add(
             WorkerJob(
                 workspace_id=monitor.workspace_id,
@@ -136,8 +159,11 @@ async def enqueue_k8s_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
+    queued_cluster_ids = await _existing_payload_ids(db, "k8s.discover", "cluster_id")
     count = 0
     for cluster in clusters:
+        if str(cluster.id) in queued_cluster_ids:
+            continue
         db.add(
             WorkerJob(
                 workspace_id=cluster.workspace_id,
@@ -156,8 +182,11 @@ async def enqueue_swarm_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
+    queued_cluster_ids = await _existing_payload_ids(db, "swarm.discover", "cluster_id")
     count = 0
     for cluster in clusters:
+        if str(cluster.id) in queued_cluster_ids:
+            continue
         db.add(
             WorkerJob(
                 workspace_id=cluster.workspace_id,
@@ -176,8 +205,11 @@ async def enqueue_proxmox_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
+    queued_cluster_ids = await _existing_payload_ids(db, "proxmox.discover", "cluster_id")
     count = 0
     for cluster in clusters:
+        if str(cluster.id) in queued_cluster_ids:
+            continue
         db.add(
             WorkerJob(
                 workspace_id=cluster.workspace_id,
@@ -253,6 +285,13 @@ async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
 
                     await discover_swarm_cluster(db, cluster)
                     await collect_swarm_metrics(db, cluster)
+            elif job.kind == "proxmox.discover":
+                cluster = await db.get(ProxmoxCluster, job.payload.get("cluster_id"))
+                if cluster:
+                    from app.services.proxmox import discover_proxmox_cluster, collect_proxmox_metrics
+
+                    await discover_proxmox_cluster(db, cluster)
+                    await collect_proxmox_metrics(db, cluster)
             job.status = "completed"
             job.completed_at = datetime.now(timezone.utc)
             job.last_error = None
