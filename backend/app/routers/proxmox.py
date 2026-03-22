@@ -82,6 +82,8 @@ async def create_cluster(
     )
     db.add(cluster)
     await db.flush()
+    await discover_proxmox_cluster(db, cluster)
+    await collect_proxmox_metrics(db, cluster)
     await db.refresh(cluster)
     return cluster
 
@@ -165,8 +167,33 @@ async def list_vms(
     await _get_cluster(db, cluster_id, workspace.id)
     query = select(ProxmoxVM).where(ProxmoxVM.cluster_id == cluster_id)
     if search:
-        query = query.where(ProxmoxVM.name.ilike(f"%{search}%"))
+        query = query.where(
+            ProxmoxVM.name.ilike(f"%{search}%")
+            | ProxmoxVM.node.ilike(f"%{search}%")
+            | ProxmoxVM.guest_hostname.ilike(f"%{search}%")
+            | ProxmoxVM.guest_primary_ip.ilike(f"%{search}%")
+            | ProxmoxVM.guest_os.ilike(f"%{search}%")
+        )
     return (await db.execute(query.order_by(ProxmoxVM.node, ProxmoxVM.vmid))).scalars().all()
+
+
+@router.get("/clusters/{cluster_id}/vms/{vmid}", response_model=ProxmoxVMOut)
+async def get_vm(
+    cluster_id: UUID,
+    vmid: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    await _get_cluster(db, cluster_id, workspace.id)
+    vm = (
+        await db.execute(
+            select(ProxmoxVM).where(ProxmoxVM.cluster_id == cluster_id, ProxmoxVM.vmid == vmid)
+        )
+    ).scalar_one_or_none()
+    if not vm:
+        raise HTTPException(status_code=404, detail="Proxmox VM not found")
+    return vm
 
 
 @router.get("/clusters/{cluster_id}/containers", response_model=list[ProxmoxContainerOut])

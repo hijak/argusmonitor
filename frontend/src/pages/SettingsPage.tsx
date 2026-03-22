@@ -11,6 +11,16 @@ import {
   Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "agents";
 
@@ -219,6 +229,7 @@ function NotificationsSection() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("email");
   const [newConfig, setNewConfig] = useState("");
+  const [channelToDelete, setChannelToDelete] = useState<any | null>(null);
 
   const channelTypeIcons: Record<string, typeof Mail> = { email: Mail, slack: MessageSquare, pagerduty: Phone, webhook: Webhook, teams: MessageSquare };
 
@@ -301,7 +312,7 @@ function NotificationsSection() {
                 className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">
                 {testMut.isPending && testMut.variables === ch.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
               </button>
-              <button onClick={() => { if (confirm("Delete this channel?")) deleteMut.mutate(ch.id); }}
+              <button onClick={() => setChannelToDelete(ch)}
                 className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-critical/10 hover:text-critical hover:border-critical/30">
                 <Trash2 className="h-3 w-3" />
               </button>
@@ -316,6 +327,32 @@ function NotificationsSection() {
       {testMut.isSuccess && (
         <p className="text-xs text-success">Test notification sent successfully.</p>
       )}
+
+      <AlertDialog open={!!channelToDelete} onOpenChange={(open) => !open && setChannelToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete notification channel</AlertDialogTitle>
+            <AlertDialogDescription>
+              {channelToDelete ? `Delete notification channel "${channelToDelete.name}"? This cannot be undone.` : "This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (channelToDelete) {
+                  deleteMut.mutate(channelToDelete.id);
+                  setChannelToDelete(null);
+                }
+              }}
+            >
+              {deleteMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
@@ -327,6 +364,7 @@ function SecuritySection() {
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
+  const [keyToRevoke, setKeyToRevoke] = useState<any | null>(null);
 
   const createMut = useMutation({
     mutationFn: () => api.createApiKey(newKeyName),
@@ -379,7 +417,7 @@ function SecuritySection() {
                 <p className="text-sm font-medium">{k.name}</p>
                 <p className="text-xs text-muted-foreground font-mono">{k.prefix}...  ·  Created {new Date(k.created_at).toLocaleDateString()}</p>
               </div>
-              <button onClick={() => { if (confirm("Revoke this API key?")) deleteMut.mutate(k.id); }}
+              <button onClick={() => setKeyToRevoke(k)}
                 className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-critical/10 hover:text-critical hover:border-critical/30">
                 Revoke
               </button>
@@ -449,7 +487,7 @@ function IntegrationsSection() {
               >
                 {integ.status === "connected" ? "Disconnect" : "Connect"}
               </button>
-              <button onClick={() => { if (confirm("Remove this integration?")) deleteMut.mutate(integ.id); }}
+              <button onClick={() => setIntegrationToDelete(integ)}
                 className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-critical/10 hover:text-critical">
                 <Trash2 className="h-3 w-3" />
               </button>

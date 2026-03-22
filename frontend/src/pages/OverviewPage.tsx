@@ -38,7 +38,7 @@ export default function OverviewPage() {
   );
 
   return (
-    <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
+    <motion.div className="space-y-6 p-4 sm:p-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
         <PageHeader title="Overview" description="System health at a glance">
           <StatusBadge variant="info" pulse>{liveAgentCount} live agents reporting</StatusBadge>
@@ -55,11 +55,11 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <motion.div variants={item} className="lg:col-span-2">
           <div className="rounded-lg border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+            <div className="flex flex-col gap-3 border-b border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-sm font-medium">Host Health</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">{sortedHosts.length} hosts</span>
-                <div className="flex items-center gap-1 rounded-lg border border-border bg-background/60 p-1">
+                <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-background/60 p-1">
                   {([
                     ["status", "Status"],
                     ["cpu", "CPU"],

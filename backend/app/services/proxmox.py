@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -51,6 +52,105 @@ async def _get_json(client: httpx.AsyncClient, path: str, params: dict[str, Any]
     return body
 
 
+def _extract_guest_ips(interfaces: list[dict[str, Any]] | None) -> tuple[str | None, list[dict[str, Any]]]:
+    flattened: list[dict[str, Any]] = []
+    primary_ipv4: str | None = None
+    fallback_ip: str | None = None
+
+    for iface in interfaces or []:
+        name = iface.get("name")
+        hardware_address = iface.get("hardware-address")
+        for ip in iface.get("ip-addresses") or []:
+            address = ip.get("ip-address")
+            ip_type = ip.get("ip-address-type")
+            if not address:
+                continue
+            entry = {
+                "interface": name,
+                "address": address,
+                "type": ip_type,
+                "prefix": ip.get("prefix"),
+                "hardware_address": hardware_address,
+            }
+            flattened.append(entry)
+            if address.startswith("127.") or address == "::1" or address.startswith("fe80:"):
+                continue
+            if ip_type == "ipv4" and primary_ipv4 is None:
+                primary_ipv4 = address
+            if fallback_ip is None:
+                fallback_ip = address
+
+    return primary_ipv4 or fallback_ip, flattened
+
+
+async def _fetch_guest_agent_details(client: httpx.AsyncClient, node: str | None, vmid: int | None) -> dict[str, Any]:
+    if not node or not vmid:
+        return {
+            "guest_agent_status": "unknown",
+            "guest_hostname": None,
+            "guest_os": None,
+            "guest_kernel": None,
+            "guest_primary_ip": None,
+            "guest_ip_addresses": [],
+            "guest_interfaces": [],
+        }
+
+    base = f"/nodes/{node}/qemu/{vmid}/agent"
+    guest = {
+        "guest_agent_status": "unknown",
+        "guest_hostname": None,
+        "guest_os": None,
+        "guest_kernel": None,
+        "guest_primary_ip": None,
+        "guest_ip_addresses": [],
+        "guest_interfaces": [],
+    }
+
+    async def fetch(path: str) -> Any:
+        try:
+            return await _get_json(client, path)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code >= 500:
+                return None
+            raise
+        except Exception:
+            return None
+
+    osinfo_raw, hostname_raw, interfaces_raw = await asyncio.gather(
+        fetch(f"{base}/get-osinfo"),
+        fetch(f"{base}/get-host-name"),
+        fetch(f"{base}/network-get-interfaces"),
+    )
+
+    osinfo = (osinfo_raw or {}).get("result") if isinstance(osinfo_raw, dict) else None
+    hostname = (hostname_raw or {}).get("result") if isinstance(hostname_raw, dict) else None
+    interfaces = (interfaces_raw or {}).get("result") if isinstance(interfaces_raw, dict) else None
+
+    if osinfo or hostname or interfaces:
+        guest["guest_agent_status"] = "running"
+    elif osinfo_raw is None and hostname_raw is None and interfaces_raw is None:
+        guest["guest_agent_status"] = "unavailable"
+
+    pretty_name = None
+    kernel = None
+    if isinstance(osinfo, dict):
+        pretty_name = osinfo.get("pretty-name") or osinfo.get("name") or osinfo.get("id")
+        kernel = osinfo.get("kernel-release") or osinfo.get("kernel-version")
+
+    guest["guest_os"] = pretty_name
+    guest["guest_kernel"] = kernel
+    if isinstance(hostname, dict):
+        guest["guest_hostname"] = hostname.get("host-name")
+
+    if isinstance(interfaces, list):
+        primary_ip, flattened = _extract_guest_ips(interfaces)
+        guest["guest_primary_ip"] = primary_ip
+        guest["guest_ip_addresses"] = flattened
+        guest["guest_interfaces"] = interfaces
+
+    return guest
+
+
 async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) -> None:
     base_url = _normalize_base_url(cluster.base_url)
     verify = bool(cluster.verify_tls)
@@ -74,6 +174,27 @@ async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) ->
         cluster_status = await _get_json(client, "/cluster/status")
         resources = await _get_json(client, "/cluster/resources")
         tasks = await _get_json(client, "/cluster/tasks")
+        running_qemu_resources = [r for r in (resources or []) if r.get("type") == "qemu" and r.get("status") == "running"]
+        guest_agent_results = await asyncio.gather(
+            *[_fetch_guest_agent_details(client, r.get("node"), int(r.get("vmid") or 0)) for r in running_qemu_resources],
+            return_exceptions=True,
+        )
+
+    guest_agent_by_vm: dict[tuple[str, int], dict[str, Any]] = {}
+    for resource, result in zip(running_qemu_resources, guest_agent_results):
+        key = (str(resource.get("node") or ""), int(resource.get("vmid") or 0))
+        if isinstance(result, Exception):
+            guest_agent_by_vm[key] = {
+                "guest_agent_status": "unknown",
+                "guest_hostname": None,
+                "guest_os": None,
+                "guest_kernel": None,
+                "guest_primary_ip": None,
+                "guest_ip_addresses": [],
+                "guest_interfaces": [],
+            }
+        else:
+            guest_agent_by_vm[key] = result
 
     await db.execute(delete(ProxmoxTask).where(ProxmoxTask.cluster_id == cluster.id))
     await db.execute(delete(ProxmoxStorage).where(ProxmoxStorage.cluster_id == cluster.id))
@@ -140,11 +261,22 @@ async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) ->
             )
         elif rtype == "qemu":
             vm_count += 1
+            vmid = int(resource.get("vmid") or 0)
+            node_name = resource.get("node")
+            guest = guest_agent_by_vm.get((str(node_name or ""), vmid), {
+                "guest_agent_status": "stopped" if (resource.get("status") or "").lower() != "running" else "unknown",
+                "guest_hostname": None,
+                "guest_os": None,
+                "guest_kernel": None,
+                "guest_primary_ip": None,
+                "guest_ip_addresses": [],
+                "guest_interfaces": [],
+            })
             db.add(
                 ProxmoxVM(
                     cluster_id=cluster.id,
-                    vmid=int(resource.get("vmid") or 0),
-                    node=resource.get("node"),
+                    vmid=vmid,
+                    node=node_name,
                     name=resource.get("name") or f"vm-{resource.get('vmid')}",
                     status=resource.get("status") or "unknown",
                     cpu_percent=float(resource.get("cpu") or 0) * 100,
@@ -157,6 +289,13 @@ async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) ->
                     template=bool(resource.get("template")),
                     tags=resource.get("tags"),
                     pool=resource.get("pool"),
+                    guest_agent_status=guest.get("guest_agent_status") or "unknown",
+                    guest_hostname=guest.get("guest_hostname"),
+                    guest_os=guest.get("guest_os"),
+                    guest_kernel=guest.get("guest_kernel"),
+                    guest_primary_ip=guest.get("guest_primary_ip"),
+                    guest_ip_addresses=guest.get("guest_ip_addresses") or [],
+                    guest_interfaces=guest.get("guest_interfaces") or [],
                     last_seen=now,
                 )
             )

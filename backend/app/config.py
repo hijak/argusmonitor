@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     monitoring_default_timeout: int = 30
     demo_mode: bool = False
 
+    transaction_artifacts_dir: str = "/data/transactions"
+    transaction_video_width: int = 640
+    transaction_video_height: int = 360
+    transaction_video_fps: int = 8
+    transaction_screenshot_quality: int = 70
+
     model_config = {"env_prefix": "VORDR_", "env_file": ".env"}
 
 

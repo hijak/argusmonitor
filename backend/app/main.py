@@ -1,8 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import engine, Base
@@ -31,7 +33,7 @@ from app.routers import (
 )
 from app.routers import settings as settings_router
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +101,9 @@ app.include_router(scim.router, prefix="/api")
 app.include_router(kubernetes.router, prefix="/api")
 app.include_router(swarm.router, prefix="/api")
 app.include_router(proxmox.router, prefix="/api")
+
+Path(settings.transaction_artifacts_dir).mkdir(parents=True, exist_ok=True)
+app.mount("/artifacts", StaticFiles(directory=settings.transaction_artifacts_dir), name="artifacts")
 
 
 @app.get("/api/health")

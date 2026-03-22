@@ -179,7 +179,7 @@ export default function AIAssistantPage() {
         <motion.div variants={item} className="border-b border-border px-4 py-3 sm:px-6 sm:py-4">
           <div className="space-y-3">
             <PageHeader
-              title="Argus Co-pilot"
+              title="Vordr Co-pilot"
               description={selectedSession?.title || "AI-powered monitoring assistant"}
               className="flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
@@ -243,7 +243,7 @@ export default function AIAssistantPage() {
                     <div className="flex items-center justify-between gap-2 border-b border-border/70 bg-surface/50 px-3 py-2 sm:px-4">
                       <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-foreground">
                         <Bot className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span className="truncate">Argus Co-pilot</span>
+                        <span className="truncate">Vordr Co-pilot</span>
                       </div>
                       <span className="hidden shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground sm:inline">markdown</span>
                     </div>
@@ -302,7 +302,7 @@ export default function AIAssistantPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder="Ask Argus anything..."
+                  placeholder="Ask Vordr anything..."
                   className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground sm:text-sm"
                 />
                 <button

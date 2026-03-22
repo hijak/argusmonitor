@@ -408,8 +408,86 @@ export default function KubernetesPage() {
         </button>
       </PageHeader>
 
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[280px_minmax(0,1.35fr)_420px] xl:grid-cols-[260px_minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.45fr)_420px] xl:grid-cols-[minmax(0,1.25fr)_380px]">
         <div className="space-y-4">
+          {selectedClusterData && (
+            <div className="rounded-xl border border-border bg-card p-3 sm:p-4 lg:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2"><h2 className="text-lg font-semibold">{selectedClusterData.name}</h2><StatusBadge variant={selectedClusterData.status}>{selectedClusterData.status}</StatusBadge></div>
+                  <p className="mt-1 text-sm text-muted-foreground">Read-only cluster explorer modelled after Lens, minus the dangerous buttons.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => discoverMutation.mutate(selectedClusterData.id)} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-surface"><RefreshCw className={`h-4 w-4 ${discoverMutation.isPending ? "animate-spin" : ""}`} />Refresh</button>
+                  <button onClick={() => deleteMutation.mutate(selectedClusterData.id)} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-surface hover:text-critical"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6 xl:grid-cols-3">
+                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Nodes</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.node_count}</div></div>
+                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Pods</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.pod_count}</div></div>
+                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Deployments</div><div className="mt-1 text-xl font-semibold">{counts.deployments}</div></div>
+                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">StatefulSets</div><div className="mt-1 text-xl font-semibold">{counts.statefulsets}</div></div>
+                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">DaemonSets</div><div className="mt-1 text-xl font-semibold">{counts.daemonsets}</div></div>
+                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Jobs</div><div className="mt-1 text-xl font-semibold">{counts.jobs}</div></div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 2xl:grid-cols-2 md:grid-cols-2">
+                <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><Cpu className="mr-1 inline h-3 w-3" />CPU</span><span className="font-mono">{selectedClusterData.cpu_usage_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(selectedClusterData.cpu_usage_percent, 100)}%` }} /></div></div>
+                <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><HardDrive className="mr-1 inline h-3 w-3" />Memory</span><span className="font-mono">{selectedClusterData.memory_usage_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-warning" style={{ width: `${Math.min(selectedClusterData.memory_usage_percent, 100)}%` }} /></div></div>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="sticky top-0 z-20 border-b border-border bg-card px-3 py-3 sm:px-4">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {resourceTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${activeTab === tab.key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>;
+                })}
+              </div>
+              {activeTab !== "overview" && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[240px] flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeTab}...`} className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm outline-none" />
+                  </div>
+                  <FilterChip active={groupByNamespace} onClick={() => setGroupByNamespace(v => !v)}>Group by namespace</FilterChip>
+                  {activeTab === "events" && <FilterChip active={statusFilter === "Warning"} onClick={() => setStatusFilter(statusFilter === "Warning" ? "" : "Warning")}>Warnings only</FilterChip>}
+                </div>
+              )}
+            </div>
+
+            <div className="max-h-[72vh] min-h-[420px] overflow-auto xl:max-h-[76vh]">
+              {activeTab === "overview" && (
+                <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
+                  <div className="rounded-lg border border-border p-4"><h3 className="mb-3 text-sm font-semibold">Hotspots</h3><div className="space-y-2">{(stats?.top_restarting_pods || []).map((pod: any) => <button key={pod.id} onClick={() => { setActiveTab("pods"); setSelectedResource(pod); }} className="flex w-full items-center justify-between rounded-md bg-surface px-3 py-2 text-left text-sm hover:bg-surface/80"><div><div className="font-mono text-xs">{pod.name}</div><div className="text-xs text-muted-foreground">{pod.namespace}</div></div><div className="text-xs font-mono text-warning">{pod.restart_count} restarts</div></button>)}{(!stats?.top_restarting_pods || stats.top_restarting_pods.length === 0) && <p className="text-sm text-muted-foreground">No restart hotspots. Lovely.</p>}</div></div>
+                  <div className="rounded-lg border border-border p-4"><h3 className="mb-3 text-sm font-semibold">Current shape</h3><div className="space-y-3 text-sm"><div className="flex items-center justify-between"><span className="text-muted-foreground">Pod states</span><span className="font-mono text-xs">{JSON.stringify(stats?.pods_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Node states</span><span className="font-mono text-xs">{JSON.stringify(stats?.nodes_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Deployment health</span><span className="font-mono text-xs">{JSON.stringify(stats?.deployments_by_status || {})}</span></div></div></div>
+                  <div className="rounded-lg border border-border p-4 xl:col-span-2"><h3 className="mb-3 text-sm font-semibold">Recent warning events</h3><div className="space-y-2">{events.filter((evt: any) => evt.type === "Warning").slice(0, 8).map((evt: any) => <button key={evt.id} onClick={() => { setActiveTab("events"); setSelectedResource(evt); }} className="flex w-full items-start justify-between rounded-md bg-surface px-3 py-2 text-left hover:bg-surface/80"><div><div className="text-sm font-medium">{evt.reason || "Warning"}</div><div className="text-xs text-muted-foreground">{evt.namespace || "cluster"} · {evt.involved_kind || "Object"} / {evt.involved_name || "-"}</div></div><div className="text-xs text-muted-foreground">{fmtAge(evt.event_time || evt.last_seen)}</div></button>)}{events.filter((evt: any) => evt.type === "Warning").length === 0 && <p className="text-sm text-muted-foreground">No recent warning events.</p>}</div></div>
+
+                  <div className="rounded-lg border border-border p-4 xl:col-span-2"><h3 className="mb-3 text-sm font-semibold">Namespace dashboards</h3><div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3 xl:grid-cols-2">{namespaceDashboards.slice(0, 9).map((ns: any) => <button key={ns.name} onClick={() => { setNamespaceFilter(ns.name); setActiveTab("overview"); }} className="rounded-lg border border-border bg-surface/60 p-3 text-left hover:border-primary/30 hover:bg-surface"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold">{ns.name}</div><div className="mt-1 text-xs text-muted-foreground">{ns.podCount} pods · {ns.deploymentCount} deployments · {ns.serviceCount} services</div></div><div className="text-right text-xs"><div className={`${ns.warningCount > 0 ? "text-warning" : "text-muted-foreground"}`}>{ns.warningCount} warn</div><div className={`${ns.restartTotal > 0 ? "text-primary" : "text-muted-foreground"}`}>{ns.restartTotal} restarts</div></div></div>{ns.unhealthyDeployments.length > 0 && <div className="mt-3 text-xs text-warning">Unhealthy: {ns.unhealthyDeployments.slice(0, 2).map((d: any) => d.name).join(", ")}</div>}{ns.exposedServices.length > 0 && <div className="mt-2 text-xs text-muted-foreground">Exposed: {ns.exposedServices.slice(0, 2).map((s: any) => s.name).join(", ")}</div>}</button>)}</div></div>
+                </div>
+              )}
+
+              {activeTab !== "overview" && (
+                <table className="w-full min-w-[820px] text-sm xl:min-w-full">
+                  <thead className="sticky top-0 bg-card z-10">
+                    <tr className="border-b border-border text-left text-xs text-muted-foreground">{tableHead().map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {groupedItems ? groupedItems.flatMap(([group, items]) => [
+                      <GroupHeaderRow key={`group-${group}`} title={group} count={items.length} colSpan={tableHead().length} />,
+                      ...renderRows(items),
+                    ]) : renderRows(filteredItems)}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
           <div className="rounded-xl border border-border bg-card p-3">
             <div className="mb-3 flex items-center justify-between px-1"><h3 className="text-sm font-semibold">Clusters</h3><span className="text-xs text-muted-foreground">{clusters.length}</span></div>
             <div className="space-y-2">
@@ -474,87 +552,7 @@ export default function KubernetesPage() {
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          {selectedClusterData && (
-            <div className="rounded-xl border border-border bg-card p-3 sm:p-4 lg:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2"><h2 className="text-lg font-semibold">{selectedClusterData.name}</h2><StatusBadge variant={selectedClusterData.status}>{selectedClusterData.status}</StatusBadge></div>
-                  <p className="mt-1 text-sm text-muted-foreground">Read-only cluster explorer modelled after Lens, minus the dangerous buttons.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => discoverMutation.mutate(selectedClusterData.id)} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-surface"><RefreshCw className={`h-4 w-4 ${discoverMutation.isPending ? "animate-spin" : ""}`} />Refresh</button>
-                  <button onClick={() => deleteMutation.mutate(selectedClusterData.id)} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-surface hover:text-critical"><Trash2 className="h-4 w-4" /></button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6 xl:grid-cols-3">
-                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Nodes</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.node_count}</div></div>
-                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Pods</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.pod_count}</div></div>
-                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Deployments</div><div className="mt-1 text-xl font-semibold">{counts.deployments}</div></div>
-                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">StatefulSets</div><div className="mt-1 text-xl font-semibold">{counts.statefulsets}</div></div>
-                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">DaemonSets</div><div className="mt-1 text-xl font-semibold">{counts.daemonsets}</div></div>
-                <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Jobs</div><div className="mt-1 text-xl font-semibold">{counts.jobs}</div></div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 2xl:grid-cols-2 md:grid-cols-2">
-                <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><Cpu className="mr-1 inline h-3 w-3" />CPU</span><span className="font-mono">{selectedClusterData.cpu_usage_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(selectedClusterData.cpu_usage_percent, 100)}%` }} /></div></div>
-                <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><HardDrive className="mr-1 inline h-3 w-3" />Memory</span><span className="font-mono">{selectedClusterData.memory_usage_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-warning" style={{ width: `${Math.min(selectedClusterData.memory_usage_percent, 100)}%` }} /></div></div>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="sticky top-0 z-20 border-b border-border bg-card px-3 py-3 sm:px-4">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {resourceTabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${activeTab === tab.key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>;
-                })}
-              </div>
-              {activeTab !== "overview" && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <div className="relative min-w-[240px] flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeTab}...`} className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm outline-none" />
-                  </div>
-                  <FilterChip active={groupByNamespace} onClick={() => setGroupByNamespace(v => !v)}>Group by namespace</FilterChip>
-                  {activeTab === "events" && <FilterChip active={statusFilter === "Warning"} onClick={() => setStatusFilter(statusFilter === "Warning" ? "" : "Warning")}>Warnings only</FilterChip>}
-                </div>
-              )}
-            </div>
-
-            <div className="max-h-[72vh] min-h-[420px] overflow-auto xl:max-h-[76vh]">
-              {activeTab === "overview" && (
-                <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
-                  <div className="rounded-lg border border-border p-4"><h3 className="mb-3 text-sm font-semibold">Hotspots</h3><div className="space-y-2">{(stats?.top_restarting_pods || []).map((pod: any) => <button key={pod.id} onClick={() => { setActiveTab("pods"); setSelectedResource(pod); }} className="flex w-full items-center justify-between rounded-md bg-surface px-3 py-2 text-left text-sm hover:bg-surface/80"><div><div className="font-mono text-xs">{pod.name}</div><div className="text-xs text-muted-foreground">{pod.namespace}</div></div><div className="text-xs font-mono text-warning">{pod.restart_count} restarts</div></button>)}{(!stats?.top_restarting_pods || stats.top_restarting_pods.length === 0) && <p className="text-sm text-muted-foreground">No restart hotspots. Lovely.</p>}</div></div>
-                  <div className="rounded-lg border border-border p-4"><h3 className="mb-3 text-sm font-semibold">Current shape</h3><div className="space-y-3 text-sm"><div className="flex items-center justify-between"><span className="text-muted-foreground">Pod states</span><span className="font-mono text-xs">{JSON.stringify(stats?.pods_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Node states</span><span className="font-mono text-xs">{JSON.stringify(stats?.nodes_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Deployment health</span><span className="font-mono text-xs">{JSON.stringify(stats?.deployments_by_status || {})}</span></div></div></div>
-                  <div className="rounded-lg border border-border p-4 xl:col-span-2"><h3 className="mb-3 text-sm font-semibold">Recent warning events</h3><div className="space-y-2">{events.filter((evt: any) => evt.type === "Warning").slice(0, 8).map((evt: any) => <button key={evt.id} onClick={() => { setActiveTab("events"); setSelectedResource(evt); }} className="flex w-full items-start justify-between rounded-md bg-surface px-3 py-2 text-left hover:bg-surface/80"><div><div className="text-sm font-medium">{evt.reason || "Warning"}</div><div className="text-xs text-muted-foreground">{evt.namespace || "cluster"} · {evt.involved_kind || "Object"} / {evt.involved_name || "-"}</div></div><div className="text-xs text-muted-foreground">{fmtAge(evt.event_time || evt.last_seen)}</div></button>)}{events.filter((evt: any) => evt.type === "Warning").length === 0 && <p className="text-sm text-muted-foreground">No recent warning events.</p>}</div></div>
-
-                  <div className="rounded-lg border border-border p-4 xl:col-span-2"><h3 className="mb-3 text-sm font-semibold">Namespace dashboards</h3><div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">{namespaceDashboards.slice(0, 9).map((ns: any) => <button key={ns.name} onClick={() => { setNamespaceFilter(ns.name); setActiveTab("overview"); }} className="rounded-lg border border-border bg-surface/60 p-3 text-left hover:border-primary/30 hover:bg-surface"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold">{ns.name}</div><div className="mt-1 text-xs text-muted-foreground">{ns.podCount} pods · {ns.deploymentCount} deployments · {ns.serviceCount} services</div></div><div className="text-right text-xs"><div className={`${ns.warningCount > 0 ? "text-warning" : "text-muted-foreground"}`}>{ns.warningCount} warn</div><div className={`${ns.restartTotal > 0 ? "text-primary" : "text-muted-foreground"}`}>{ns.restartTotal} restarts</div></div></div>{ns.unhealthyDeployments.length > 0 && <div className="mt-3 text-xs text-warning">Unhealthy: {ns.unhealthyDeployments.slice(0, 2).map((d: any) => d.name).join(", ")}</div>}{ns.exposedServices.length > 0 && <div className="mt-2 text-xs text-muted-foreground">Exposed: {ns.exposedServices.slice(0, 2).map((s: any) => s.name).join(", ")}</div>}</button>)}</div></div>
-                </div>
-              )}
-
-              {activeTab !== "overview" && (
-                <table className="w-full min-w-[820px] text-sm xl:min-w-full">
-                  <thead className="sticky top-0 bg-card z-10">
-                    <tr className="border-b border-border text-left text-xs text-muted-foreground">{tableHead().map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {groupedItems ? groupedItems.flatMap(([group, items]) => [
-                      <GroupHeaderRow key={`group-${group}`} title={group} count={items.length} colSpan={tableHead().length} />,
-                      ...renderRows(items),
-                    ]) : renderRows(filteredItems)}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
           <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
             <div className="mb-3 flex items-center gap-2"><ChevronRight className="h-4 w-4 text-muted-foreground" /><h3 className="text-sm font-semibold">Details</h3></div>
             {!selectedResource && <div className="rounded-lg border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">Pick a row to inspect it.</div>}
@@ -623,7 +621,7 @@ export default function KubernetesPage() {
             <motion.div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddCluster(false)} />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <motion.div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl" initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }}>
-                <div className="border-b border-border px-6 py-4"><h2 className="text-lg font-semibold">Add Kubernetes Cluster</h2><p className="mt-0.5 text-xs text-muted-foreground">Paste a kubeconfig and Argus will use the cluster endpoint from it.</p></div>
+                <div className="border-b border-border px-6 py-4"><h2 className="text-lg font-semibold">Add Kubernetes Cluster</h2><p className="mt-0.5 text-xs text-muted-foreground">Paste a kubeconfig and Vordr will use the cluster endpoint from it.</p></div>
                 <div className="space-y-4 p-6">
                   <div><label className="mb-1.5 block text-sm font-medium">Cluster Name</label><input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. production-cluster" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50" /></div>
                   <div><label className="mb-1.5 block text-sm font-medium">Kubeconfig</label><textarea value={newKubeconfig} onChange={(e) => setNewKubeconfig(e.target.value)} rows={8} placeholder="Paste your kubeconfig YAML here..." className="w-full rounded-lg border border-border bg-surface px-3 py-2 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50" /></div>
@@ -635,5 +633,6 @@ export default function KubernetesPage() {
         )}
       </AnimatePresence>
     </div>
+
   );
 }

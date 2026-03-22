@@ -93,7 +93,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="admin@argus.io"
+              placeholder="admin@vordr.io"
               required
               className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
             />
@@ -163,7 +163,7 @@ export default function LoginPage() {
         </p>
 
         <p className="mt-4 text-center text-xs text-muted-foreground/60">
-          Demo: admin@argus.io / admin123
+          Demo: admin@vordr.io / admin123
         </p>
       </motion.div>
     </div>
