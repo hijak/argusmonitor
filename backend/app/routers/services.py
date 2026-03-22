@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import decode_token, get_current_user
 from app.database import async_session, get_db
 from app.models import AlertRule, Host, Monitor, Service, ServiceMetric, User, Workspace, WorkspaceMembership
-from app.schemas import ServiceCreate, ServiceMetricPointOut, ServiceOut, ServiceUpdate, ServiceWithSparkline
+from app.schemas import ServiceCreate, ServiceListResponse, ServiceMetricPointOut, ServiceOut, ServiceUpdate, ServiceWithSparkline
 from app.services.service_metrics import build_service_metric, fetch_latest_service_metrics, should_record_service_metric
 from app.services.workspace import get_current_workspace
 
