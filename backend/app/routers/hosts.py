@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import decode_token, get_current_user
 from app.database import async_session, get_db
 from app.models import Host, HostMetric, User, Workspace, WorkspaceMembership
-from app.schemas import HostCreate, HostOut, HostUpdate, HostWithSparkline
+from app.schemas import HostCreate, HostListResponse, HostOut, HostUpdate, HostWithSparkline
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/hosts", tags=["hosts"])
@@ -534,3 +534,4 @@ async def delete_host(
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
     await db.delete(host)
+    return None

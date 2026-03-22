@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import AIChatMessage, AgentAction, Host, HostMetric, Service, User
+from app.models import AIChatMessage, AgentAction, Host, HostMetric, Service, ServiceMetric, User
 from app.schemas import AgentActionOut, AgentActionResultRequest, AgentHeartbeatRequest, AgentHeartbeatResponse
+from app.services.service_metrics import build_service_metric, fetch_latest_service_metrics, should_record_service_metric
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -176,6 +177,7 @@ async def heartbeat(
             (service.plugin_id or "", service.endpoint or service.name): service
             for service in existing_services
         }
+        latest_metrics = await fetch_latest_service_metrics(db, [service.id for service in existing_services])
 
         seen_keys = set()
         for service_report in req.services:
@@ -203,6 +205,16 @@ async def heartbeat(
             service.uptime_percent = service_report.uptime_percent
             service.endpoints_count = service_report.endpoints_count
             service.plugin_metadata = service_report.metadata or {}
+            db.add(
+                ServiceMetric(
+                    workspace_id=host.workspace_id,
+                    service_id=service.id,
+                    latency_ms=service.latency_ms or 0,
+                    requests_per_min=service.requests_per_min or 0,
+                    uptime_percent=service.uptime_percent or 0,
+                    recorded_at=now,
+                )
+            )
 
         for existing_key, existing_service in existing_by_key.items():
             if existing_key not in seen_keys and existing_service.plugin_id:

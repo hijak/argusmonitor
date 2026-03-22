@@ -342,6 +342,29 @@ class Service(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    metrics = relationship("ServiceMetric", back_populates="service", cascade="all, delete-orphan")
+
+
+class ServiceMetric(Base):
+    __tablename__ = "service_metrics"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    workspace_id = Column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
+    )
+    service_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("services.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    latency_ms = Column(Float, default=0)
+    requests_per_min = Column(Float, default=0)
+    uptime_percent = Column(Float, default=100.0)
+    recorded_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+
+    service = relationship("Service", back_populates="metrics")
+
 
 class Monitor(Base):
     __tablename__ = "monitors"
@@ -404,6 +427,7 @@ class Transaction(Base):
     success_rate = Column(Float, default=100.0)
     avg_duration_ms = Column(Float, default=0)
     schedule = Column(String(100), default="Every 5 min")
+    cron_expression = Column(String(100))
     interval_seconds = Column(Integer, default=300)
     enabled = Column(Boolean, default=True)
     environment_vars = Column(JSON, default=dict)
@@ -463,6 +487,7 @@ class TransactionRun(Base):
     duration_ms = Column(Float)
     error_message = Column(Text)
     ai_summary = Column(Text)
+    replay_url = Column(String(500))
     started_at = Column(DateTime(timezone=True), default=utcnow)
     completed_at = Column(DateTime(timezone=True))
 
@@ -494,6 +519,7 @@ class TransactionRunStep(Base):
     duration_ms = Column(Float)
     error_message = Column(Text)
     screenshot_url = Column(String(500))
+    reply = Column(Text)
     detail = Column(Text)
     executed_at = Column(DateTime(timezone=True))
 
@@ -1477,6 +1503,13 @@ class ProxmoxVM(Base):
     template = Column(Boolean, default=False)
     tags = Column(String(500))
     pool = Column(String(255))
+    guest_agent_status = Column(String(50), default="unknown")
+    guest_hostname = Column(String(255))
+    guest_os = Column(String(255))
+    guest_kernel = Column(String(255))
+    guest_primary_ip = Column(String(100))
+    guest_ip_addresses = Column(JSON, default=list)
+    guest_interfaces = Column(JSON, default=list)
     last_seen = Column(DateTime(timezone=True))
 
     cluster = relationship("ProxmoxCluster", back_populates="vms")

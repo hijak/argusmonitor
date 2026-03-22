@@ -129,6 +129,13 @@ class HostWithSparkline(HostOut):
     spark: list[float] = []
 
 
+class HostListResponse(BaseModel):
+    items: list[HostWithSparkline]
+    total: int
+    limit: int
+    offset: int
+
+
 # --- Services ---
 
 
@@ -170,6 +177,22 @@ class ServiceOut(BaseModel):
 
 class ServiceWithSparkline(ServiceOut):
     spark: list[float] = []
+
+
+class ServiceMetricPointOut(BaseModel):
+    recorded_at: datetime
+    latency_ms: float
+    requests_per_min: float
+    uptime_percent: float
+
+    model_config = {"from_attributes": True}
+
+
+class ServiceListResponse(BaseModel):
+    items: list[ServiceWithSparkline]
+    total: int
+    limit: int
+    offset: int
 
 
 # --- Monitors ---
@@ -246,7 +269,9 @@ class TransactionCreate(BaseModel):
     name: str
     description: Optional[str] = None
     schedule: str = "Every 5 min"
+    cron_expression: Optional[str] = None
     interval_seconds: int = 300
+    enabled: bool = True
     environment_vars: dict[str, str] = {}
     steps: list[TransactionStepCreate] = []
 
@@ -255,9 +280,11 @@ class TransactionUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     schedule: Optional[str] = None
+    cron_expression: Optional[str] = None
     interval_seconds: Optional[int] = None
     enabled: Optional[bool] = None
     environment_vars: Optional[dict[str, str]] = None
+    steps: Optional[list[TransactionStepCreate]] = None
 
 
 class TransactionOut(BaseModel):
@@ -268,6 +295,7 @@ class TransactionOut(BaseModel):
     success_rate: float
     avg_duration_ms: float
     schedule: str
+    cron_expression: Optional[str]
     interval_seconds: int
     enabled: bool
     steps: list[TransactionStepOut] = []
@@ -284,6 +312,8 @@ class TransactionRunStepOut(BaseModel):
     status: str
     duration_ms: Optional[float]
     error_message: Optional[str]
+    screenshot_url: Optional[str]
+    reply: Optional[str]
     detail: Optional[str]
     executed_at: Optional[datetime]
 
@@ -297,6 +327,7 @@ class TransactionRunOut(BaseModel):
     duration_ms: Optional[float]
     error_message: Optional[str]
     ai_summary: Optional[str]
+    replay_url: Optional[str]
     started_at: datetime
     completed_at: Optional[datetime]
     step_results: list[TransactionRunStepOut] = []
@@ -464,6 +495,7 @@ class AIChatResponse(BaseModel):
 
 class AIGenerateTransactionRequest(BaseModel):
     prompt: str
+    url: Optional[str] = None
 
 
 class AIExplainFailureRequest(BaseModel):
@@ -1506,6 +1538,13 @@ class ProxmoxVMOut(BaseModel):
     template: bool
     tags: Optional[str]
     pool: Optional[str]
+    guest_agent_status: Optional[str]
+    guest_hostname: Optional[str]
+    guest_os: Optional[str]
+    guest_kernel: Optional[str]
+    guest_primary_ip: Optional[str]
+    guest_ip_addresses: list[Any] = []
+    guest_interfaces: list[Any] = []
     last_seen: Optional[datetime]
 
     model_config = {"from_attributes": True}

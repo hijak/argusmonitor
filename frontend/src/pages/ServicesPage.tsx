@@ -3,12 +3,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Activity,
   Database,
   Globe,
   HardDrive,
   Radar,
+  Search,
   Server,
   ShieldAlert,
   Unplug,
@@ -17,11 +26,11 @@ import {
 import { Sparkline } from "@/components/Sparkline";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
-import { useServicesStream } from "@/hooks/useServiceStream";
 import { ServiceDetailSheet } from "@/components/ServiceDetailSheet";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
+const PAGE_SIZE = 100;
 
 function normalizeStatus(status?: string) {
   switch ((status || "unknown").toLowerCase()) {
@@ -180,16 +189,29 @@ export default function ServicesPage() {
   const queryClient = useQueryClient();
   const [selectedService, setSelectedService] = useState<any | null>(null);
   const [selectedHost, setSelectedHost] = useState<any | null>(null);
-  const { data: serviceSeed = [], isLoading } = useQuery({
-    queryKey: ["services"],
-    queryFn: api.listServices,
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(0);
+
+  const { data: serviceResponse, isLoading } = useQuery({
+    queryKey: ["services", { search, statusFilter, page }],
+    queryFn: () =>
+      api.listServices({
+        search: search || undefined,
+        status: statusFilter,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      }),
   });
+
+  const services = serviceResponse?.items || [];
+  const totalServices = serviceResponse?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(totalServices / PAGE_SIZE));
+
   const { data: hosts = [] } = useQuery({
     queryKey: ["hosts", "services-page"],
     queryFn: () => api.listHosts(),
   });
-
-  const services = useServicesStream(serviceSeed);
 
   const discoverMutation = useMutation({
     mutationFn: api.discoverServices,
@@ -269,8 +291,8 @@ export default function ServicesPage() {
   }, [services]);
 
   const summaryCards = [
-    summaryMetric("Services", totals.total, <Globe className="h-4 w-4 text-primary" />),
-    summaryMetric("Nodes with services", totals.attachedNodes, <Server className="h-4 w-4 text-primary" />),
+    summaryMetric("Visible services", totals.total, <Globe className="h-4 w-4 text-primary" />),
+    summaryMetric("All services", totalServices, <Server className="h-4 w-4 text-primary" />),
     summaryMetric("Warnings", totals.warning, <Activity className="h-4 w-4 text-warning" />),
     summaryMetric("Critical", totals.critical, <ShieldAlert className="h-4 w-4 text-critical" />),
   ];
@@ -310,6 +332,37 @@ export default function ServicesPage() {
             </div>
           </div>
         ))}
+      </motion.div>
+
+      <motion.div variants={item} className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[1fr_220px_180px]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search services, endpoints, URLs"
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
+          <SelectTrigger>
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="healthy">Healthy</SelectItem>
+            <SelectItem value="warning">Warning</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="unknown">Unknown</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm text-muted-foreground lg:justify-center">
+          <span>Page</span>
+          <span className="font-medium text-foreground">{page + 1} / {totalPages}</span>
+        </div>
       </motion.div>
 
       <motion.div variants={item} className="space-y-4">
@@ -468,11 +521,33 @@ export default function ServicesPage() {
 
         {!isLoading && grouped.length === 0 && (
           <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
-            No services yet. Run discovery to populate this view.
+            No services found for this filter.
           </div>
         )}
 
         {isLoading && <div className="py-8 text-center text-muted-foreground">Loading services...</div>}
+      </motion.div>
+
+      <motion.div variants={item} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-muted-foreground">
+          Showing <span className="font-medium text-foreground">{services.length}</span> of <span className="font-medium text-foreground">{totalServices}</span> services
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage((current) => Math.max(0, current - 1))}
+            disabled={page === 0}
+            className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
+            disabled={page >= totalPages - 1}
+            className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </motion.div>
 
       <ServiceDetailSheet

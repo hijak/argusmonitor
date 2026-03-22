@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timedelta, timezone
 
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models import Monitor, Transaction, WorkerJob, K8sCluster, SwarmCluster, ProxmoxCluster
+from app.models import Monitor, Transaction, TransactionRun, WorkerJob, K8sCluster, SwarmCluster, ProxmoxCluster
 from app.services.checks import execute_monitor_check, execute_transaction_run
+
+logger = logging.getLogger(__name__)
 
 
 async def enqueue_monitor_jobs(db: AsyncSession) -> int:
@@ -29,14 +34,90 @@ async def enqueue_monitor_jobs(db: AsyncSession) -> int:
     return count
 
 
+def _transaction_due_by_interval(tx: Transaction, last_run: TransactionRun | None, now: datetime) -> bool:
+    if not tx.interval_seconds:
+        return False
+    if not last_run or not last_run.started_at:
+        return True
+    reference_time = last_run.completed_at or last_run.started_at
+    return reference_time + timedelta(seconds=tx.interval_seconds) <= now
+
+
+def _transaction_due_by_cron(tx: Transaction, last_run: TransactionRun | None, now: datetime) -> bool:
+    cron_expression = (tx.cron_expression or "").strip()
+    if not cron_expression:
+        return False
+    try:
+        trigger = CronTrigger.from_crontab(cron_expression, timezone=timezone.utc)
+    except Exception:
+        logger.warning("transaction_run:invalid_cron tx=%s cron=%r", tx.id, cron_expression)
+        return False
+
+    previous_reference = last_run.started_at if last_run and last_run.started_at else None
+    next_fire = trigger.get_next_fire_time(previous_reference, now)
+    if previous_reference is None:
+        baseline = now - timedelta(days=1)
+        next_fire = trigger.get_next_fire_time(None, baseline)
+    return next_fire is not None and next_fire <= now
+
+
 async def enqueue_transaction_jobs(db: AsyncSession) -> int:
     transactions = (
         (await db.execute(select(Transaction).where(Transaction.enabled.is_(True))))
         .scalars()
         .all()
     )
+    if not transactions:
+        return 0
+
+    now = datetime.now(timezone.utc)
     count = 0
+
+    existing_jobs = (
+        (
+            await db.execute(
+                select(WorkerJob).where(
+                    WorkerJob.kind == "transaction.run",
+                    WorkerJob.status.in_(["queued", "running"]),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    queued_transaction_ids = {
+        str((job.payload or {}).get("transaction_id")) for job in existing_jobs if (job.payload or {}).get("transaction_id")
+    }
+
+    transaction_ids = [tx.id for tx in transactions]
+    latest_runs_subquery = (
+        select(
+            TransactionRun.transaction_id.label("transaction_id"),
+            func.max(TransactionRun.started_at).label("max_started_at"),
+        )
+        .where(TransactionRun.transaction_id.in_(transaction_ids))
+        .group_by(TransactionRun.transaction_id)
+        .subquery()
+    )
+    latest_runs_result = await db.execute(
+        select(TransactionRun)
+        .join(
+            latest_runs_subquery,
+            (TransactionRun.transaction_id == latest_runs_subquery.c.transaction_id)
+            & (TransactionRun.started_at == latest_runs_subquery.c.max_started_at),
+        )
+    )
+    latest_runs = {run.transaction_id: run for run in latest_runs_result.scalars().all()}
+
     for tx in transactions:
+        if str(tx.id) in queued_transaction_ids:
+            continue
+
+        last_run = latest_runs.get(tx.id)
+        due = _transaction_due_by_cron(tx, last_run, now) if (tx.cron_expression or "").strip() else _transaction_due_by_interval(tx, last_run, now)
+        if not due:
+            continue
+
         db.add(
             WorkerJob(
                 workspace_id=tx.workspace_id,
@@ -138,11 +219,23 @@ async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
                 if monitor:
                     await execute_monitor_check(db, monitor)
             elif job.kind == "transaction.run":
-                transaction = await db.get(
-                    Transaction, job.payload.get("transaction_id")
+                transaction = (
+                    (
+                        await db.execute(
+                            select(Transaction)
+                            .options(selectinload(Transaction.steps))
+                            .where(Transaction.id == job.payload.get("transaction_id"))
+                        )
+                    )
+                    .scalars()
+                    .first()
                 )
                 if transaction:
-                    await execute_transaction_run(db, transaction)
+                    try:
+                        await execute_transaction_run(db, transaction)
+                    except Exception as exc:
+                        logger.exception("transaction_run:execute_failed job=%s tx=%s error=%s", job.id, transaction.id, exc)
+                        raise
             elif job.kind == "k8s.discover":
                 cluster = await db.get(K8sCluster, job.payload.get("cluster_id"))
                 if cluster:

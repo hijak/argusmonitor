@@ -8,13 +8,14 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user
-from app.database import get_db
-from app.models import AlertRule, Host, Monitor, Service, User, Workspace
-from app.schemas import ServiceCreate, ServiceOut, ServiceUpdate, ServiceWithSparkline
+from app.auth import decode_token, get_current_user
+from app.database import async_session, get_db
+from app.models import AlertRule, Host, Monitor, Service, ServiceMetric, User, Workspace, WorkspaceMembership
+from app.schemas import ServiceCreate, ServiceMetricPointOut, ServiceOut, ServiceUpdate, ServiceWithSparkline
+from app.services.service_metrics import build_service_metric, fetch_latest_service_metrics, should_record_service_metric
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -81,6 +82,29 @@ DEFAULT_ALERT_RULES = [
 ]
 
 
+async def _get_stream_user(token: str) -> User:
+    user_id = decode_token(token)
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    async with async_session() as db:
+        result = await db.execute(select(User).where(User.id == UUID(user_id)))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        return user
+
+
+async def _get_user_workspace_id(user_id: UUID) -> UUID | None:
+    async with async_session() as db:
+        result = await db.execute(
+            select(WorkspaceMembership.workspace_id)
+            .where(WorkspaceMembership.user_id == user_id)
+            .order_by(WorkspaceMembership.created_at.asc())
+        )
+        return result.scalar_one_or_none()
+
+
 def _service_status(latency_ms: float) -> str:
     if latency_ms > 500:
         return "critical"
@@ -89,15 +113,105 @@ def _service_status(latency_ms: float) -> str:
     return "healthy"
 
 
-def _service_to_out(service: Service) -> ServiceWithSparkline:
-    base_latency = service.latency_ms or 50
-    spark = [round(base_latency * (0.9 + 0.2 * (i % 3) / 3), 1) for i in range(7)]
+def _downsample_metric_points(points: list[ServiceMetric], max_points: int = 120) -> list[ServiceMetric]:
+    if len(points) <= max_points:
+        return points
+    stride = max(1, len(points) // max_points)
+    sampled = points[::stride]
+    if sampled[-1].id != points[-1].id:
+        sampled.append(points[-1])
+    return sampled[-max_points:]
+
+
+def _service_to_out(service: Service, history: list[ServiceMetric] | None = None) -> ServiceWithSparkline:
+    if history:
+        spark = [round(point.latency_ms or 0, 1) for point in history[-7:]]
+    else:
+        base_latency = service.latency_ms or 50
+        spark = [round(base_latency * (0.9 + 0.2 * (i % 3) / 3), 1) for i in range(7)]
     return ServiceWithSparkline(**ServiceOut.model_validate(service).model_dump(), spark=spark)
 
 
-async def _query_services(db: AsyncSession, workspace_id: UUID) -> list[ServiceWithSparkline]:
-    result = await db.execute(select(Service).where(Service.workspace_id == workspace_id).order_by(Service.name))
-    return [_service_to_out(service) for service in result.scalars().all()]
+async def _fetch_service_sparks(db: AsyncSession, workspace_id: UUID, service_ids: list[UUID], limit: int = 7) -> dict[UUID, list[ServiceMetric]]:
+    if not service_ids:
+        return {}
+
+    ranked = (
+        select(
+            ServiceMetric.id.label("id"),
+            ServiceMetric.service_id.label("service_id"),
+            ServiceMetric.latency_ms.label("latency_ms"),
+            ServiceMetric.requests_per_min.label("requests_per_min"),
+            ServiceMetric.uptime_percent.label("uptime_percent"),
+            ServiceMetric.recorded_at.label("recorded_at"),
+            func.row_number().over(partition_by=ServiceMetric.service_id, order_by=ServiceMetric.recorded_at.desc()).label("rn"),
+        )
+        .where(ServiceMetric.workspace_id == workspace_id, ServiceMetric.service_id.in_(service_ids))
+        .subquery()
+    )
+
+    result = await db.execute(
+        select(ranked)
+        .where(ranked.c.rn <= limit)
+        .order_by(ranked.c.service_id.asc(), ranked.c.rn.desc())
+    )
+
+    sparks: dict[UUID, list[ServiceMetric]] = {service_id: [] for service_id in service_ids}
+    for row in result.mappings():
+        sparks[row["service_id"]].append(
+            ServiceMetric(
+                id=row["id"],
+                service_id=row["service_id"],
+                latency_ms=row["latency_ms"],
+                requests_per_min=row["requests_per_min"],
+                uptime_percent=row["uptime_percent"],
+                recorded_at=row["recorded_at"],
+            )
+        )
+    return sparks
+
+
+async def _query_services(
+    db: AsyncSession,
+    workspace_id: UUID,
+    *,
+    search: str | None = None,
+    status: str | None = None,
+    host_id: UUID | None = None,
+    plugin_id: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> tuple[list[ServiceWithSparkline], int]:
+    filters = [Service.workspace_id == workspace_id]
+    if search:
+        term = f"%{search}%"
+        filters.append(or_(Service.name.ilike(term), Service.endpoint.ilike(term), Service.url.ilike(term)))
+    if status and status != "all":
+        filters.append(Service.status == status)
+    if host_id:
+        filters.append(Service.host_id == host_id)
+    if plugin_id and plugin_id != "all":
+        filters.append(Service.plugin_id == plugin_id)
+
+    total_result = await db.execute(select(func.count()).select_from(Service).where(*filters))
+    total = int(total_result.scalar() or 0)
+
+    result = await db.execute(
+        select(Service)
+        .where(*filters)
+        .order_by(Service.name)
+        .limit(limit)
+        .offset(offset)
+    )
+    services = result.scalars().all()
+    if not services:
+        return [], total
+
+    sparks = await _fetch_service_sparks(db, workspace_id, [service.id for service in services])
+    return [
+        _service_to_out(service, sparks.get(service.id, []))
+        for service in services
+    ], total
 
 
 async def _tcp_open(host: str, port: int, timeout: float = 0.35) -> bool:
@@ -122,13 +236,29 @@ async def _is_prometheus_endpoint(url: str, timeout: float = 1.5) -> bool:
         return False
 
 
-@router.get("", response_model=list[ServiceWithSparkline])
+@router.get("", response_model=ServiceListResponse)
 async def list_services(
+    search: str | None = None,
+    status: str | None = None,
+    host_id: UUID | None = None,
+    plugin_id: str | None = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ):
-    return await _query_services(db, workspace.id)
+    items, total = await _query_services(
+        db,
+        workspace.id,
+        search=search,
+        status=status,
+        host_id=host_id,
+        plugin_id=plugin_id,
+        limit=limit,
+        offset=offset,
+    )
+    return ServiceListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.post("", response_model=ServiceOut, status_code=201)
@@ -280,18 +410,23 @@ async def discover_services(
 @router.get("/stream")
 async def stream_services(
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-    workspace: Workspace = Depends(get_current_workspace),
+    token: str = Query(...),
 ):
+    stream_user = await _get_stream_user(token)
+    workspace_id = await _get_user_workspace_id(stream_user.id)
+
     async def event_stream():
         last_payload = ""
         while True:
             if await request.is_disconnected():
                 break
 
-            services = await _query_services(db, workspace.id)
-            payload = json.dumps({"services": [service.model_dump(mode="json") for service in services]}, separators=(",", ":"))
+            async with async_session() as db:
+                if not workspace_id:
+                    payload = json.dumps({"services": []}, separators=(",", ":"))
+                else:
+                    services = await _query_services(db, workspace_id)
+                    payload = json.dumps({"services": [service.model_dump(mode="json") for service in services]}, separators=(",", ":"))
             if payload != last_payload:
                 yield f"data: {payload}\n\n"
                 last_payload = payload
@@ -324,6 +459,36 @@ async def get_service(
     return service
 
 
+@router.get("/{service_id}/history", response_model=list[ServiceMetricPointOut])
+async def get_service_history(
+    service_id: UUID,
+    hours: int = Query(24, ge=1, le=24 * 30),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    service_result = await db.execute(select(Service).where(Service.id == service_id, Service.workspace_id == workspace.id))
+    service = service_result.scalar_one_or_none()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    history_result = await db.execute(
+        select(ServiceMetric)
+        .where(
+            ServiceMetric.workspace_id == workspace.id,
+            ServiceMetric.service_id == service.id,
+            ServiceMetric.recorded_at >= since,
+        )
+        .order_by(ServiceMetric.recorded_at.asc())
+    )
+    raw_points = history_result.scalars().all()
+    bucket_seconds = 60 if hours <= 1 else 300 if hours <= 24 else 3600
+    points = _bucket_service_metric_points(raw_points, bucket_seconds)
+    points = _downsample_metric_points(points, max_points=180)
+    return [ServiceMetricPointOut.model_validate(point) for point in points]
+
+
 @router.put("/{service_id}", response_model=ServiceOut)
 async def update_service(
     service_id: UUID,
@@ -340,6 +505,11 @@ async def update_service(
         setattr(service, k, v)
     if req.latency_ms is not None and req.status is None:
         service.status = _service_status(req.latency_ms)
+    if req.latency_ms is not None or req.requests_per_min is not None or req.uptime_percent is not None:
+        latest_metrics = await fetch_latest_service_metrics(db, [service.id])
+        latest_metric = latest_metrics.get(service.id)
+        if should_record_service_metric(service, latest_metric):
+            db.add(build_service_metric(service))
     await db.flush()
     await db.refresh(service)
     return service
@@ -357,3 +527,4 @@ async def delete_service(
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
     await db.delete(service)
+    return None

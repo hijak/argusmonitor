@@ -28,7 +28,6 @@ import {
 import { motion } from "framer-motion";
 import { HostDetailModal } from "@/components/HostDetailModal";
 import { toast } from "@/components/ui/sonner";
-import { useHostsStream } from "@/hooks/useHostStream";
 import { sortHosts, type HostSortKey } from "@/lib/hostSorting";
 import { usePersistentHostSort } from "@/hooks/usePersistentHostSort";
 import { cn } from "@/lib/utils";
@@ -68,6 +67,7 @@ const typeIcons: Record<HostType, typeof Server> = {
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.02 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
+const HOST_PAGE_SIZE = 100;
 
 function enrollmentBadgeClasses(status: string) {
   switch (status) {
@@ -230,25 +230,27 @@ export default function InfrastructurePage() {
   });
   const queryClient = useQueryClient();
 
-  const { data: hostsSeed = [], isLoading } = useQuery({
-    queryKey: ["hosts", typeFilter, search],
-    queryFn: () => api.listHosts({ type: typeFilter === "all" ? undefined : typeFilter, search: search || undefined }),
+  const { data: hostsResponse, isLoading } = useQuery({
+    queryKey: ["hosts", typeFilter, search, page],
+    queryFn: () => api.listHosts({ type: typeFilter === "all" ? undefined : typeFilter, search: search || undefined, limit: HOST_PAGE_SIZE, offset: page * HOST_PAGE_SIZE }),
   });
 
-  const { data: allHostsSeed = [] } = useQuery({
-    queryKey: ["hosts-all"],
-    queryFn: () => api.listHosts(),
+  const { data: allHostsResponse } = useQuery({
+    queryKey: ["hosts-all-counts"],
+    queryFn: () => api.listHosts({ limit: 500, offset: 0 }),
   });
 
-  const hosts = useHostsStream(hostsSeed, { type: typeFilter, search: search || undefined });
-  const allHosts = useHostsStream(allHostsSeed, { enabled: typeFilter === "all" && !search });
+  const hosts = hostsResponse?.items || [];
+  const allHosts = allHostsResponse?.items || [];
+  const totalHosts = hostsResponse?.total || 0;
+  const totalHostPages = Math.max(1, Math.ceil(totalHosts / HOST_PAGE_SIZE));
 
   const createHostMutation = useMutation({
     mutationFn: (payload: any) => api.createHost(payload),
     onSuccess: async (host) => {
       toast.success(`Added ${host.name}`);
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
       setOnboardingHostId(host.id);
       setSelectedHostId(host.id);
       setManualHostForm({ name: "", type: "server", ip_address: "", os: "", tags: "manual" });
@@ -263,7 +265,7 @@ export default function InfrastructurePage() {
     onSuccess: (data) => {
       setEnrollmentInfo(data);
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
       toast.success("Enrollment token refreshed");
     },
     onError: (error: Error) => toast.error(error.message || "Failed to refresh install command"),
@@ -274,7 +276,7 @@ export default function InfrastructurePage() {
     onSuccess: () => {
       toast.success("Host deleted");
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
       if (selectedHostId === hostToDelete?.id) setSelectedHostId(null);
       if (onboardingHostId === hostToDelete?.id) {
         setOnboardingHostId(null);
@@ -353,7 +355,10 @@ export default function InfrastructurePage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
               placeholder="Search hosts..."
               className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
             />
@@ -520,6 +525,31 @@ export default function InfrastructurePage() {
           </div>
         </motion.div>
 
+        <motion.div variants={item} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing <span className="font-medium text-foreground">{hosts.length}</span> of <span className="font-medium text-foreground">{totalHosts}</span> hosts
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+              disabled={page === 0}
+              className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <div className="rounded-lg bg-surface px-3 py-2 text-sm text-muted-foreground">
+              Page <span className="font-medium text-foreground">{page + 1}</span> / {totalHostPages}
+            </div>
+            <button
+              onClick={() => setPage((current) => Math.min(totalHostPages - 1, current + 1))}
+              disabled={page >= totalHostPages - 1}
+              className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </motion.div>
+
         <HostDetailModal hostId={selectedHostId} variant="detailed" onClose={() => setSelectedHostId(null)} />
       </motion.div>
 
@@ -538,7 +568,7 @@ export default function InfrastructurePage() {
                 <TerminalSquare className="h-4 w-4 text-primary" /> Agent onboarding
               </div>
               <p className="text-sm text-muted-foreground">
-                Create or choose the host entry first. Then Argus generates a one-off install command tied to that specific host and the same origin you are viewing.
+                Create or choose the host entry first. Then Vordr generates a one-off install command tied to that specific host and the same origin you are viewing.
               </p>
 
               <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-sm text-muted-foreground">

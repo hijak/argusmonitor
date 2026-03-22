@@ -1,8 +1,7 @@
 from uuid import UUID
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,7 +10,6 @@ from app.models import (
     Transaction,
     TransactionStep,
     TransactionRun,
-    TransactionRunStep,
     User,
     Workspace,
 )
@@ -20,7 +18,6 @@ from app.schemas import (
     TransactionUpdate,
     TransactionOut,
     TransactionRunOut,
-    TransactionStepOut,
 )
 from app.auth import get_current_user
 from app.services.workspace import get_current_workspace
@@ -56,21 +53,24 @@ async def create_transaction(
         name=req.name,
         description=req.description,
         schedule=req.schedule,
+        cron_expression=req.cron_expression,
         interval_seconds=req.interval_seconds,
+        enabled=req.enabled,
         environment_vars=req.environment_vars,
     )
     db.add(tx)
     await db.flush()
 
     for step_data in req.steps:
-        step = TransactionStep(
-            transaction_id=tx.id,
-            order=step_data.order,
-            type=step_data.type,
-            label=step_data.label,
-            config=step_data.config,
+        db.add(
+            TransactionStep(
+                transaction_id=tx.id,
+                order=step_data.order,
+                type=step_data.type,
+                label=step_data.label,
+                config=step_data.config,
+            )
         )
-        db.add(step)
 
     await db.flush()
     result = await db.execute(
@@ -115,11 +115,33 @@ async def update_transaction(
     tx = result.scalar_one_or_none()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    for k, v in req.model_dump(exclude_unset=True).items():
+
+    payload = req.model_dump(exclude_unset=True, exclude={"steps"})
+    steps = req.steps
+    for k, v in payload.items():
         setattr(tx, k, v)
+
+    if steps is not None:
+        await db.execute(delete(TransactionStep).where(TransactionStep.transaction_id == tx.id))
+        await db.flush()
+        for step_data in steps:
+            db.add(
+                TransactionStep(
+                    transaction_id=tx.id,
+                    order=step_data.order,
+                    type=step_data.type,
+                    label=step_data.label,
+                    config=step_data.config,
+                )
+            )
+
     await db.flush()
-    await db.refresh(tx)
-    return tx
+    result = await db.execute(
+        select(Transaction)
+        .options(selectinload(Transaction.steps))
+        .where(Transaction.id == tx.id, Transaction.workspace_id == workspace.id)
+    )
+    return result.scalar_one()
 
 
 @router.delete("/{tx_id}", status_code=204)
@@ -138,6 +160,8 @@ async def delete_transaction(
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     await db.delete(tx)
+    await db.flush()
+    return Response(status_code=204)
 
 
 @router.post("/{tx_id}/run", response_model=TransactionRunOut, status_code=201)

@@ -79,12 +79,15 @@ export const api = {
     request<any[]>(`/search?q=${encodeURIComponent(q)}`),
 
   // Hosts
-  listHosts: (params?: { type?: string; search?: string }) => {
+  listHosts: (params?: { type?: string; status?: string; search?: string; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();
     if (params?.type && params.type !== "all") qs.set("type", params.type);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
     if (params?.search) qs.set("search", params.search);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
-    return request<any[]>(`/hosts${q ? `?${q}` : ""}`);
+    return request<{ items: any[]; total: number; limit: number; offset: number }>(`/hosts${q ? `?${q}` : ""}`);
   },
   createHost: (data: any) =>
     request<any>("/hosts", { method: "POST", body: JSON.stringify(data) }),
@@ -94,7 +97,18 @@ export const api = {
     request<void>(`/hosts/${id}`, { method: "DELETE" }),
 
   // Services
-  listServices: () => request<any[]>("/services"),
+  listServices: (params?: { search?: string; status?: string; hostId?: string; pluginId?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+    if (params?.status && params.status !== "all") qs.set("status", params.status);
+    if (params?.hostId) qs.set("host_id", params.hostId);
+    if (params?.pluginId && params.pluginId !== "all") qs.set("plugin_id", params.pluginId);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    const q = qs.toString();
+    return request<{ items: any[]; total: number; limit: number; offset: number }>(`/services${q ? `?${q}` : ""}`);
+  },
+  getServiceHistory: (id: string, hours = 24) => request<any[]>(`/services/${id}/history?hours=${hours}`),
   createService: (data: any) =>
     request<any>("/services", { method: "POST", body: JSON.stringify(data) }),
   discoverServices: () =>
@@ -118,7 +132,8 @@ export const api = {
     request<void>(`/transactions/${id}`, { method: "DELETE" }),
   runTransaction: (id: string) =>
     request<any>(`/transactions/${id}/run`, { method: "POST" }),
-  listTransactionRuns: (id: string) => request<any[]>(`/transactions/${id}/runs`),
+  listTransactionRuns: (id: string, limit = 20) =>
+    request<any[]>(`/transactions/${id}/runs?limit=${limit}`),
 
   // Alerts
   listAlerts: (params?: { severity?: string; acknowledged?: boolean }) => {
@@ -172,10 +187,10 @@ export const api = {
       body: JSON.stringify({ message, session_id: sessionId ?? null }),
     }),
   aiHistory: (sessionId?: string) => request<any[]>(`/ai/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`),
-  aiGenerateTransaction: (prompt: string) =>
+  aiGenerateTransaction: (prompt: string, url?: string) =>
     request<any>("/ai/generate-transaction", {
       method: "POST",
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, url: url || null }),
     }),
   aiExplainFailure: (runId: string) =>
     request<{ explanation: string }>("/ai/explain-failure", {
@@ -396,6 +411,7 @@ export const api = {
   deleteProxmoxCluster: (clusterId: string) => request<void>(`/proxmox/clusters/${clusterId}`, { method: "DELETE" }),
   listProxmoxNodes: (clusterId: string) => request<any[]>(`/proxmox/clusters/${clusterId}/nodes`),
   listProxmoxVMs: (clusterId: string, search?: string) => request<any[]>(`/proxmox/clusters/${clusterId}/vms${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  getProxmoxVM: (clusterId: string, vmid: number) => request<any>(`/proxmox/clusters/${clusterId}/vms/${vmid}`),
   listProxmoxContainers: (clusterId: string, search?: string) => request<any[]>(`/proxmox/clusters/${clusterId}/containers${search ? `?search=${encodeURIComponent(search)}` : ""}`),
   listProxmoxStorage: (clusterId: string) => request<any[]>(`/proxmox/clusters/${clusterId}/storage`),
   listProxmoxTasks: (clusterId: string, limit = 100) => request<any[]>(`/proxmox/clusters/${clusterId}/tasks?limit=${limit}`),

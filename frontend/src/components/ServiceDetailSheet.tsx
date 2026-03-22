@@ -1,7 +1,10 @@
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
-import { Activity, Database, Globe, HardDrive, Network, Server, ShieldAlert, Waypoints } from "lucide-react";
+import { api } from "@/lib/api";
+import { Activity, Database, Globe, HardDrive, Network, Server, ShieldAlert, TrendingDown, TrendingUp, Waypoints } from "lucide-react";
 
 function normalizeStatus(status?: string) {
   switch ((status || "unknown").toLowerCase()) {
@@ -41,6 +44,10 @@ function formatBytes(value: unknown) {
     idx += 1;
   }
   return `${current.toFixed(current >= 10 ? 0 : 1)} ${units[idx]}`;
+}
+
+function formatMs(value: number) {
+  return `${Math.round(value)}ms`;
 }
 
 function DetailRow({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
@@ -127,6 +134,12 @@ function pluginRows(service: any, meta: any) {
   ];
 }
 
+const historyRanges = [
+  { label: "1h", hours: 1 },
+  { label: "24h", hours: 24 },
+  { label: "7d", hours: 24 * 7 },
+] as const;
+
 export function ServiceDetailSheet({
   service,
   host,
@@ -138,10 +151,20 @@ export function ServiceDetailSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [rangeHours, setRangeHours] = useState<number>(24);
+
+  const { data: history = [] } = useQuery({
+    queryKey: ["service-history", service?.id, rangeHours],
+    queryFn: () => api.getServiceHistory(service.id, rangeHours),
+    enabled: !!service?.id && open,
+    refetchInterval: open ? 30000 : false,
+  });
+
   if (!service) return null;
 
   const status = normalizeStatus(service.status);
   const meta = service.plugin_metadata || {};
+  const sparkData = (history.length ? history.map((point: any) => Number(point.latency_ms)) : (service.spark || []).map((value: any) => Number(value))).filter((value: number) => Number.isFinite(value));
   const detailRows = pluginRows(service, meta).filter((row) => row.value !== undefined && row.value !== null && row.value !== "");
   const metricCards = [
     { label: "Latency", value: `${Math.round(Number(service.latency_ms || 0))}ms`, tone: status === "critical" ? "text-critical" : status === "warning" ? "text-warning" : "text-foreground" },
@@ -149,6 +172,19 @@ export function ServiceDetailSheet({
     { label: "Uptime", value: `${Number(service.uptime_percent || 0).toFixed(1)}%`, tone: "text-foreground" },
     { label: "Endpoints", value: `${service.endpoints_count || 0}`, tone: "text-foreground" },
   ];
+
+  const currentLatency = sparkData.length ? sparkData[sparkData.length - 1] : Number(service.latency_ms || 0);
+  const firstLatency = sparkData.length ? sparkData[0] : currentLatency;
+  const minLatency = sparkData.length ? Math.min(...sparkData) : currentLatency;
+  const maxLatency = sparkData.length ? Math.max(...sparkData) : currentLatency;
+  const delta = currentLatency - firstLatency;
+  const deltaAbs = Math.abs(delta);
+  const trendDirection = delta > 5 ? "up" : delta < -5 ? "down" : "flat";
+  const trendTone = trendDirection === "up" ? "text-critical" : trendDirection === "down" ? "text-success" : "text-muted-foreground";
+  const trendLabel = trendDirection === "up" ? "Latency rising" : trendDirection === "down" ? "Latency improving" : "Stable";
+  const TrendIcon = trendDirection === "up" ? TrendingUp : trendDirection === "down" ? TrendingDown : Activity;
+  const sparkColor = status === "critical" ? "hsl(0 84% 60%)" : status === "warning" ? "hsl(38 92% 50%)" : "hsl(160 84% 39%)";
+  const latestPointTime = history.length ? new Date(history[history.length - 1].recorded_at).toLocaleString() : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -194,21 +230,68 @@ export function ServiceDetailSheet({
           </div>
 
           <div className="rounded-2xl border border-border bg-background/50 p-5">
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              Performance trend
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-xl bg-surface p-4">
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <div>Recent service trend based on current telemetry.</div>
-                <div className="text-xs">Next step is real per-plugin timeseries, but this is already less useless than a dead card.</div>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                Performance trend
               </div>
-              <Sparkline
-                data={service.spark || []}
-                color={status === "critical" ? "hsl(0 84% 60%)" : status === "warning" ? "hsl(38 92% 50%)" : "hsl(160 84% 39%)"}
-                width={180}
-                height={52}
-              />
+              <div className="flex items-center gap-2">
+                {historyRanges.map((range) => (
+                  <button
+                    key={range.label}
+                    type="button"
+                    onClick={() => setRangeHours(range.hours)}
+                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${rangeHours === range.hours ? "bg-primary text-primary-foreground" : "bg-surface text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {range.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-xl border border-border bg-surface p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Latency trend</div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="text-3xl font-semibold text-foreground">{formatMs(currentLatency)}</div>
+                      <div className={`inline-flex items-center gap-1 rounded-full bg-background px-2 py-1 text-xs font-medium ${trendTone}`}>
+                        <TrendIcon className="h-3.5 w-3.5" />
+                        {trendLabel}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      {trendDirection === "flat"
+                        ? "No major latency movement across recent samples."
+                        : `${delta > 0 ? "+" : "-"}${formatMs(deltaAbs)} vs earliest sample.`}
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {history.length ? `${history.length} samples in last ${rangeHours >= 24 ? `${Math.round(rangeHours / 24)}d` : `${rangeHours}h`}${latestPointTime ? ` • latest ${latestPointTime}` : ""}` : "Using current service telemetry until history fills in."}
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <Sparkline data={sparkData} color={sparkColor} width={220} height={72} className="w-full sm:w-auto" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                <div className="rounded-xl border border-border bg-surface p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Current</div>
+                  <div className="mt-2 text-xl font-semibold text-foreground">{formatMs(currentLatency)}</div>
+                </div>
+                <div className="rounded-xl border border-border bg-surface p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Range</div>
+                  <div className="mt-2 text-xl font-semibold text-foreground">{formatMs(minLatency)}–{formatMs(maxLatency)}</div>
+                </div>
+                <div className="rounded-xl border border-border bg-surface p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Delta</div>
+                  <div className={`mt-2 text-xl font-semibold ${trendTone}`}>
+                    {trendDirection === "flat" ? "Stable" : `${delta > 0 ? "+" : "-"}${formatMs(deltaAbs)}`}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
