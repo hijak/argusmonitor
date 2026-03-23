@@ -323,8 +323,13 @@ export default function InfrastructurePage() {
     [hostCounts, totalHosts],
   );
 
+  const { data: onboardingHost = null } = useQuery({
+    queryKey: ["host", onboardingHostId],
+    queryFn: () => api.getHost(onboardingHostId!),
+    enabled: Boolean(onboardingHostId),
+  });
+
   const sortedHosts = useMemo(() => sortHosts(hosts, sortKey, sortDirection), [hosts, sortKey, sortDirection]);
-  const onboardingHost = useMemo(() => hosts.find((host: any) => host.id === onboardingHostId) || null, [hosts, onboardingHostId]);
 
   useEffect(() => {
     if (!onboardingOpen) {
