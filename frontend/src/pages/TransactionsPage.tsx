@@ -579,7 +579,7 @@ export default function TransactionsPage() {
         </motion.div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-5 lg:gap-6">
-          <motion.div variants={item} className="lg:col-span-3">
+          <motion.div variants={item} className="space-y-4 lg:col-span-3">
             <SectionCard title="Active Monitors" contentClassName="p-0">
               <div className="divide-y divide-border">
                 {transactions.map((tx: any) => (
@@ -622,9 +622,91 @@ export default function TransactionsPage() {
                 {!transactions.length && <EmptyState message="No transactions yet. Create one to start monitoring workflows." className="m-5 bg-transparent" />}
               </div>
             </SectionCard>
+
+            {selectedTransaction && latestRun && (
+              <SectionCard
+                title="Latest replay"
+                description="Most recent run video and AI summary."
+                contentClassName="space-y-3"
+                actions={
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <StatusBadge variant={latestRun.status === "success" ? "healthy" : latestRun.status === "failed" ? "critical" : "warning"}>{latestRun.status}</StatusBadge>
+                    <span>{formatDuration(latestRun.duration_ms)}</span>
+                  </div>
+                }
+              >
+                <ReplayVideo url={latestRun.replay_url} maxHeightClass="max-h-[420px]" />
+                {latestRun.ai_summary && <div className="whitespace-pre-wrap rounded-lg bg-surface px-3 py-3 text-sm text-foreground">{latestRun.ai_summary}</div>}
+              </SectionCard>
+            )}
+
+            {selectedTransaction && (
+              <SectionCard
+                title="Run history"
+                description="Full historical list with run details."
+                contentClassName="max-h-[560px] space-y-3 overflow-auto"
+                actions={
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>{runCounts.total} total</span>
+                    <span>•</span>
+                    <span>{runCounts.success} ok</span>
+                    <span>•</span>
+                    <span>{runCounts.failed} failed</span>
+                    {runCounts.running > 0 && (
+                      <>
+                        <span>•</span>
+                        <span>{runCounts.running} running</span>
+                      </>
+                    )}
+                  </div>
+                }
+              >
+                {runs.length ? (
+                  runs.map((run: any) => {
+                    const failedStep = run.step_results?.find((s: any) => s.status === "failed");
+                    const successfulSteps = run.step_results?.filter((s: any) => s.status === "success").length || 0;
+                    const totalSteps = run.step_results?.length || selectedTransaction.steps?.length || 0;
+                    return (
+                      <DenseListRow
+                        key={run.id}
+                        interactive
+                        selected={selectedRun?.id === run.id}
+                        onClick={() => setSelectedRun(run)}
+                        className="w-full rounded-xl border border-border/70 bg-surface p-3 text-left active:scale-[0.99]"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <History className="h-4 w-4 text-muted-foreground" />
+                              <span className="truncate">{formatDateTime(run.started_at)}</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span>{formatDuration(run.duration_ms)}</span>
+                              <span>•</span>
+                              <span>{successfulSteps}/{totalSteps} steps passed</span>
+                              {run.replay_url && (
+                                <>
+                                  <span>•</span>
+                                  <span>replay</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <StatusBadge variant={run.status === "success" ? "healthy" : run.status === "failed" ? "critical" : "warning"}>{run.status}</StatusBadge>
+                        </div>
+                        {run.error_message && <div className="mt-3 whitespace-pre-wrap text-sm text-critical">{run.error_message}</div>}
+                        {!run.error_message && failedStep?.error_message && <div className="mt-3 whitespace-pre-wrap text-sm text-critical">{failedStep.error_message}</div>}
+                      </DenseListRow>
+                    );
+                  })
+                ) : (
+                  <EmptyState message="No runs yet." className="bg-transparent" />
+                )}
+              </SectionCard>
+            )}
           </motion.div>
 
-          <motion.div variants={item} className="space-y-4 lg:col-span-2">
+          <motion.div variants={item} className="lg:col-span-2">
             <DenseListSurface>
               <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <h2 className="min-w-0 text-sm font-medium">{selectedTransaction ? selectedTransaction.name : "Transaction Steps"}</h2>
@@ -688,88 +770,6 @@ export default function TransactionsPage() {
                 )}
               </div>
             </DenseListSurface>
-
-            {selectedTransaction && latestRun && (
-              <SectionCard
-                title="Latest replay"
-                description="Most recent run video and AI summary."
-                contentClassName="space-y-3"
-                actions={
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <StatusBadge variant={latestRun.status === "success" ? "healthy" : latestRun.status === "failed" ? "critical" : "warning"}>{latestRun.status}</StatusBadge>
-                    <span>{formatDuration(latestRun.duration_ms)}</span>
-                  </div>
-                }
-              >
-                <ReplayVideo url={latestRun.replay_url} maxHeightClass="max-h-[360px]" />
-                {latestRun.ai_summary && <div className="whitespace-pre-wrap rounded-lg bg-surface px-3 py-3 text-sm text-foreground">{latestRun.ai_summary}</div>}
-              </SectionCard>
-            )}
-
-            {selectedTransaction && (
-              <SectionCard
-                title="Run history"
-                description="Full historical list with run details."
-                contentClassName="max-h-[560px] space-y-3 overflow-auto"
-                actions={
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>{runCounts.total} total</span>
-                    <span>•</span>
-                    <span>{runCounts.success} ok</span>
-                    <span>•</span>
-                    <span>{runCounts.failed} failed</span>
-                    {runCounts.running > 0 && (
-                      <>
-                        <span>•</span>
-                        <span>{runCounts.running} running</span>
-                      </>
-                    )}
-                  </div>
-                }
-              >
-                  {runs.length ? (
-                    runs.map((run: any) => {
-                      const failedStep = run.step_results?.find((s: any) => s.status === "failed");
-                      const successfulSteps = run.step_results?.filter((s: any) => s.status === "success").length || 0;
-                      const totalSteps = run.step_results?.length || selectedTransaction.steps?.length || 0;
-                      return (
-                        <DenseListRow
-                          key={run.id}
-                          interactive
-                          selected={selectedRun?.id === run.id}
-                          onClick={() => setSelectedRun(run)}
-                          className="w-full rounded-xl border border-border/70 bg-surface p-3 text-left active:scale-[0.99]"
-                        >
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 text-sm font-medium">
-                                <History className="h-4 w-4 text-muted-foreground" />
-                                <span className="truncate">{formatDateTime(run.started_at)}</span>
-                              </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                <span>{formatDuration(run.duration_ms)}</span>
-                                <span>•</span>
-                                <span>{successfulSteps}/{totalSteps} steps passed</span>
-                                {run.replay_url && (
-                                  <>
-                                    <span>•</span>
-                                    <span>replay</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            <StatusBadge variant={run.status === "success" ? "healthy" : run.status === "failed" ? "critical" : "warning"}>{run.status}</StatusBadge>
-                          </div>
-                          {run.error_message && <div className="mt-3 whitespace-pre-wrap text-sm text-critical">{run.error_message}</div>}
-                          {!run.error_message && failedStep?.error_message && <div className="mt-3 whitespace-pre-wrap text-sm text-critical">{failedStep.error_message}</div>}
-                        </DenseListRow>
-                      );
-                    })
-                  ) : (
-                    <EmptyState message="No runs yet." className="bg-transparent" />
-                  )}
-                </SectionCard>
-            )}
           </motion.div>
         </div>
 
