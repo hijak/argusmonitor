@@ -26,7 +26,7 @@ export default function OverviewPage() {
   });
   const { data: stats } = useQuery({ queryKey: ["overview-stats"], queryFn: api.overviewStats, refetchInterval: 30000 });
   const { data: hostsSeed = [] } = useQuery({ queryKey: ["overview-hosts"], queryFn: api.overviewHostHealth });
-  const hosts = useHostsStream(hostsSeed);
+  const hosts = useHostsStream(hostsSeed, { path: "/api/overview/host-health/stream" });
   const { data: alerts = [] } = useQuery({ queryKey: ["overview-alerts"], queryFn: api.overviewRecentAlerts, refetchInterval: 15000 });
   const { data: incidents = [] } = useQuery({ queryKey: ["overview-incidents"], queryFn: api.overviewRecentIncidents, refetchInterval: 30000 });
   const { data: transactions = [] } = useQuery({ queryKey: ["overview-tx"], queryFn: api.overviewTransactionSummary, refetchInterval: 30000 });

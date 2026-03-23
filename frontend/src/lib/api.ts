@@ -89,6 +89,7 @@ export const api = {
     const q = qs.toString();
     return request<{ items: any[]; total: number; limit: number; offset: number }>(`/hosts${q ? `?${q}` : ""}`);
   },
+  getHostCounts: () => request<{ all: number; server: number; database: number; container: number; network: number; live_agent_hosts: number }>("/hosts/counts"),
   createHost: (data: any) =>
     request<any>("/hosts", { method: "POST", body: JSON.stringify(data) }),
   getHost: (id: string) => request<any>(`/hosts/${id}`),

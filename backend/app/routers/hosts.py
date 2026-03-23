@@ -8,13 +8,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import decode_token, get_current_user
 from app.database import async_session, get_db
 from app.models import Host, HostMetric, User, Workspace, WorkspaceMembership
-from app.schemas import HostCreate, HostListResponse, HostOut, HostUpdate, HostWithSparkline
+from app.schemas import HostCountsOut, HostCreate, HostListResponse, HostOut, HostUpdate, HostWithSparkline
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/hosts", tags=["hosts"])
@@ -176,6 +176,35 @@ async def _query_hosts_payload(
     return ([_host_out(host, sparks.get(host.id, [])) for host in hosts], total)
 
 
+async def _host_counts(db: AsyncSession, workspace_id: UUID) -> HostCountsOut:
+    live_cutoff = datetime.now(timezone.utc) - LIVE_HOST_WINDOW
+    result = await db.execute(
+        select(
+            func.count(Host.id).label("all"),
+            func.sum(case((Host.type == "server", 1), else_=0)).label("server"),
+            func.sum(case((Host.type == "database", 1), else_=0)).label("database"),
+            func.sum(case((Host.type == "container", 1), else_=0)).label("container"),
+            func.sum(case((Host.type == "network", 1), else_=0)).label("network"),
+            func.sum(
+                case(
+                    ((Host.agent_version.is_not(None)) & (Host.last_seen.is_not(None)) & (Host.last_seen >= live_cutoff), 1),
+                    else_=0,
+                )
+            ).label("live_agent_hosts"),
+        )
+        .where(Host.workspace_id == workspace_id)
+    )
+    row = result.mappings().one()
+    return HostCountsOut(
+        all=int(row["all"] or 0),
+        server=int(row["server"] or 0),
+        database=int(row["database"] or 0),
+        container=int(row["container"] or 0),
+        network=int(row["network"] or 0),
+        live_agent_hosts=int(row["live_agent_hosts"] or 0),
+    )
+
+
 def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
     cpu_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.cpu_percent, 1)} for m in metrics if m.cpu_percent is not None]
     mem_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.memory_percent, 1)} for m in metrics if m.memory_percent is not None]
@@ -236,6 +265,15 @@ async def list_hosts(
         offset=offset,
     )
     return HostListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/counts", response_model=HostCountsOut)
+async def get_host_counts(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    return await _host_counts(db, workspace.id)
 
 
 @router.post("", response_model=HostOut, status_code=201)

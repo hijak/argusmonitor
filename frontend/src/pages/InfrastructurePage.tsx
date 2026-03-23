@@ -236,13 +236,12 @@ export default function InfrastructurePage() {
     queryFn: () => api.listHosts({ type: typeFilter === "all" ? undefined : typeFilter, search: search || undefined, limit: HOST_PAGE_SIZE, offset: page * HOST_PAGE_SIZE }),
   });
 
-  const { data: allHostsResponse } = useQuery({
-    queryKey: ["hosts-all-counts"],
-    queryFn: () => api.listHosts({ limit: 500, offset: 0 }),
+  const { data: hostCounts } = useQuery({
+    queryKey: ["hosts-counts"],
+    queryFn: () => api.getHostCounts(),
   });
 
   const hosts = hostsResponse?.items || [];
-  const allHosts = allHostsResponse?.items || [];
   const totalHosts = hostsResponse?.total || 0;
   const totalHostPages = Math.max(1, Math.ceil(totalHosts / HOST_PAGE_SIZE));
 
@@ -251,7 +250,8 @@ export default function InfrastructurePage() {
     onSuccess: async (host) => {
       toast.success(`Added ${host.name}`);
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
       setOnboardingHostId(host.id);
       setSelectedHostId(host.id);
       setManualHostForm({ name: "", type: "server", ip_address: "", os: "", tags: "manual" });
@@ -266,7 +266,8 @@ export default function InfrastructurePage() {
     onSuccess: (data) => {
       setEnrollmentInfo(data);
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
       toast.success("Enrollment token refreshed");
     },
     onError: (error: Error) => toast.error(error.message || "Failed to refresh install command"),
@@ -287,7 +288,8 @@ export default function InfrastructurePage() {
           : null,
       );
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
       toast.success(`Enrollment token ${data.status}`);
     },
     onError: (error: Error) => toast.error(error.message || "Failed to revoke enrollment token"),
@@ -298,7 +300,8 @@ export default function InfrastructurePage() {
     onSuccess: () => {
       toast.success("Host deleted");
       queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["hosts-all-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["hosts-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
       if (selectedHostId === hostToDelete?.id) setSelectedHostId(null);
       if (onboardingHostId === hostToDelete?.id) {
         setOnboardingHostId(null);
@@ -311,17 +314,17 @@ export default function InfrastructurePage() {
 
   const counts = useMemo(
     () => ({
-      all: allHosts.length,
-      server: allHosts.filter((h: any) => h.type === "server").length,
-      database: allHosts.filter((h: any) => h.type === "database").length,
-      container: allHosts.filter((h: any) => h.type === "container").length,
-      network: allHosts.filter((h: any) => h.type === "network").length,
+      all: hostCounts?.all ?? totalHosts,
+      server: hostCounts?.server ?? 0,
+      database: hostCounts?.database ?? 0,
+      container: hostCounts?.container ?? 0,
+      network: hostCounts?.network ?? 0,
     }),
-    [allHosts],
+    [hostCounts, totalHosts],
   );
 
   const sortedHosts = useMemo(() => sortHosts(hosts, sortKey, sortDirection), [hosts, sortKey, sortDirection]);
-  const onboardingHost = useMemo(() => allHosts.find((host: any) => host.id === onboardingHostId) || null, [allHosts, onboardingHostId]);
+  const onboardingHost = useMemo(() => hosts.find((host: any) => host.id === onboardingHostId) || null, [hosts, onboardingHostId]);
 
   useEffect(() => {
     if (!onboardingOpen) {
@@ -404,7 +407,7 @@ export default function InfrastructurePage() {
 
           <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground xl:justify-start">
             <Activity className="h-3.5 w-3.5 text-success" />
-            <span>{allHosts.filter((h: any) => h.is_agent_connected).length} live agent hosts</span>
+            <span>{hostCounts?.live_agent_hosts ?? 0} live agent hosts</span>
           </div>
         </motion.div>
 

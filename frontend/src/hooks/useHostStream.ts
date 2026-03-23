@@ -7,11 +7,12 @@ interface HostStreamOptions {
   status?: string;
   search?: string;
   enabled?: boolean;
+  path?: string;
 }
 
 export function useHostsStream(initialHosts: any[], options: HostStreamOptions = {}) {
   const [hosts, setHosts] = useState<any[]>(initialHosts ?? []);
-  const { type, status, search, enabled = true } = options;
+  const { type, status, search, enabled = true, path = "/api/hosts/stream" } = options;
 
   useEffect(() => {
     setHosts(initialHosts ?? []);
@@ -28,7 +29,7 @@ export function useHostsStream(initialHosts: any[], options: HostStreamOptions =
     if (status) params.set("status", status);
     if (search) params.set("search", search);
 
-    const source = new EventSource(`${API_BASE}/api/hosts/stream?${params.toString()}`);
+    const source = new EventSource(`${API_BASE}${path}?${params.toString()}`);
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
@@ -43,7 +44,7 @@ export function useHostsStream(initialHosts: any[], options: HostStreamOptions =
     };
 
     return () => source.close();
-  }, [enabled, search, status, type]);
+  }, [enabled, path, search, status, type]);
 
   return hosts;
 }

@@ -4,7 +4,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,25 +14,35 @@ from app.services.checks import execute_monitor_check, execute_transaction_run
 
 logger = logging.getLogger(__name__)
 
+def _job_dedupe_key(kind: str, identifier: str | None) -> str | None:
+    if not identifier:
+        return None
+    return f"{kind}:{identifier}"
 
-async def _existing_payload_ids(db: AsyncSession, kind: str, payload_key: str) -> set[str]:
-    jobs = (
-        (
-            await db.execute(
-                select(WorkerJob).where(
-                    WorkerJob.kind == kind,
-                    WorkerJob.status.in_(["queued", "running"]),
+
+async def _enqueue_job(
+    db: AsyncSession,
+    *,
+    workspace_id,
+    kind: str,
+    payload: dict,
+    dedupe_id: str | None,
+) -> bool:
+    try:
+        async with db.begin_nested():
+            db.add(
+                WorkerJob(
+                    workspace_id=workspace_id,
+                    kind=kind,
+                    dedupe_key=_job_dedupe_key(kind, dedupe_id),
+                    payload=payload,
                 )
             )
-        )
-        .scalars()
-        .all()
-    )
-    return {
-        str((job.payload or {}).get(payload_key))
-        for job in jobs
-        if (job.payload or {}).get(payload_key)
-    }
+            await db.flush()
+        return True
+    except IntegrityError:
+        logger.debug("worker_job:dedupe_skip kind=%s dedupe_id=%s", kind, dedupe_id)
+        return False
 
 
 async def enqueue_monitor_jobs(db: AsyncSession) -> int:
@@ -40,20 +51,16 @@ async def enqueue_monitor_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
-    queued_monitor_ids = await _existing_payload_ids(db, "monitor.check", "monitor_id")
     count = 0
     for monitor in monitors:
-        if str(monitor.id) in queued_monitor_ids:
-            continue
-        db.add(
-            WorkerJob(
-                workspace_id=monitor.workspace_id,
-                kind="monitor.check",
-                payload={"monitor_id": str(monitor.id)},
-            )
+        created = await _enqueue_job(
+            db,
+            workspace_id=monitor.workspace_id,
+            kind="monitor.check",
+            payload={"monitor_id": str(monitor.id)},
+            dedupe_id=str(monitor.id),
         )
-        count += 1
-    await db.flush()
+        count += int(created)
     return count
 
 
@@ -96,22 +103,6 @@ async def enqueue_transaction_jobs(db: AsyncSession) -> int:
     now = datetime.now(timezone.utc)
     count = 0
 
-    existing_jobs = (
-        (
-            await db.execute(
-                select(WorkerJob).where(
-                    WorkerJob.kind == "transaction.run",
-                    WorkerJob.status.in_(["queued", "running"]),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    queued_transaction_ids = {
-        str((job.payload or {}).get("transaction_id")) for job in existing_jobs if (job.payload or {}).get("transaction_id")
-    }
-
     transaction_ids = [tx.id for tx in transactions]
     latest_runs_subquery = (
         select(
@@ -133,23 +124,19 @@ async def enqueue_transaction_jobs(db: AsyncSession) -> int:
     latest_runs = {run.transaction_id: run for run in latest_runs_result.scalars().all()}
 
     for tx in transactions:
-        if str(tx.id) in queued_transaction_ids:
-            continue
-
         last_run = latest_runs.get(tx.id)
         due = _transaction_due_by_cron(tx, last_run, now) if (tx.cron_expression or "").strip() else _transaction_due_by_interval(tx, last_run, now)
         if not due:
             continue
 
-        db.add(
-            WorkerJob(
-                workspace_id=tx.workspace_id,
-                kind="transaction.run",
-                payload={"transaction_id": str(tx.id)},
-            )
+        created = await _enqueue_job(
+            db,
+            workspace_id=tx.workspace_id,
+            kind="transaction.run",
+            payload={"transaction_id": str(tx.id)},
+            dedupe_id=str(tx.id),
         )
-        count += 1
-    await db.flush()
+        count += int(created)
     return count
 
 
@@ -159,20 +146,16 @@ async def enqueue_k8s_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
-    queued_cluster_ids = await _existing_payload_ids(db, "k8s.discover", "cluster_id")
     count = 0
     for cluster in clusters:
-        if str(cluster.id) in queued_cluster_ids:
-            continue
-        db.add(
-            WorkerJob(
-                workspace_id=cluster.workspace_id,
-                kind="k8s.discover",
-                payload={"cluster_id": str(cluster.id)},
-            )
+        created = await _enqueue_job(
+            db,
+            workspace_id=cluster.workspace_id,
+            kind="k8s.discover",
+            payload={"cluster_id": str(cluster.id)},
+            dedupe_id=str(cluster.id),
         )
-        count += 1
-    await db.flush()
+        count += int(created)
     return count
 
 
@@ -182,20 +165,16 @@ async def enqueue_swarm_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
-    queued_cluster_ids = await _existing_payload_ids(db, "swarm.discover", "cluster_id")
     count = 0
     for cluster in clusters:
-        if str(cluster.id) in queued_cluster_ids:
-            continue
-        db.add(
-            WorkerJob(
-                workspace_id=cluster.workspace_id,
-                kind="swarm.discover",
-                payload={"cluster_id": str(cluster.id)},
-            )
+        created = await _enqueue_job(
+            db,
+            workspace_id=cluster.workspace_id,
+            kind="swarm.discover",
+            payload={"cluster_id": str(cluster.id)},
+            dedupe_id=str(cluster.id),
         )
-        count += 1
-    await db.flush()
+        count += int(created)
     return count
 
 
@@ -205,46 +184,93 @@ async def enqueue_proxmox_jobs(db: AsyncSession) -> int:
         .scalars()
         .all()
     )
-    queued_cluster_ids = await _existing_payload_ids(db, "proxmox.discover", "cluster_id")
     count = 0
     for cluster in clusters:
-        if str(cluster.id) in queued_cluster_ids:
-            continue
-        db.add(
-            WorkerJob(
-                workspace_id=cluster.workspace_id,
-                kind="proxmox.discover",
-                payload={"cluster_id": str(cluster.id)},
-            )
+        created = await _enqueue_job(
+            db,
+            workspace_id=cluster.workspace_id,
+            kind="proxmox.discover",
+            payload={"cluster_id": str(cluster.id)},
+            dedupe_id=str(cluster.id),
         )
-        count += 1
-    await db.flush()
+        count += int(created)
     return count
 
 
-async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
+async def _claim_worker_jobs(db: AsyncSession, limit: int) -> list[WorkerJob]:
+    now = datetime.now(timezone.utc)
+
+    if db.bind and db.bind.dialect.name == "postgresql":
+        subquery = (
+            select(WorkerJob.id)
+            .where(
+                WorkerJob.status == "queued",
+                WorkerJob.scheduled_at <= now,
+            )
+            .order_by(WorkerJob.scheduled_at.asc(), WorkerJob.created_at.asc())
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+            .subquery()
+        )
+
+        await db.execute(
+            update(WorkerJob)
+            .where(WorkerJob.id.in_(select(subquery.c.id)))
+            .values(
+                status="running",
+                started_at=now,
+                attempts=WorkerJob.attempts + 1,
+                last_error=None,
+                updated_at=now,
+            )
+        )
+        await db.flush()
+
+        claimed = (
+            (
+                await db.execute(
+                    select(WorkerJob)
+                    .where(
+                        WorkerJob.status == "running",
+                        WorkerJob.started_at == now,
+                    )
+                    .order_by(WorkerJob.scheduled_at.asc(), WorkerJob.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return claimed[:limit]
+
     jobs = (
         (
             await db.execute(
                 select(WorkerJob)
                 .where(
                     WorkerJob.status == "queued",
-                    WorkerJob.scheduled_at <= datetime.now(timezone.utc),
+                    WorkerJob.scheduled_at <= now,
                 )
-                .order_by(WorkerJob.scheduled_at.asc())
+                .order_by(WorkerJob.scheduled_at.asc(), WorkerJob.created_at.asc())
                 .limit(limit)
             )
         )
         .scalars()
         .all()
     )
+    for job in jobs:
+        job.status = "running"
+        job.started_at = now
+        job.attempts += 1
+        job.last_error = None
+    await db.flush()
+    return jobs
+
+
+async def process_worker_jobs(db: AsyncSession, limit: int = 25) -> int:
+    jobs = await _claim_worker_jobs(db, limit)
 
     processed = 0
     for job in jobs:
-        job.status = "running"
-        job.started_at = datetime.now(timezone.utc)
-        job.attempts += 1
-        await db.flush()
         try:
             if job.kind == "monitor.check":
                 monitor = await db.get(Monitor, job.payload.get("monitor_id"))

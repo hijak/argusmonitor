@@ -136,6 +136,27 @@ class HostListResponse(BaseModel):
     offset: int
 
 
+class HostCountsOut(BaseModel):
+    all: int
+    server: int
+    database: int
+    container: int
+    network: int
+    live_agent_hosts: int
+
+
+class OverviewHostSummary(BaseModel):
+    id: UUID
+    name: str
+    status: str
+    cpu_percent: float
+    memory_percent: float
+    uptime: Optional[str]
+    last_seen: Optional[datetime]
+    is_agent_connected: bool = False
+    spark: list[float] = []
+
+
 # --- Services ---
 
 

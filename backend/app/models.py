@@ -183,6 +183,7 @@ class WorkerJob(Base):
         UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="SET NULL"), index=True
     )
     kind = Column(String(100), nullable=False, index=True)
+    dedupe_key = Column(String(255), index=True)
     payload = Column(JSON, default=dict)
     status = Column(String(50), nullable=False, default="queued", index=True)
     attempts = Column(Integer, nullable=False, default=0)
