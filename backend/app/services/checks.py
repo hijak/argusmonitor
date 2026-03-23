@@ -386,7 +386,31 @@ async def execute_transaction_run(db: AsyncSession, transaction: Transaction) ->
             dst = run_dir / "replay.webm"
             if src != dst:
                 shutil.move(str(src), str(dst))
-            run.replay_url = f"/artifacts/{transaction.id}/{run.id}/replay.webm"
+
+            replay_url = f"/artifacts/{transaction.id}/{run.id}/replay.webm"
+            ffmpeg_path = shutil.which("ffmpeg")
+            mp4_dst = run_dir / "replay.mp4"
+            if ffmpeg_path:
+                proc = await asyncio.create_subprocess_exec(
+                    ffmpeg_path,
+                    "-y",
+                    "-i",
+                    str(dst),
+                    "-movflags",
+                    "+faststart",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-vf",
+                    "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                    str(mp4_dst),
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await proc.communicate()
+                if proc.returncode == 0 and mp4_dst.exists():
+                    replay_url = f"/artifacts/{transaction.id}/{run.id}/replay.mp4"
+
+            run.replay_url = replay_url
 
     run.duration_ms = (time.perf_counter() - started) * 1000
     run.completed_at = datetime.now(timezone.utc)

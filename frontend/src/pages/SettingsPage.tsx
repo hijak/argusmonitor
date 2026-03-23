@@ -11,6 +11,7 @@ import {
   Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -368,9 +369,22 @@ function SecuritySection() {
 
   const createMut = useMutation({
     mutationFn: () => api.createApiKey(newKeyName),
-    onSuccess: (data: any) => { setCreatedKey(data.key); setNewKeyName(""); qc.invalidateQueries({ queryKey: ["api-keys"] }); },
+    onSuccess: (data: any) => {
+      setCreatedKey(data.key);
+      setNewKeyName("");
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+      toast.success("API key created");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to create API key"),
   });
-  const deleteMut = useMutation({ mutationFn: (id: string) => api.deleteApiKey(id), onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }) });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.deleteApiKey(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["api-keys"] });
+      toast.success("API key revoked");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to revoke API key"),
+  });
 
   return (
     <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
@@ -396,7 +410,7 @@ function SecuritySection() {
               <button onClick={() => setShowKey(!showKey)} className="rounded-md border border-border p-2 text-muted-foreground hover:bg-surface-hover">
                 {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
-              <button onClick={() => { navigator.clipboard.writeText(createdKey); }} className="rounded-md border border-border p-2 text-muted-foreground hover:bg-surface-hover">
+              <button onClick={() => { navigator.clipboard.writeText(createdKey); toast.success("API key copied"); }} className="rounded-md border border-border p-2 text-muted-foreground hover:bg-surface-hover">
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -428,6 +442,32 @@ function SecuritySection() {
           )}
         </div>
       </motion.div>
+
+      <AlertDialog open={!!keyToRevoke} onOpenChange={(open) => !open && setKeyToRevoke(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API key</AlertDialogTitle>
+            <AlertDialogDescription>
+              {keyToRevoke ? `Revoke API key "${keyToRevoke.name}"? Any clients using it will stop working immediately.` : "This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (keyToRevoke) {
+                  deleteMut.mutate(keyToRevoke.id);
+                  setKeyToRevoke(null);
+                }
+              }}
+            >
+              {deleteMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Revoke
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
@@ -436,17 +476,83 @@ function SecuritySection() {
 function IntegrationsSection() {
   const qc = useQueryClient();
   const { data: integrations = [], isLoading } = useQuery({ queryKey: ["integrations"], queryFn: api.listIntegrations });
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("webhook");
+  const [newConfig, setNewConfig] = useState('{\n  "url": "https://example.com/webhook"\n}');
+  const [integrationToDelete, setIntegrationToDelete] = useState<any | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      const config = newConfig.trim() ? JSON.parse(newConfig) : {};
+      return api.createIntegration({ name: newName, type: newType, config, status: "disconnected" });
+    },
+    onSuccess: () => {
+      setNewName("");
+      qc.invalidateQueries({ queryKey: ["integrations"] });
+      toast.success("Integration created");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to create integration"),
+  });
 
   const toggleMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.updateIntegration(id, { status: status === "connected" ? "disconnected" : "connected" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["integrations"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["integrations"] });
+      toast.success("Integration updated");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to update integration"),
   });
-  const deleteMut = useMutation({ mutationFn: (id: string) => api.deleteIntegration(id), onSuccess: () => qc.invalidateQueries({ queryKey: ["integrations"] }) });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.deleteIntegration(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["integrations"] });
+      toast.success("Integration deleted");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete integration"),
+  });
 
   return (
     <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}><PageHeader title="Integrations" description="Connect external services" /></motion.div>
+
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-medium">Add integration</h3>
+            <p className="text-xs text-muted-foreground">Create a new integration and connect it when ready.</p>
+          </div>
+          <button
+            onClick={() => createMut.mutate()}
+            disabled={!newName.trim() || createMut.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Add integration
+          </button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Name</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Slack production alerts"
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50" />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Type</label>
+              <select value={newType} onChange={e => setNewType(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none">
+                {Object.keys(integrationIcons).map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Config (JSON)</label>
+            <textarea value={newConfig} onChange={e => setNewConfig(e.target.value)} rows={6}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-mono outline-none focus:border-primary/50" />
+          </div>
+        </div>
+      </motion.div>
 
       <motion.div variants={item} className="grid gap-4 sm:grid-cols-2">
         {isLoading && <div className="col-span-full p-8 text-center text-sm text-muted-foreground">Loading...</div>}
@@ -495,6 +601,32 @@ function IntegrationsSection() {
           </div>
         ))}
       </motion.div>
+
+      <AlertDialog open={!!integrationToDelete} onOpenChange={(open) => !open && setIntegrationToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete integration</AlertDialogTitle>
+            <AlertDialogDescription>
+              {integrationToDelete ? `Delete integration "${integrationToDelete.name}"?` : "This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (integrationToDelete) {
+                  deleteMut.mutate(integrationToDelete.id);
+                  setIntegrationToDelete(null);
+                }
+              }}
+            >
+              {deleteMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
@@ -571,6 +703,7 @@ function AppearanceSection() {
 // ===================== AGENTS =====================
 function AgentsSection() {
   const { data: agents = [], isLoading } = useQuery({ queryKey: ["agents"], queryFn: api.listAgents });
+  const { data: installInfo, isLoading: installLoading } = useQuery({ queryKey: ["agent-install"], queryFn: api.getAgentInstallInfo });
 
   const timeAgo = (dateStr: string | null) => {
     if (!dateStr) return "Never";
@@ -592,13 +725,25 @@ function AgentsSection() {
         <p className="text-xs text-muted-foreground">Run this command on any host to install the Vordr agent:</p>
         <div className="flex items-center gap-2">
           <code className="flex-1 rounded bg-muted px-3 py-2.5 text-xs font-mono text-muted-foreground overflow-x-auto">
-            curl -fsSL https://get.vordr.io/agent | sudo bash -s -- --token YOUR_AGENT_TOKEN
+            {installLoading ? "Loading install command..." : installInfo?.command || "Unable to load install command"}
           </code>
-          <button onClick={() => navigator.clipboard.writeText("curl -fsSL https://get.vordr.io/agent | sudo bash -s -- --token YOUR_AGENT_TOKEN")}
-            className="rounded-md border border-border p-2 text-muted-foreground hover:bg-surface-hover shrink-0">
+          <button
+            onClick={() => {
+              if (installInfo?.command) {
+                navigator.clipboard.writeText(installInfo.command);
+                toast.success("Install command copied");
+              }
+            }}
+            className="rounded-md border border-border p-2 text-muted-foreground hover:bg-surface-hover shrink-0"
+          >
             <Copy className="h-3.5 w-3.5" />
           </button>
         </div>
+        {installInfo?.notes?.length ? (
+          <div className="rounded-lg bg-muted/40 px-3 py-3 text-xs text-muted-foreground space-y-1">
+            {installInfo.notes.map((note: string, idx: number) => <p key={idx}>• {note}</p>)}
+          </div>
+        ) : null}
       </motion.div>
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card">
@@ -618,7 +763,7 @@ function AgentsSection() {
                     {agent.status}
                   </StatusBadge>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{agent.ip_address || "N/A"}</span>
                   <span>·</span>
                   <span>{agent.os || "N/A"}</span>
@@ -626,7 +771,7 @@ function AgentsSection() {
                   <span>v{agent.agent_version}</span>
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">Last seen: {timeAgo(agent.last_seen)}</span>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">Last seen: {timeAgo(agent.last_seen)}</span>
             </div>
           ))}
           {!isLoading && agents.length === 0 && (

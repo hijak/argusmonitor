@@ -189,7 +189,7 @@ export function ServiceDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto border-l border-border bg-card p-0 sm:max-w-4xl">
+      <SheetContent side="right" className="w-full overflow-y-auto border-l border-border bg-card p-0 sm:max-w-[min(92vw,88rem)]">
         <div className="sticky top-0 z-10 border-b border-border bg-card/95 px-6 py-5 backdrop-blur">
           <SheetHeader className="pr-10">
             <div className="flex flex-wrap items-center gap-2">

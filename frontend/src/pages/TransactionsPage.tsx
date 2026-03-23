@@ -58,6 +58,7 @@ import { SectionCard } from "@/components/SectionCard";
 import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
 import { DenseListRow, DenseListSurface } from "@/components/DenseList";
 import { EmptyState } from "@/components/StateBlock";
+import { ReplayVideo } from "@/components/ReplayVideo";
 
 const stepIcons: Record<string, typeof Globe> = {
   navigate: Globe,
@@ -689,32 +690,28 @@ export default function TransactionsPage() {
             </DenseListSurface>
 
             {selectedTransaction && latestRun && (
-              <div className="rounded-2xl border border-border/80 bg-card/95 shadow-sm">
-                <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                  <h2 className="text-sm font-medium">Latest replay</h2>
+              <SectionCard
+                title="Latest replay"
+                description="Most recent run video and AI summary."
+                contentClassName="space-y-3"
+                actions={
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <StatusBadge variant={latestRun.status === "success" ? "healthy" : latestRun.status === "failed" ? "critical" : "warning"}>{latestRun.status}</StatusBadge>
                     <span>{formatDuration(latestRun.duration_ms)}</span>
                   </div>
-                </div>
-                <div className="space-y-3 p-4">
-                  {latestRun.replay_url ? (
-                    <video key={latestRun.replay_url} src={latestRun.replay_url} controls playsInline preload="metadata" className="max-h-[260px] w-full rounded-lg border border-border bg-black" />
-                  ) : (
-                    <EmptyState message="No replay yet for this run." className="bg-transparent" />
-                  )}
-                  {latestRun.ai_summary && <div className="whitespace-pre-wrap rounded-lg bg-surface px-3 py-3 text-sm text-foreground">{latestRun.ai_summary}</div>}
-                </div>
-              </div>
+                }
+              >
+                <ReplayVideo url={latestRun.replay_url} maxHeightClass="max-h-[360px]" />
+                {latestRun.ai_summary && <div className="whitespace-pre-wrap rounded-lg bg-surface px-3 py-3 text-sm text-foreground">{latestRun.ai_summary}</div>}
+              </SectionCard>
             )}
 
             {selectedTransaction && (
-              <div className="rounded-2xl border border-border/80 bg-card/95 shadow-sm">
-                <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                  <div>
-                    <h2 className="text-sm font-medium">Run history</h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Full historical list with run details.</p>
-                  </div>
+              <SectionCard
+                title="Run history"
+                description="Full historical list with run details."
+                contentClassName="max-h-[560px] space-y-3 overflow-auto"
+                actions={
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>{runCounts.total} total</span>
                     <span>•</span>
@@ -728,8 +725,8 @@ export default function TransactionsPage() {
                       </>
                     )}
                   </div>
-                </div>
-                <div className="max-h-[520px] space-y-3 overflow-auto p-4">
+                }
+              >
                   {runs.length ? (
                     runs.map((run: any) => {
                       const failedStep = run.step_results?.find((s: any) => s.status === "failed");
@@ -771,8 +768,7 @@ export default function TransactionsPage() {
                   ) : (
                     <EmptyState message="No runs yet." className="bg-transparent" />
                   )}
-                </div>
-              </div>
+                </SectionCard>
             )}
           </motion.div>
         </div>
@@ -1103,11 +1099,9 @@ export default function TransactionsPage() {
                   </DetailPanelSection>
                 )}
 
-                {selectedRun.replay_url && (
-                  <DetailPanelSection title="Replay">
-                    <video src={selectedRun.replay_url} controls playsInline preload="metadata" className="max-h-[320px] w-full rounded-lg border border-border bg-black" />
-                  </DetailPanelSection>
-                )}
+                <DetailPanelSection title="Replay">
+                  <ReplayVideo url={selectedRun.replay_url} maxHeightClass="max-h-[420px]" />
+                </DetailPanelSection>
 
                 {selectedRun.ai_summary && (
                   <DetailPanelSection title="AI summary">
