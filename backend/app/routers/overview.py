@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from fastapi import APIRouter, Depends, Query, Request, status, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -17,7 +17,7 @@ from uuid import UUID
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/overview", tags=["overview"])
-STREAM_INTERVAL_SECONDS = 5
+STREAM_INTERVAL_SECONDS = 10
 LIVE_HOST_WINDOW = timedelta(seconds=120)
 
 
@@ -49,19 +49,32 @@ async def _get_stream_user(token: str) -> User:
         return user
 
 
-async def _get_user_workspace_id(user_id: UUID) -> UUID | None:
+async def _get_user_workspace_id(user_id: UUID, requested_workspace_id: UUID | None = None) -> UUID | None:
     async with async_session() as db:
-        result = await db.execute(
+        query = (
             select(WorkspaceMembership.workspace_id)
             .where(WorkspaceMembership.user_id == user_id)
             .order_by(WorkspaceMembership.created_at.asc())
         )
+        if requested_workspace_id:
+            query = query.where(WorkspaceMembership.workspace_id == requested_workspace_id)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
 
 
 async def _overview_host_health_payload(db: AsyncSession, workspace_id: UUID) -> list[OverviewHostSummary]:
-    result = await db.execute(select(Host).where(Host.workspace_id == workspace_id))
-    hosts = sorted(result.scalars().all(), key=_host_sort_key)[:10]
+    live_cutoff = datetime.now(timezone.utc) - LIVE_HOST_WINDOW
+    result = await db.execute(
+        select(Host)
+        .where(Host.workspace_id == workspace_id)
+        .order_by(
+            case((Host.agent_version.is_not(None), 0), else_=1),
+            case((Host.status == "critical", 0), (Host.status == "warning", 1), (Host.status == "healthy", 2), else_=3),
+            Host.name.asc(),
+        )
+        .limit(10)
+    )
+    hosts = result.scalars().all()
     return [
         OverviewHostSummary(
             id=host.id,
@@ -72,7 +85,7 @@ async def _overview_host_health_payload(db: AsyncSession, workspace_id: UUID) ->
             uptime=host.uptime,
             last_seen=host.last_seen,
             is_agent_connected=_is_host_connected(host),
-            spark=[host.cpu_percent] * 7,
+            spark=[host.cpu_percent],
         )
         for host in hosts
     ]
@@ -123,9 +136,10 @@ async def get_host_health(
 async def stream_host_health(
     request: Request,
     token: str = Query(...),
+    workspace_id: UUID | None = Query(default=None),
 ):
     stream_user = await _get_stream_user(token)
-    workspace_id = await _get_user_workspace_id(stream_user.id)
+    workspace_id = await _get_user_workspace_id(stream_user.id, workspace_id)
 
     async def event_stream():
         last_payload = ""

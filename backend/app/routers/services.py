@@ -19,7 +19,7 @@ from app.services.service_metrics import build_service_metric, fetch_latest_serv
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/services", tags=["services"])
-STREAM_INTERVAL_SECONDS = 5
+STREAM_INTERVAL_SECONDS = 10
 DEFAULT_DISCOVERY_PORTS = [
     {"port": 80, "label": "HTTP", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 443, "label": "HTTPS", "service_type": "https", "plugin_id": None, "scheme": "https"},
@@ -95,13 +95,16 @@ async def _get_stream_user(token: str) -> User:
         return user
 
 
-async def _get_user_workspace_id(user_id: UUID) -> UUID | None:
+async def _get_user_workspace_id(user_id: UUID, requested_workspace_id: UUID | None = None) -> UUID | None:
     async with async_session() as db:
-        result = await db.execute(
+        query = (
             select(WorkspaceMembership.workspace_id)
             .where(WorkspaceMembership.user_id == user_id)
             .order_by(WorkspaceMembership.created_at.asc())
         )
+        if requested_workspace_id:
+            query = query.where(WorkspaceMembership.workspace_id == requested_workspace_id)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
 
 
@@ -474,9 +477,16 @@ async def discover_services(
 async def stream_services(
     request: Request,
     token: str = Query(...),
+    workspace_id: UUID | None = Query(default=None),
+    search: str | None = None,
+    status: str | None = None,
+    host_id: UUID | None = None,
+    plugin_id: str | None = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
     stream_user = await _get_stream_user(token)
-    workspace_id = await _get_user_workspace_id(stream_user.id)
+    workspace_id = await _get_user_workspace_id(stream_user.id, workspace_id)
 
     async def event_stream():
         last_payload = ""
@@ -488,7 +498,16 @@ async def stream_services(
                 if not workspace_id:
                     payload = json.dumps({"services": []}, separators=(",", ":"))
                 else:
-                    services, _total = await _query_services(db, workspace_id)
+                    services, _total = await _query_services(
+                        db,
+                        workspace_id,
+                        search=search,
+                        status=status,
+                        host_id=host_id,
+                        plugin_id=plugin_id,
+                        limit=limit,
+                        offset=offset,
+                    )
                     payload = json.dumps({"services": [service.model_dump(mode="json") for service in services]}, separators=(",", ":"))
             if payload != last_payload:
                 yield f"data: {payload}\n\n"

@@ -19,7 +19,7 @@ from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/hosts", tags=["hosts"])
 LIVE_HOST_WINDOW = timedelta(seconds=120)
-STREAM_INTERVAL_SECONDS = 5
+STREAM_INTERVAL_SECONDS = 10
 DEFAULT_TOKEN_TTL_HOURS = 24
 
 
@@ -97,13 +97,16 @@ async def _get_stream_user(token: str) -> User:
         return user
 
 
-async def _get_user_workspace_id(user_id: UUID) -> UUID | None:
+async def _get_user_workspace_id(user_id: UUID, requested_workspace_id: UUID | None = None) -> UUID | None:
     async with async_session() as db:
-        result = await db.execute(
+        query = (
             select(WorkspaceMembership.workspace_id)
             .where(WorkspaceMembership.user_id == user_id)
             .order_by(WorkspaceMembership.created_at.asc())
         )
+        if requested_workspace_id:
+            query = query.where(WorkspaceMembership.workspace_id == requested_workspace_id)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
 
 
@@ -295,12 +298,15 @@ async def create_host(
 async def stream_hosts(
     request: Request,
     token: str = Query(...),
+    workspace_id: UUID | None = Query(default=None),
     type: str | None = None,
     status: str | None = None,
     search: str | None = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
     stream_user = await _get_stream_user(token)
-    workspace_id = await _get_user_workspace_id(stream_user.id)
+    workspace_id = await _get_user_workspace_id(stream_user.id, workspace_id)
 
     async def event_stream():
         last_payload = ""
@@ -312,7 +318,15 @@ async def stream_hosts(
                 if not workspace_id:
                     payload = json.dumps({"hosts": []}, separators=(",", ":"))
                 else:
-                    hosts, _total = await _query_hosts_payload(db, workspace_id, type=type, status=status, search=search)
+                    hosts, _total = await _query_hosts_payload(
+                        db,
+                        workspace_id,
+                        type=type,
+                        status=status,
+                        search=search,
+                        limit=limit,
+                        offset=offset,
+                    )
                     payload = json.dumps({"hosts": [h.model_dump(mode="json") for h in hosts]}, separators=(",", ":"))
 
             if payload != last_payload:
@@ -395,9 +409,10 @@ async def stream_host_metrics(
     host_id: UUID,
     request: Request,
     token: str = Query(...),
+    workspace_id: UUID | None = Query(default=None),
 ):
     stream_user = await _get_stream_user(token)
-    workspace_id = await _get_user_workspace_id(stream_user.id)
+    workspace_id = await _get_user_workspace_id(stream_user.id, workspace_id)
 
     async def event_stream():
         last_payload = ""

@@ -1,32 +1,36 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useEventSourceList } from "@/hooks/useEventSourceList";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+interface ServiceStreamOptions {
+  search?: string;
+  status?: string;
+  hostId?: string;
+  pluginId?: string;
+  limit?: number;
+  offset?: number;
+  enabled?: boolean;
+  path?: string;
+}
 
-export function useServicesStream(initialServices: any[], enabled = true) {
-  const [services, setServices] = useState<any[]>(initialServices ?? []);
+export function useServicesStream(initialServices: any[], options: ServiceStreamOptions = {}) {
+  const { search, status, hostId, pluginId, limit, offset, enabled = true, path = "/api/services/stream" } = options;
 
-  useEffect(() => {
-    setServices(initialServices ?? []);
-  }, [initialServices]);
+  const params = useMemo(
+    () => ({
+      ...(search ? { search } : {}),
+      ...(status && status !== "all" ? { status } : {}),
+      ...(hostId ? { host_id: hostId } : {}),
+      ...(pluginId && pluginId !== "all" ? { plugin_id: pluginId } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    }),
+    [hostId, limit, offset, pluginId, search, status],
+  );
 
-  useEffect(() => {
-    if (!enabled) return;
-    const token = localStorage.getItem("argus_token");
-    if (!token) return;
-
-    const source = new EventSource(`${API_BASE}/api/services/stream?token=${encodeURIComponent(token)}`);
-    source.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (Array.isArray(payload.services)) setServices(payload.services);
-      } catch {
-        // ignore malformed stream payloads
-      }
-    };
-    source.onerror = () => source.close();
-
-    return () => source.close();
-  }, [enabled]);
-
-  return services;
+  return useEventSourceList(initialServices, {
+    path,
+    eventKey: "services",
+    enabled,
+    params,
+  });
 }

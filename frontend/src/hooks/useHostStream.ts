@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getWorkspaceId } from "@/lib/workspace";
+import { useEventSourceList } from "@/hooks/useEventSourceList";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -8,45 +10,30 @@ interface HostStreamOptions {
   search?: string;
   enabled?: boolean;
   path?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export function useHostsStream(initialHosts: any[], options: HostStreamOptions = {}) {
-  const [hosts, setHosts] = useState<any[]>(initialHosts ?? []);
-  const { type, status, search, enabled = true, path = "/api/hosts/stream" } = options;
+  const { type, status, search, enabled = true, path = "/api/hosts/stream", limit, offset } = options;
 
-  useEffect(() => {
-    setHosts(initialHosts ?? []);
-  }, [initialHosts]);
+  const params = useMemo(
+    () => ({
+      ...(type && type !== "all" ? { type } : {}),
+      ...(status && status !== "all" ? { status } : {}),
+      ...(search ? { search } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    }),
+    [limit, offset, search, status, type],
+  );
 
-  useEffect(() => {
-    if (!enabled) return;
-
-    const token = localStorage.getItem("argus_token");
-    if (!token) return;
-
-    const params = new URLSearchParams({ token });
-    if (type && type !== "all") params.set("type", type);
-    if (status) params.set("status", status);
-    if (search) params.set("search", search);
-
-    const source = new EventSource(`${API_BASE}${path}?${params.toString()}`);
-    source.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (Array.isArray(payload.hosts)) setHosts(payload.hosts);
-      } catch {
-        // ignore malformed stream payloads
-      }
-    };
-
-    source.onerror = () => {
-      source.close();
-    };
-
-    return () => source.close();
-  }, [enabled, path, search, status, type]);
-
-  return hosts;
+  return useEventSourceList(initialHosts, {
+    path,
+    eventKey: "hosts",
+    enabled,
+    params,
+  });
 }
 
 export function useHostMetricsStream(hostId: string | null, initialData: any, enabled = true) {
@@ -56,14 +43,22 @@ export function useHostMetricsStream(hostId: string | null, initialData: any, en
     setData(initialData);
   }, [initialData]);
 
-  useEffect(() => {
-    if (!enabled || !hostId) return;
+  const streamUrl = useMemo(() => {
+    if (!enabled || !hostId) return null;
 
     const token = localStorage.getItem("argus_token");
-    if (!token) return;
+    if (!token) return null;
 
     const params = new URLSearchParams({ token });
-    const source = new EventSource(`${API_BASE}/api/hosts/${hostId}/metrics/stream?${params.toString()}`);
+    const workspaceId = getWorkspaceId();
+    if (workspaceId) params.set("workspace_id", workspaceId);
+    return `${API_BASE}/api/hosts/${hostId}/metrics/stream?${params.toString()}`;
+  }, [enabled, hostId]);
+
+  useEffect(() => {
+    if (!streamUrl) return;
+
+    const source = new EventSource(streamUrl);
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
@@ -78,7 +73,7 @@ export function useHostMetricsStream(hostId: string | null, initialData: any, en
     };
 
     return () => source.close();
-  }, [enabled, hostId]);
+  }, [streamUrl]);
 
   return data;
 }

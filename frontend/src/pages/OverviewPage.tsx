@@ -9,6 +9,7 @@ import { HostDetailModal } from "@/components/HostDetailModal";
 import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity, ArrowUp, ArrowDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHostsStream } from "@/hooks/useHostStream";
+import { getWorkspaceId } from "@/lib/workspace";
 import { sortHosts, type HostSortKey } from "@/lib/hostSorting";
 import { usePersistentHostSort } from "@/hooks/usePersistentHostSort";
 
@@ -25,7 +26,8 @@ export default function OverviewPage() {
     queryDirection: "overviewHostDir",
   });
   const { data: stats } = useQuery({ queryKey: ["overview-stats"], queryFn: api.overviewStats, refetchInterval: 30000 });
-  const { data: hostsSeed = [] } = useQuery({ queryKey: ["overview-hosts"], queryFn: api.overviewHostHealth });
+  const workspaceId = getWorkspaceId();
+  const { data: hostsSeed = [] } = useQuery({ queryKey: ["overview-hosts", workspaceId], queryFn: api.overviewHostHealth });
   const hosts = useHostsStream(hostsSeed, { path: "/api/overview/host-health/stream" });
   const { data: alerts = [] } = useQuery({ queryKey: ["overview-alerts"], queryFn: api.overviewRecentAlerts, refetchInterval: 15000 });
   const { data: incidents = [] } = useQuery({ queryKey: ["overview-incidents"], queryFn: api.overviewRecentIncidents, refetchInterval: 30000 });

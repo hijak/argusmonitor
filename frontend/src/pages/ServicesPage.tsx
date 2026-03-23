@@ -27,6 +27,7 @@ import { Sparkline } from "@/components/Sparkline";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
 import { ServiceDetailSheet } from "@/components/ServiceDetailSheet";
+import { useServicesStream } from "@/hooks/useServiceStream";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -203,8 +204,15 @@ export default function ServicesPage() {
       }),
   });
 
-  const services = serviceResponse?.items || [];
+  const servicesSeed = serviceResponse?.items || [];
   const totalServices = serviceResponse?.total || 0;
+  const services = useServicesStream(servicesSeed, {
+    search: search || undefined,
+    status: statusFilter,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    enabled: !isLoading,
+  });
   const totalPages = Math.max(1, Math.ceil(totalServices / PAGE_SIZE));
 
   const discoverMutation = useMutation({

@@ -31,6 +31,7 @@ import { toast } from "@/components/ui/sonner";
 import { sortHosts, type HostSortKey } from "@/lib/hostSorting";
 import { usePersistentHostSort } from "@/hooks/usePersistentHostSort";
 import { cn } from "@/lib/utils";
+import { useHostsStream } from "@/hooks/useHostStream";
 import {
   Dialog,
   DialogContent,
@@ -241,8 +242,15 @@ export default function InfrastructurePage() {
     queryFn: () => api.getHostCounts(),
   });
 
-  const hosts = hostsResponse?.items || [];
+  const hostsSeed = hostsResponse?.items || [];
   const totalHosts = hostsResponse?.total || 0;
+  const hosts = useHostsStream(hostsSeed, {
+    type: typeFilter === "all" ? undefined : typeFilter,
+    search: search || undefined,
+    limit: HOST_PAGE_SIZE,
+    offset: page * HOST_PAGE_SIZE,
+    enabled: !isLoading,
+  });
   const totalHostPages = Math.max(1, Math.ceil(totalHosts / HOST_PAGE_SIZE));
 
   const createHostMutation = useMutation({
