@@ -57,6 +57,7 @@ import { FilterBar } from "@/components/FilterBar";
 import { SectionCard } from "@/components/SectionCard";
 import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
 import { DenseListRow, DenseListSurface } from "@/components/DenseList";
+import { EmptyState } from "@/components/StateBlock";
 
 const stepIcons: Record<string, typeof Globe> = {
   navigate: Globe,
@@ -617,11 +618,7 @@ export default function TransactionsPage() {
                     </div>
                   </DenseListRow>
                 ))}
-                {!transactions.length && (
-                  <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                    No transactions yet. Create one to start monitoring workflows.
-                  </div>
-                )}
+                {!transactions.length && <EmptyState message="No transactions yet. Create one to start monitoring workflows." className="m-5 bg-transparent" />}
               </div>
             </SectionCard>
           </motion.div>
@@ -686,10 +683,7 @@ export default function TransactionsPage() {
                     })}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Zap className="mb-3 h-8 w-8 text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground">Select a transaction to view steps</p>
-                  </div>
+                  <EmptyState message="Select a transaction to view steps." className="bg-transparent py-12" />
                 )}
               </div>
             </DenseListSurface>
@@ -707,7 +701,7 @@ export default function TransactionsPage() {
                   {latestRun.replay_url ? (
                     <video key={latestRun.replay_url} src={latestRun.replay_url} controls playsInline preload="metadata" className="max-h-[260px] w-full rounded-lg border border-border bg-black" />
                   ) : (
-                    <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No replay yet for this run.</div>
+                    <EmptyState message="No replay yet for this run." className="bg-transparent" />
                   )}
                   {latestRun.ai_summary && <div className="whitespace-pre-wrap rounded-lg bg-surface px-3 py-3 text-sm text-foreground">{latestRun.ai_summary}</div>}
                 </div>
@@ -775,7 +769,7 @@ export default function TransactionsPage() {
                       );
                     })
                   ) : (
-                    <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No runs yet.</div>
+                    <EmptyState message="No runs yet." className="bg-transparent" />
                   )}
                 </div>
               </div>
@@ -1061,7 +1055,7 @@ export default function TransactionsPage() {
                           );
                         })
                       ) : (
-                        <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No steps yet. Generate them with AI or add one manually.</div>
+                        <EmptyState message="No steps yet. Generate them with AI or add one manually." className="bg-transparent" />
                       )}
                     </div>
                   </div>
@@ -1155,7 +1149,7 @@ export default function TransactionsPage() {
                       );
                     })}
                     {!selectedRun.step_results?.length && (
-                      <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No step results captured for this run.</div>
+                      <EmptyState message="No step results captured for this run." className="bg-transparent" />
                     )}
                   </div>
                 </DetailPanelSection>

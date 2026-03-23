@@ -5,6 +5,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FilterBar, FilterStat } from "@/components/FilterBar";
 import { DenseCardRow } from "@/components/DenseList";
+import { EmptyState, LoadingState } from "@/components/StateBlock";
+import { PagerBar, PagerMeta, PagerSummary } from "@/components/PagerBar";
+import { MetricCard } from "@/components/MetricCard";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -331,15 +334,7 @@ export default function ServicesPage() {
 
       <motion.div variants={item} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => (
-          <div key={card.label} className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{card.label}</div>
-                <div className="mt-2 text-2xl font-semibold text-foreground">{card.value}</div>
-              </div>
-              <div className="rounded-lg bg-surface p-2">{card.icon}</div>
-            </div>
-          </div>
+          <MetricCard key={card.label} label={card.label} value={card.value} icon={card.icon} className="p-4" />
         ))}
       </motion.div>
 
@@ -528,35 +523,36 @@ export default function ServicesPage() {
           );
         })}
 
-        {!isLoading && grouped.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
-            No services found for this filter.
-          </div>
-        )}
+        {!isLoading && grouped.length === 0 && <EmptyState message="No services found for this filter." />}
 
-        {isLoading && <div className="py-8 text-center text-muted-foreground">Loading services...</div>}
+        {isLoading && <LoadingState message="Loading services..." className="px-0" />}
       </motion.div>
 
-      <motion.div variants={item} className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{services.length}</span> of <span className="font-medium text-foreground">{totalServices}</span> services
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPage((current) => Math.max(0, current - 1))}
-            disabled={page === 0}
-            className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <button
-            onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
-            disabled={page >= totalPages - 1}
-            className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
+      <motion.div variants={item}>
+        <PagerBar>
+          <PagerSummary>
+            Showing <span className="font-medium text-foreground">{services.length}</span> of <span className="font-medium text-foreground">{totalServices}</span> services
+          </PagerSummary>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+              disabled={page === 0}
+              className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <PagerMeta>
+              Page <span className="font-medium text-foreground">{page + 1}</span> / {totalPages}
+            </PagerMeta>
+            <button
+              onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
+              disabled={page >= totalPages - 1}
+              className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </PagerBar>
       </motion.div>
 
       <ServiceDetailSheet

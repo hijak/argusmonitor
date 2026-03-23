@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useHostMetricsStream } from "@/hooks/useHostStream";
 import { cn } from "@/lib/utils";
 import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
+import { EmptyState, LoadingState } from "@/components/StateBlock";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -56,7 +57,9 @@ export function HostDetailModal({ hostId, onClose, variant = "compact" }: HostDe
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
           >
             {isLoading || !data ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground">Loading host data...</div>
+              <div className="flex h-full items-center justify-center px-6">
+                <LoadingState message="Loading host data..." className="w-full rounded-xl border border-border bg-card" />
+              </div>
             ) : (
               <HostContent data={data} onClose={onClose} variant={variant} />
             )}
@@ -307,7 +310,7 @@ function NetworkInterfacesCard({ interfaces }: { interfaces: Array<{ name: strin
     <DetailPanelSection title="Network Interfaces" contentClassName="p-0">
       <div className="divide-y divide-border/50">
         {top.length === 0 ? (
-          <div className="px-5 py-4 text-sm text-muted-foreground">No interface telemetry yet.</div>
+          <EmptyState message="No interface telemetry yet." className="m-5 bg-transparent" compact />
         ) : (
           top.map((iface) => (
             <div key={iface.name} className="grid grid-cols-[1fr] gap-3 px-5 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">

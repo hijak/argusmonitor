@@ -34,7 +34,9 @@ import { cn } from "@/lib/utils";
 import { useHostsStream } from "@/hooks/useHostStream";
 import { FilterBar, FilterStat } from "@/components/FilterBar";
 import { SectionCard } from "@/components/SectionCard";
-import { DenseListRow, DenseListSurface } from "@/components/DenseList";
+import { DenseCardRow, DenseListRow, DenseListSurface } from "@/components/DenseList";
+import { EmptyState, LoadingState } from "@/components/StateBlock";
+import { PagerBar, PagerMeta, PagerSummary } from "@/components/PagerBar";
 import {
   Dialog,
   DialogContent,
@@ -136,7 +138,7 @@ function MobileHostCard({ host, onClick, onDelete }: { host: any; onClick: () =>
   const memTone = host.memory_percent > 80 ? "critical" : host.memory_percent > 60 ? "warning" : "default";
 
   return (
-    <div className="rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm transition-colors hover:bg-surface-hover">
+    <DenseCardRow>
       <div className="flex items-start justify-between gap-3">
         <button onClick={onClick} className="flex min-w-0 flex-1 items-start gap-3 text-left">
           <div className="mt-0.5 rounded-lg bg-surface p-2">
@@ -205,7 +207,7 @@ function MobileHostCard({ host, onClick, onDelete }: { host: any; onClick: () =>
           </div>
         )}
       </button>
-    </div>
+    </DenseCardRow>
   );
 }
 
@@ -481,8 +483,8 @@ export default function InfrastructurePage() {
             </motion.div>
           ))}
 
-          {isLoading && <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">Loading hosts...</div>}
-          {!isLoading && sortedHosts.length === 0 && <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">No hosts match the current filters.</div>}
+          {isLoading && <LoadingState message="Loading hosts..." className="rounded-xl border border-border bg-card" />}
+          {!isLoading && sortedHosts.length === 0 && <EmptyState message="No hosts match the current filters." />}
         </motion.div>
 
         <motion.div variants={item} className="hidden lg:block">
@@ -566,35 +568,37 @@ export default function InfrastructurePage() {
                 </DenseListRow>
               );
             })}
-            {isLoading && <div className="px-5 py-8 text-center text-sm text-muted-foreground">Loading hosts...</div>}
-            {!isLoading && sortedHosts.length === 0 && <div className="px-5 py-8 text-center text-sm text-muted-foreground">No hosts match the current filters.</div>}
+            {isLoading && <LoadingState message="Loading hosts..." className="px-5" />}
+            {!isLoading && sortedHosts.length === 0 && <EmptyState message="No hosts match the current filters." className="m-5 bg-transparent" compact />}
           </div>
           </DenseListSurface>
         </motion.div>
 
-        <motion.div variants={item} className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing <span className="font-medium text-foreground">{hosts.length}</span> of <span className="font-medium text-foreground">{totalHosts}</span> hosts
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((current) => Math.max(0, current - 1))}
-              disabled={page === 0}
-              className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <div className="rounded-xl border border-border/60 bg-surface px-3 py-2 text-sm text-muted-foreground">
-              Page <span className="font-medium text-foreground">{page + 1}</span> / {totalHostPages}
+        <motion.div variants={item}>
+          <PagerBar>
+            <PagerSummary>
+              Showing <span className="font-medium text-foreground">{hosts.length}</span> of <span className="font-medium text-foreground">{totalHosts}</span> hosts
+            </PagerSummary>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((current) => Math.max(0, current - 1))}
+                disabled={page === 0}
+                className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <PagerMeta>
+                Page <span className="font-medium text-foreground">{page + 1}</span> / {totalHostPages}
+              </PagerMeta>
+              <button
+                onClick={() => setPage((current) => Math.min(totalHostPages - 1, current + 1))}
+                disabled={page >= totalHostPages - 1}
+                className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
-            <button
-              onClick={() => setPage((current) => Math.min(totalHostPages - 1, current + 1))}
-              disabled={page >= totalHostPages - 1}
-              className="rounded-lg border border-border px-3 py-2 text-sm disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
+          </PagerBar>
         </motion.div>
 
         <HostDetailModal hostId={selectedHostId} variant="detailed" onClose={() => setSelectedHostId(null)} />
