@@ -11,23 +11,25 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, change, changeType = "neutral", icon, className }: MetricCardProps) {
   return (
-    <div className={cn("rounded-lg border border-border bg-card p-5 transition-colors hover:bg-surface-hover", className)}>
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-      </div>
-      <div className="mt-2 flex items-end gap-2">
-        <span className="text-3xl font-semibold tracking-tight">{value}</span>
-        {change && (
-          <span className={cn(
-            "mb-1 text-xs font-medium",
-            changeType === "positive" && "text-success",
-            changeType === "negative" && "text-critical",
-            changeType === "neutral" && "text-muted-foreground",
-          )}>
-            {change}
-          </span>
-        )}
+    <div className={cn("rounded-2xl border border-border/80 bg-card/95 p-5 shadow-sm transition-colors hover:bg-surface-hover", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+          <div className="mt-3 flex items-end gap-2">
+            <span className="truncate text-3xl font-semibold tracking-tight text-foreground">{value}</span>
+            {change && (
+              <span className={cn(
+                "mb-1 text-xs font-medium",
+                changeType === "positive" && "text-success",
+                changeType === "negative" && "text-critical",
+                changeType === "neutral" && "text-muted-foreground",
+              )}>
+                {change}
+              </span>
+            )}
+          </div>
+        </div>
+        {icon && <span className="rounded-xl bg-surface p-2 text-muted-foreground">{icon}</span>}
       </div>
     </div>
   );

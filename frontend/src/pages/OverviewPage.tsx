@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { PageHeader } from "@/components/PageHeader";
 import { HostDetailModal } from "@/components/HostDetailModal";
+import { SectionCard } from "@/components/SectionCard";
 import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity, ArrowUp, ArrowDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHostsStream } from "@/hooks/useHostStream";
