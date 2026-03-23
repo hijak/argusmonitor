@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FilterBar, FilterStat } from "@/components/FilterBar";
+import { DenseCardRow } from "@/components/DenseList";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -341,35 +343,34 @@ export default function ServicesPage() {
         ))}
       </motion.div>
 
-      <motion.div variants={item} className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[1fr_220px_180px]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            placeholder="Search services, endpoints, URLs"
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
-          <SelectTrigger>
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="healthy">Healthy</SelectItem>
-            <SelectItem value="warning">Warning</SelectItem>
-            <SelectItem value="critical">Critical</SelectItem>
-            <SelectItem value="unknown">Unknown</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex items-center justify-between rounded-lg bg-surface px-3 py-2 text-sm text-muted-foreground lg:justify-center">
-          <span>Page</span>
-          <span className="font-medium text-foreground">{page + 1} / {totalPages}</span>
-        </div>
+      <motion.div variants={item}>
+        <FilterBar className="grid gap-3 lg:grid-cols-[1fr_220px_180px]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Search services, endpoints, URLs"
+              className="pl-9"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="healthy">Healthy</SelectItem>
+              <SelectItem value="warning">Warning</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="unknown">Unknown</SelectItem>
+            </SelectContent>
+          </Select>
+          <FilterStat label="Page" value={`${page + 1} / ${totalPages}`} />
+        </FilterBar>
       </motion.div>
 
       <motion.div variants={item} className="space-y-4">
@@ -380,7 +381,7 @@ export default function ServicesPage() {
           const warningCount = group.services.filter((svc) => normalizeStatus(svc.status) === "warning").length;
 
           return (
-            <section key={group.key} className="overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm">
+            <section key={group.key} className="overflow-hidden rounded-2xl border border-border/80 bg-card/90 shadow-sm">
               <div className="flex flex-col gap-4 border-b border-border px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -403,25 +404,25 @@ export default function ServicesPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <div className="rounded-xl bg-surface px-3 py-2 text-xs">
+                  <div className="rounded-xl border border-border/60 bg-surface px-3 py-2 text-xs">
                     <div className="text-muted-foreground">Avg latency</div>
                     <div className="mt-1 font-mono text-foreground">
                       {Math.round(group.services.reduce((sum, svc) => sum + Number(svc.latency_ms || 0), 0) / Math.max(group.services.length, 1))}ms
                     </div>
                   </div>
-                  <div className="rounded-xl bg-surface px-3 py-2 text-xs">
+                  <div className="rounded-xl border border-border/60 bg-surface px-3 py-2 text-xs">
                     <div className="text-muted-foreground">Traffic</div>
                     <div className="mt-1 font-mono text-foreground">
                       {formatRpm(group.services.reduce((sum, svc) => sum + Number(svc.requests_per_min || 0), 0))}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-surface px-3 py-2 text-xs">
+                  <div className="rounded-xl border border-border/60 bg-surface px-3 py-2 text-xs">
                     <div className="text-muted-foreground">Plugins</div>
                     <div className="mt-1 font-mono text-foreground">
                       {new Set(group.services.map((svc) => svc.plugin_id).filter(Boolean)).size || 0}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-surface px-3 py-2 text-xs">
+                  <div className="rounded-xl border border-border/60 bg-surface px-3 py-2 text-xs">
                     <div className="text-muted-foreground">Types</div>
                     <div className="mt-1 font-mono text-foreground">
                       {new Set(group.services.map((svc) => svc.service_type).filter(Boolean)).size || 0}
@@ -436,14 +437,16 @@ export default function ServicesPage() {
                   const pluginHealth = getPluginHealth(svc);
                   const pluginRows = getPluginMetricRows(svc);
                   return (
-                    <article
+                    <DenseCardRow
                       key={svc.id}
-                      onClick={() => {
-                        setSelectedService(svc);
-                      }}
-                      className="group cursor-pointer rounded-2xl border border-border bg-background/60 p-3 transition-all hover:border-primary/30 hover:bg-surface-hover sm:p-4"
+                      className="group cursor-pointer"
                     >
-                      <div className="flex flex-col gap-3">
+                      <div
+                        onClick={() => {
+                          setSelectedService(svc);
+                        }}
+                        className="flex flex-col gap-3"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
@@ -463,23 +466,23 @@ export default function ServicesPage() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          <div className="rounded-lg bg-surface px-2.5 py-2">
+                          <div className="rounded-xl border border-border/60 bg-surface px-2.5 py-2">
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Latency</div>
                             <div className={`mt-1 font-mono text-sm ${Number(svc.latency_ms || 0) > 200 ? "text-critical" : Number(svc.latency_ms || 0) > 100 ? "text-warning" : "text-foreground"}`}>
                               {Math.round(Number(svc.latency_ms || 0))}ms
                             </div>
                           </div>
-                          <div className="rounded-lg bg-surface px-2.5 py-2">
+                          <div className="rounded-xl border border-border/60 bg-surface px-2.5 py-2">
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Traffic</div>
                             <div className="mt-1 font-mono text-sm text-foreground">{formatRpm(Number(svc.requests_per_min || 0))}</div>
                           </div>
-                          <div className="rounded-lg bg-surface px-2.5 py-2 col-span-2 sm:col-span-1">
+                          <div className="rounded-xl border border-border/60 bg-surface px-2.5 py-2 col-span-2 sm:col-span-1">
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Uptime</div>
                             <div className="mt-1 font-mono text-sm text-foreground">{Number(svc.uptime_percent || 0).toFixed(1)}%</div>
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-border/70 bg-card/40 p-3">
+                        <div className="rounded-2xl border border-border/70 bg-card/50 p-3">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Plugin telemetry</div>
                             <div className="hidden sm:block">
@@ -493,7 +496,7 @@ export default function ServicesPage() {
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-xs">
                             {pluginRows.map((row) => (
-                              <div key={row.label} className="rounded-lg bg-surface px-2.5 py-2">
+                              <div key={row.label} className="rounded-xl border border-border/60 bg-surface px-2.5 py-2">
                                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{row.label}</div>
                                 <div className="mt-1 truncate font-mono text-foreground">{String(row.value)}</div>
                               </div>
@@ -517,7 +520,7 @@ export default function ServicesPage() {
                           <div className="text-[11px] text-muted-foreground">Tap for full details</div>
                         </div>
                       </div>
-                    </article>
+                    </DenseCardRow>
                   );
                 })}
               </div>
@@ -534,7 +537,7 @@ export default function ServicesPage() {
         {isLoading && <div className="py-8 text-center text-muted-foreground">Loading services...</div>}
       </motion.div>
 
-      <motion.div variants={item} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+      <motion.div variants={item} className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           Showing <span className="font-medium text-foreground">{services.length}</span> of <span className="font-medium text-foreground">{totalServices}</span> services
         </div>

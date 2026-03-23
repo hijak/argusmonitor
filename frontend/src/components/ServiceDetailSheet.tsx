@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
+import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
 import { api } from "@/lib/api";
 import { Activity, Database, Globe, HardDrive, Network, Server, ShieldAlert, TrendingDown, TrendingUp, Waypoints } from "lucide-react";
 
@@ -222,19 +223,14 @@ export function ServiceDetailSheet({
         <div className="space-y-6 p-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {metricCards.map((card) => (
-              <div key={card.label} className="rounded-xl border border-border bg-background/60 p-4">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">{card.label}</div>
-                <div className={`mt-2 text-2xl font-semibold ${card.tone}`}>{card.value}</div>
-              </div>
+              <DetailStatCard key={card.label} label={card.label} value={card.value} tone={card.tone} className="bg-background/60" />
             ))}
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/50 p-5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                Performance trend
-              </div>
+          <DetailPanelSection
+            title="Performance trend"
+            icon={<Activity className="h-4 w-4" />}
+            actions={
               <div className="flex items-center gap-2">
                 {historyRanges.map((range) => (
                   <button
@@ -247,8 +243,9 @@ export function ServiceDetailSheet({
                   </button>
                 ))}
               </div>
-            </div>
-
+            }
+            className="bg-background/50"
+          >
             <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-xl border border-border bg-surface p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -293,14 +290,10 @@ export function ServiceDetailSheet({
                 </div>
               </div>
             </div>
-          </div>
+          </DetailPanelSection>
 
           <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-2xl border border-border bg-background/50 p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-                <Network className="h-4 w-4 text-muted-foreground" />
-                Connectivity
-              </div>
+            <DetailPanelSection title="Connectivity" icon={<Network className="h-4 w-4" />} className="bg-background/50" contentClassName="pt-1 sm:pt-2">
               <DetailRow label="Endpoint" value={service.endpoint} mono />
               <DetailRow label="URL" value={service.url} mono />
               <DetailRow label="Host / node" value={host?.name || "Unassigned"} />
@@ -308,27 +301,19 @@ export function ServiceDetailSheet({
               <DetailRow label="Host status" value={host?.status} />
               <DetailRow label="Host type" value={host?.type} />
               <DetailRow label="Created" value={service.created_at ? new Date(service.created_at).toLocaleString() : "—"} />
-            </div>
+            </DetailPanelSection>
 
-            <div className="rounded-2xl border border-border bg-background/50 p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-                <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                Plugin details
-              </div>
+            <DetailPanelSection title="Plugin details" icon={<ShieldAlert className="h-4 w-4" />} className="bg-background/50" contentClassName="pt-1 sm:pt-2">
               {detailRows.map((row) => (
                 <DetailRow key={row.label} label={row.label} value={row.value} />
               ))}
-            </div>
+            </DetailPanelSection>
           </div>
 
           {Object.keys(meta).length > 0 && (
-            <div className="rounded-2xl border border-border bg-background/50 p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-                <Server className="h-4 w-4 text-muted-foreground" />
-                Raw metadata
-              </div>
+            <DetailPanelSection title="Raw metadata" icon={<Server className="h-4 w-4" />} className="bg-background/50">
               <pre className="overflow-x-auto rounded-xl bg-surface p-4 text-xs text-foreground">{JSON.stringify(meta, null, 2)}</pre>
-            </div>
+            </DetailPanelSection>
           )}
         </div>
       </SheetContent>

@@ -32,6 +32,9 @@ import { sortHosts, type HostSortKey } from "@/lib/hostSorting";
 import { usePersistentHostSort } from "@/hooks/usePersistentHostSort";
 import { cn } from "@/lib/utils";
 import { useHostsStream } from "@/hooks/useHostStream";
+import { FilterBar, FilterStat } from "@/components/FilterBar";
+import { SectionCard } from "@/components/SectionCard";
+import { DenseListRow, DenseListSurface } from "@/components/DenseList";
 import {
   Dialog,
   DialogContent,
@@ -133,7 +136,7 @@ function MobileHostCard({ host, onClick, onDelete }: { host: any; onClick: () =>
   const memTone = host.memory_percent > 80 ? "critical" : host.memory_percent > 60 ? "warning" : "default";
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 transition-colors hover:bg-surface-hover">
+    <div className="rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm transition-colors hover:bg-surface-hover">
       <div className="flex items-start justify-between gap-3">
         <button onClick={onClick} className="flex min-w-0 flex-1 items-start gap-3 text-left">
           <div className="mt-0.5 rounded-lg bg-surface p-2">
@@ -388,61 +391,65 @@ export default function InfrastructurePage() {
           </PageHeader>
         </motion.div>
 
-        <motion.div variants={item} className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
-          <div className="relative w-full xl:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              placeholder="Search hosts..."
-              className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
-            />
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-border bg-card p-1">
-            <div className="flex min-w-max items-center gap-1">
-              {(["all", "server", "database", "container", "network"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTypeFilter(t)}
-                  className={`rounded-md px-3 py-2 text-xs font-medium transition-colors ${
-                    typeFilter === t ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)} ({counts[t]})
-                </button>
-              ))}
+        <motion.div variants={item}>
+          <FilterBar className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
+            <div className="relative w-full xl:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                placeholder="Search hosts..."
+                className="w-full rounded-lg border border-border bg-surface py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
+              />
             </div>
-          </div>
 
-          <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground xl:justify-start">
-            <Activity className="h-3.5 w-3.5 text-success" />
-            <span>{hostCounts?.live_agent_hosts ?? 0} live agent hosts</span>
-          </div>
+            <div className="overflow-x-auto rounded-xl border border-border/60 bg-surface p-1">
+              <div className="flex min-w-max items-center gap-1">
+                {(["all", "server", "database", "container", "network"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTypeFilter(t)}
+                    className={`rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                      typeFilter === t ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)} ({counts[t]})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <FilterStat
+              label="Live agents"
+              value={
+                <span className="inline-flex items-center gap-2">
+                  <Activity className="h-3.5 w-3.5 text-success" />
+                  <span>{hostCounts?.live_agent_hosts ?? 0}</span>
+                </span>
+              }
+            />
+          </FilterBar>
         </motion.div>
 
-        <motion.div variants={item} className="rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Shield className="h-4 w-4 text-primary" /> Host onboarding
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Per-host enrollment tokens, same-origin install commands, and manual registration for static entries.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+        <motion.div variants={item}>
+          <SectionCard
+            title="Host onboarding"
+            description="Per-host enrollment tokens, same-origin install commands, and manual registration for static entries."
+            icon={<Shield className="h-4 w-4 text-primary" />}
+            actions={
               <button
                 onClick={() => setOnboardingOpen(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover"
               >
                 <TerminalSquare className="h-4 w-4" /> Start onboarding
               </button>
-            </div>
-          </div>
+            }
+          >
+            <div className="px-4 py-0 sm:px-5" />
+          </SectionCard>
         </motion.div>
 
         <motion.div variants={item} className="space-y-3 lg:hidden">
@@ -478,7 +485,8 @@ export default function InfrastructurePage() {
           {!isLoading && sortedHosts.length === 0 && <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">No hosts match the current filters.</div>}
         </motion.div>
 
-        <motion.div variants={item} className="hidden overflow-hidden rounded-lg border border-border bg-card lg:block">
+        <motion.div variants={item} className="hidden lg:block">
+          <DenseListSurface>
           <div className="grid grid-cols-[1fr_100px_80px_80px_90px_80px_120px_56px] items-center gap-4 border-b border-border px-5 py-3 text-xs font-medium text-muted-foreground">
             {([
               ["name", "Host"],
@@ -504,10 +512,10 @@ export default function InfrastructurePage() {
             {sortedHosts.map((host: any) => {
               const Icon = typeIcons[host.type as HostType] || Server;
               return (
-                <motion.div
+                <DenseListRow
                   key={host.id}
-                  variants={item}
-                  className="grid grid-cols-[1fr_100px_80px_80px_90px_80px_120px_56px] items-center gap-4 px-5 py-3 transition-colors hover:bg-surface-hover"
+                  interactive
+                  className="grid grid-cols-[1fr_100px_80px_80px_90px_80px_120px_56px] items-center gap-4 px-5 py-3"
                 >
                   <button onClick={() => setSelectedHostId(host.id)} className="flex min-w-0 items-center gap-3 text-left">
                     <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -555,15 +563,16 @@ export default function InfrastructurePage() {
                   <div className="flex justify-end">
                     <DeleteHostButton host={host} onDelete={setHostToDelete} />
                   </div>
-                </motion.div>
+                </DenseListRow>
               );
             })}
             {isLoading && <div className="px-5 py-8 text-center text-sm text-muted-foreground">Loading hosts...</div>}
             {!isLoading && sortedHosts.length === 0 && <div className="px-5 py-8 text-center text-sm text-muted-foreground">No hosts match the current filters.</div>}
           </div>
+          </DenseListSurface>
         </motion.div>
 
-        <motion.div variants={item} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <motion.div variants={item} className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
             Showing <span className="font-medium text-foreground">{hosts.length}</span> of <span className="font-medium text-foreground">{totalHosts}</span> hosts
           </div>
@@ -575,7 +584,7 @@ export default function InfrastructurePage() {
             >
               Previous
             </button>
-            <div className="rounded-lg bg-surface px-3 py-2 text-sm text-muted-foreground">
+            <div className="rounded-xl border border-border/60 bg-surface px-3 py-2 text-sm text-muted-foreground">
               Page <span className="font-medium text-foreground">{page + 1}</span> / {totalHostPages}
             </div>
             <button
@@ -601,7 +610,7 @@ export default function InfrastructurePage() {
           </DialogHeader>
 
           <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+            <div className="space-y-4 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <TerminalSquare className="h-4 w-4 text-primary" /> Agent onboarding
               </div>
@@ -640,7 +649,7 @@ export default function InfrastructurePage() {
                       <button
                         onClick={refreshEnrollment}
                         disabled={rotateEnrollmentMutation.isPending}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border/80 bg-card/95 shadow-sm px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover disabled:opacity-50"
                       >
                         <RefreshCw className={cn("h-4 w-4", rotateEnrollmentMutation.isPending && "animate-spin")} />
                         {enrollmentInfo ? "Rotate token" : "Generate install command"}
@@ -700,7 +709,7 @@ export default function InfrastructurePage() {
               </div>
             </div>
 
-            <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+            <div className="space-y-4 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Server className="h-4 w-4 text-primary" /> Manual registration
               </div>

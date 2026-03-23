@@ -53,6 +53,10 @@ import {
   Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { FilterBar } from "@/components/FilterBar";
+import { SectionCard } from "@/components/SectionCard";
+import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
+import { DenseListRow, DenseListSurface } from "@/components/DenseList";
 
 const stepIcons: Record<string, typeof Globe> = {
   navigate: Globe,
@@ -556,7 +560,7 @@ export default function TransactionsPage() {
         </motion.div>
 
         <motion.div variants={item}>
-          <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+          <FilterBar className="flex flex-col gap-3 border-primary/20 bg-primary/5 sm:flex-row sm:items-center">
             <Bot className="h-5 w-5 shrink-0 text-primary" />
             <Input
               value={aiPrompt}
@@ -569,26 +573,23 @@ export default function TransactionsPage() {
               {generateMutation.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
               Generate
             </Button>
-          </div>
+          </FilterBar>
         </motion.div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-5 lg:gap-6">
           <motion.div variants={item} className="lg:col-span-3">
-            <div className="rounded-lg border border-border bg-card">
-              <div className="border-b border-border px-4 py-3 sm:px-5">
-                <h2 className="text-sm font-medium">Active Monitors</h2>
-              </div>
+            <SectionCard title="Active Monitors" contentClassName="p-0">
               <div className="divide-y divide-border">
                 {transactions.map((tx: any) => (
-                  <div
+                  <DenseListRow
                     key={tx.id}
+                    interactive
+                    selected={selectedTx === tx.id}
                     onClick={() => {
                       setSelectedTx(tx.id === selectedTx ? null : tx.id);
                       setSelectedRun(null);
                     }}
-                    className={`cursor-pointer flex flex-col gap-3 px-4 py-4 transition-colors sm:flex-row sm:items-center sm:gap-4 sm:px-5 ${
-                      selectedTx === tx.id ? "bg-surface-hover" : "hover:bg-surface-hover"
-                    }`}
+                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
                   >
                     <Zap className={`h-4 w-4 shrink-0 ${tx.status === "healthy" ? "text-success" : tx.status === "warning" ? "text-warning" : "text-critical"}`} />
                     <div className="min-w-0 flex-1">
@@ -614,7 +615,7 @@ export default function TransactionsPage() {
                         <StatusBadge variant={!tx.enabled ? "warning" : tx.status}>{!tx.enabled ? "paused" : tx.status}</StatusBadge>
                       </div>
                     </div>
-                  </div>
+                  </DenseListRow>
                 ))}
                 {!transactions.length && (
                   <div className="px-5 py-10 text-center text-sm text-muted-foreground">
@@ -622,11 +623,11 @@ export default function TransactionsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </SectionCard>
           </motion.div>
 
           <motion.div variants={item} className="space-y-4 lg:col-span-2">
-            <div className="rounded-lg border border-border bg-card">
+            <DenseListSurface>
               <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <h2 className="min-w-0 text-sm font-medium">{selectedTransaction ? selectedTransaction.name : "Transaction Steps"}</h2>
                 {selectedTransaction && (
@@ -691,10 +692,10 @@ export default function TransactionsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </DenseListSurface>
 
             {selectedTransaction && latestRun && (
-              <div className="rounded-lg border border-border bg-card">
+              <div className="rounded-2xl border border-border/80 bg-card/95 shadow-sm">
                 <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <h2 className="text-sm font-medium">Latest replay</h2>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -714,7 +715,7 @@ export default function TransactionsPage() {
             )}
 
             {selectedTransaction && (
-              <div className="rounded-lg border border-border bg-card">
+              <div className="rounded-2xl border border-border/80 bg-card/95 shadow-sm">
                 <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <div>
                     <h2 className="text-sm font-medium">Run history</h2>
@@ -741,11 +742,12 @@ export default function TransactionsPage() {
                       const successfulSteps = run.step_results?.filter((s: any) => s.status === "success").length || 0;
                       const totalSteps = run.step_results?.length || selectedTransaction.steps?.length || 0;
                       return (
-                        <button
+                        <DenseListRow
                           key={run.id}
-                          type="button"
+                          interactive
+                          selected={selectedRun?.id === run.id}
                           onClick={() => setSelectedRun(run)}
-                          className={`w-full rounded-lg border p-3 text-left transition-colors active:scale-[0.99] ${selectedRun?.id === run.id ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-hover"}`}
+                          className="w-full rounded-xl border border-border/70 bg-surface p-3 text-left active:scale-[0.99]"
                         >
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                             <div className="min-w-0 flex-1">
@@ -769,7 +771,7 @@ export default function TransactionsPage() {
                           </div>
                           {run.error_message && <div className="mt-3 whitespace-pre-wrap text-sm text-critical">{run.error_message}</div>}
                           {!run.error_message && failedStep?.error_message && <div className="mt-3 whitespace-pre-wrap text-sm text-critical">{failedStep.error_message}</div>}
-                        </button>
+                        </DenseListRow>
                       );
                     })
                   ) : (
@@ -855,7 +857,7 @@ export default function TransactionsPage() {
                       <Switch checked={transactionEnabled} onCheckedChange={setTransactionEnabled} />
                     </div>
 
-                    <div className="space-y-3 rounded-xl border border-border p-4">
+                    <div className="space-y-3 rounded-2xl border border-border/80 p-4">
                       <div>
                         <div className="text-sm font-medium">Run schedule</div>
                         <div className="mt-1 text-xs text-muted-foreground">Use a preset interval, custom minutes, or a real cron expression.</div>
@@ -1096,43 +1098,30 @@ export default function TransactionsPage() {
 
               <div className="flex-1 space-y-5 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border border-border bg-surface p-4">
-                    <div className="text-xs text-muted-foreground">Started</div>
-                    <div className="mt-1 text-sm font-medium">{formatDateTime(selectedRun.started_at)}</div>
-                  </div>
-                  <div className="rounded-lg border border-border bg-surface p-4">
-                    <div className="text-xs text-muted-foreground">Completed</div>
-                    <div className="mt-1 text-sm font-medium">{formatDateTime(selectedRun.completed_at)}</div>
-                  </div>
-                  <div className="rounded-lg border border-border bg-surface p-4">
-                    <div className="text-xs text-muted-foreground">Duration</div>
-                    <div className="mt-1 text-sm font-medium">{formatDuration(selectedRun.duration_ms)}</div>
-                  </div>
+                  <DetailStatCard label="Started" value={<span className="text-sm font-medium">{formatDateTime(selectedRun.started_at)}</span>} />
+                  <DetailStatCard label="Completed" value={<span className="text-sm font-medium">{formatDateTime(selectedRun.completed_at)}</span>} />
+                  <DetailStatCard label="Duration" value={<span className="text-sm font-medium">{formatDuration(selectedRun.duration_ms)}</span>} />
                 </div>
 
                 {selectedRun.error_message && (
-                  <div className="rounded-lg border border-critical/30 bg-critical/5 p-4">
-                    <div className="text-sm font-medium text-critical">Run error</div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm text-critical">{selectedRun.error_message}</div>
-                  </div>
+                  <DetailPanelSection title="Run error" className="border-critical/30 bg-critical/5" contentClassName="pt-4">
+                    <div className="whitespace-pre-wrap text-sm text-critical">{selectedRun.error_message}</div>
+                  </DetailPanelSection>
                 )}
 
                 {selectedRun.replay_url && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium">Replay</h3>
+                  <DetailPanelSection title="Replay">
                     <video src={selectedRun.replay_url} controls playsInline preload="metadata" className="max-h-[320px] w-full rounded-lg border border-border bg-black" />
-                  </div>
+                  </DetailPanelSection>
                 )}
 
                 {selectedRun.ai_summary && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium">AI summary</h3>
-                    <div className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-4 text-sm text-foreground">{selectedRun.ai_summary}</div>
-                  </div>
+                  <DetailPanelSection title="AI summary">
+                    <div className="whitespace-pre-wrap rounded-xl border border-border/70 bg-surface p-4 text-sm text-foreground">{selectedRun.ai_summary}</div>
+                  </DetailPanelSection>
                 )}
 
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium">Step results</h3>
+                <DetailPanelSection title="Step results">
                   <div className="space-y-3">
                     {(selectedRun.step_results || []).map((step: any) => {
                       const Icon = stepIcons[step.type] || Code;
@@ -1169,7 +1158,7 @@ export default function TransactionsPage() {
                       <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No step results captured for this run.</div>
                     )}
                   </div>
-                </div>
+                </DetailPanelSection>
               </div>
             </div>
           )}

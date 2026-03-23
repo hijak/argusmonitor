@@ -6,6 +6,7 @@ import { X, Server, Database, Container, Wifi, Activity, Clock3, HardDrive, Cpu,
 import { motion, AnimatePresence } from "framer-motion";
 import { useHostMetricsStream } from "@/hooks/useHostStream";
 import { cn } from "@/lib/utils";
+import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -250,16 +251,23 @@ function GaugeCard({
   const barColor = pct > 80 ? "bg-critical" : pct > 60 ? "bg-warning" : "bg-success";
 
   return (
-    <div className={cn("rounded-lg border p-4", bg, emphasis && "min-h-[132px]")}>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <p className={cn("font-mono font-bold", color, emphasis ? "text-3xl" : "text-2xl")}>{pct}%</p>
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted/50">
-        <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${Math.min(pct, 100)}%` }} />
-      </div>
-    </div>
+    <DetailStatCard
+      label={label}
+      value={
+        <>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="sr-only">{label}</span>
+            <span />
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className={cn("font-mono font-bold", color, emphasis ? "text-3xl" : "text-2xl")}>{pct}%</p>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted/50">
+            <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${Math.min(pct, 100)}%` }} />
+          </div>
+        </>
+      }
+      className={cn(bg, emphasis && "min-h-[132px]")}
+    />
   );
 }
 
@@ -273,10 +281,7 @@ function InfoCard({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border">
-      <div className="border-b border-border px-5 py-3">
-        <h3 className="text-sm font-medium">{title}</h3>
-      </div>
+    <DetailPanelSection title={title} contentClassName="p-0">
       <div className="divide-y divide-border/50">
         {rows.map((row) => {
           const Icon = row.icon;
@@ -291,7 +296,7 @@ function InfoCard({
           );
         })}
       </div>
-    </div>
+    </DetailPanelSection>
   );
 }
 
@@ -299,10 +304,7 @@ function NetworkInterfacesCard({ interfaces }: { interfaces: Array<{ name: strin
   const top = [...interfaces].sort((a, b) => (b.rx_bytes_per_sec + b.tx_bytes_per_sec) - (a.rx_bytes_per_sec + a.tx_bytes_per_sec)).slice(0, 6);
 
   return (
-    <div className="rounded-lg border border-border">
-      <div className="border-b border-border px-5 py-3">
-        <h3 className="text-sm font-medium">Network Interfaces</h3>
-      </div>
+    <DetailPanelSection title="Network Interfaces" contentClassName="p-0">
       <div className="divide-y divide-border/50">
         {top.length === 0 ? (
           <div className="px-5 py-4 text-sm text-muted-foreground">No interface telemetry yet.</div>
@@ -331,7 +333,7 @@ function NetworkInterfacesCard({ interfaces }: { interfaces: Array<{ name: strin
           ))
         )}
       </div>
-    </div>
+    </DetailPanelSection>
   );
 }
 
