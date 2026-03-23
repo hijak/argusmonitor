@@ -7,7 +7,7 @@ import { Sparkline } from "@/components/Sparkline";
 import { PageHeader } from "@/components/PageHeader";
 import { HostDetailModal } from "@/components/HostDetailModal";
 import { SectionCard } from "@/components/SectionCard";
-import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity, ArrowUp, ArrowDown } from "lucide-react";
+import { Server, Bell, AlertTriangle, Zap, CheckCircle, Clock, ArrowUpRight, ArrowDownRight, Activity, ArrowUp, ArrowDown, Boxes, Container, Network } from "lucide-react";
 import { motion } from "framer-motion";
 import { useHostsStream } from "@/hooks/useHostStream";
 import { getWorkspaceId } from "@/lib/workspace";
@@ -33,12 +33,30 @@ export default function OverviewPage() {
   const { data: alerts = [] } = useQuery({ queryKey: ["overview-alerts"], queryFn: api.overviewRecentAlerts, refetchInterval: 15000 });
   const { data: incidents = [] } = useQuery({ queryKey: ["overview-incidents"], queryFn: api.overviewRecentIncidents, refetchInterval: 30000 });
   const { data: transactions = [] } = useQuery({ queryKey: ["overview-tx"], queryFn: api.overviewTransactionSummary, refetchInterval: 30000 });
+  const { data: k8sClusters = [] } = useQuery({ queryKey: ["k8s-clusters"], queryFn: api.listKubernetesClusters, refetchInterval: 30000 });
+  const { data: swarmClusters = [] } = useQuery({ queryKey: ["swarm-clusters"], queryFn: api.listSwarmClusters, refetchInterval: 30000 });
+  const { data: proxmoxClusters = [] } = useQuery({ queryKey: ["proxmox-clusters"], queryFn: api.listProxmoxClusters, refetchInterval: 30000 });
+  const primaryK8sClusterId = k8sClusters[0]?.id;
+  const primarySwarmClusterId = swarmClusters[0]?.id;
+  const primaryProxmoxClusterId = proxmoxClusters[0]?.id;
+  const { data: k8sStats } = useQuery({ queryKey: ["overview-k8s-stats", primaryK8sClusterId], queryFn: () => api.getKubernetesClusterStats(primaryK8sClusterId), enabled: !!primaryK8sClusterId, refetchInterval: 30000 });
+  const { data: swarmStats } = useQuery({ queryKey: ["overview-swarm-stats", primarySwarmClusterId], queryFn: () => api.getSwarmClusterStats(primarySwarmClusterId), enabled: !!primarySwarmClusterId, refetchInterval: 30000 });
+  const { data: proxmoxStats } = useQuery({ queryKey: ["overview-proxmox-stats", primaryProxmoxClusterId], queryFn: () => api.getProxmoxClusterStats(primaryProxmoxClusterId), enabled: !!primaryProxmoxClusterId, refetchInterval: 30000 });
 
   const liveAgentCount = useMemo(() => hosts.filter((h: any) => h.is_agent_connected).length, [hosts]);
   const sortedHosts = useMemo(
     () => sortHosts(hosts, hostSortKey, hostSortDirection),
     [hosts, hostSortKey, hostSortDirection],
   );
+  const kubernetesConfigured = k8sClusters.length > 0;
+  const swarmConfigured = swarmClusters.length > 0;
+  const proxmoxConfigured = proxmoxClusters.length > 0;
+  const kubeNodeCount = Object.values(k8sStats?.nodes_by_status || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+  const kubeWorkloadCount = (k8sStats?.deployment_count || 0) + (k8sStats?.statefulset_count || 0) + (k8sStats?.daemonset_count || 0);
+  const swarmNodeCount = Object.values(swarmStats?.nodes_by_status || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+  const swarmTaskCount = Object.values(swarmStats?.tasks_by_state || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+  const proxmoxNodeCount = Object.values(proxmoxStats?.nodes_by_status || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
+  const proxmoxVmCount = Object.values(proxmoxStats?.vms_by_status || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0);
 
   return (
     <motion.div className="space-y-6 p-4 sm:p-6" variants={container} initial="hidden" animate="show">
@@ -54,6 +72,47 @@ export default function OverviewPage() {
         <MetricCard label="Health Score" value={stats ? `${stats.health_score}%` : "..."} change={stats?.health_change} changeType="neutral" icon={<CheckCircle className="h-4 w-4" />} />
         <MetricCard label="Transaction Success" value={stats ? `${stats.transaction_success}%` : "..."} change={stats?.tx_change} changeType="positive" icon={<Zap className="h-4 w-4" />} />
       </motion.div>
+
+      {(kubernetesConfigured || swarmConfigured || proxmoxConfigured) && (
+        <motion.div variants={item} className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          {kubernetesConfigured && (
+            <SectionCard
+              title="Kubernetes"
+              description={`${k8sClusters.length} cluster${k8sClusters.length === 1 ? "" : "s"} configured`}
+              icon={<Boxes className="h-4 w-4" />}
+              contentClassName="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
+            >
+              <MetricCard label="Nodes" value={kubeNodeCount} icon={<Server className="h-4 w-4" />} className="p-4" />
+              <MetricCard label="Workloads" value={kubeWorkloadCount} icon={<Boxes className="h-4 w-4" />} className="p-4" />
+              <MetricCard label="Services" value={k8sStats?.service_count ?? 0} icon={<Network className="h-4 w-4" />} className="p-4" />
+            </SectionCard>
+          )}
+          {swarmConfigured && (
+            <SectionCard
+              title="Docker Swarm"
+              description={`${swarmClusters.length} cluster${swarmClusters.length === 1 ? "" : "s"} configured`}
+              icon={<Container className="h-4 w-4" />}
+              contentClassName="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
+            >
+              <MetricCard label="Nodes" value={swarmNodeCount} icon={<Server className="h-4 w-4" />} className="p-4" />
+              <MetricCard label="Tasks" value={swarmTaskCount} icon={<Container className="h-4 w-4" />} className="p-4" />
+              <MetricCard label="Networks" value={swarmStats?.network_count ?? 0} icon={<Network className="h-4 w-4" />} className="p-4" />
+            </SectionCard>
+          )}
+          {proxmoxConfigured && (
+            <SectionCard
+              title="Proxmox"
+              description={`${proxmoxClusters.length} cluster${proxmoxClusters.length === 1 ? "" : "s"} configured`}
+              icon={<Server className="h-4 w-4" />}
+              contentClassName="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
+            >
+              <MetricCard label="Nodes" value={proxmoxNodeCount} icon={<Server className="h-4 w-4" />} className="p-4" />
+              <MetricCard label="VMs" value={proxmoxVmCount} icon={<Boxes className="h-4 w-4" />} className="p-4" />
+              <MetricCard label="Failed tasks" value={(proxmoxStats?.recent_failed_tasks || []).length} icon={<AlertTriangle className="h-4 w-4" />} className="p-4" />
+            </SectionCard>
+          )}
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <motion.div variants={item} className="lg:col-span-2">
