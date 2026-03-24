@@ -1,5 +1,5 @@
 import { Activity } from "lucide-react";
-import { DOCS_URL, GITHUB_URL } from "@/lib/site";
+import { DOCS_URL, GITHUB_URL, PLUGIN_DIRECTORY_URL } from "@/lib/site";
 
 const columns = [
   {

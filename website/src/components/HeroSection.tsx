@@ -20,7 +20,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { APP_URL, DEMO_URL, GITHUB_URL, START_URL } from "@/lib/site";
+import { APP_URL, DEMO_URL, GITHUB_URL, PLUGIN_DIRECTORY_URL, START_URL } from "@/lib/site";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },

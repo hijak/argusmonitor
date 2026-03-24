@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Activity, Menu, X, Github } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DEMO_URL, DOCS_URL, GITHUB_URL, START_URL } from "@/lib/site";
+import { DEMO_URL, DOCS_URL, GITHUB_URL, PLUGIN_DIRECTORY_URL, START_URL } from "@/lib/site";
 
 const navLinks = [
   { label: "Features", href: "#features" },

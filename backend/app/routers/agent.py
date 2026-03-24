@@ -180,6 +180,7 @@ async def heartbeat(
         latest_metrics = await fetch_latest_service_metrics(db, [service.id for service in existing_services])
 
         seen_keys = set()
+        service_metric_payloads: list[tuple[Service, float, float, float]] = []
         for service_report in req.services:
             key = (service_report.plugin_id, service_report.endpoint or service_report.name)
             seen_keys.add(key)
@@ -194,6 +195,7 @@ async def heartbeat(
                     endpoint=service_report.endpoint,
                 )
                 db.add(service)
+                existing_by_key[key] = service
             service.name = service_report.name
             service.status = service_report.status
             service.url = service_report.endpoint
@@ -205,13 +207,25 @@ async def heartbeat(
             service.uptime_percent = service_report.uptime_percent
             service.endpoints_count = service_report.endpoints_count
             service.plugin_metadata = service_report.metadata or {}
+            service_metric_payloads.append(
+                (
+                    service,
+                    service.latency_ms or 0,
+                    service.requests_per_min or 0,
+                    service.uptime_percent or 0,
+                )
+            )
+
+        await db.flush()
+
+        for service, latency_ms, requests_per_min, uptime_percent in service_metric_payloads:
             db.add(
                 ServiceMetric(
                     workspace_id=host.workspace_id,
                     service_id=service.id,
-                    latency_ms=service.latency_ms or 0,
-                    requests_per_min=service.requests_per_min or 0,
-                    uptime_percent=service.uptime_percent or 0,
+                    latency_ms=latency_ms,
+                    requests_per_min=requests_per_min,
+                    uptime_percent=uptime_percent,
                     recorded_at=now,
                 )
             )

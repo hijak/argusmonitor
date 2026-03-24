@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "agents";
 
@@ -266,14 +267,18 @@ function NotificationsSection() {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Type</label>
-              <select value={newType} onChange={e => setNewType(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none">
-                <option value="email">Email</option>
-                <option value="slack">Slack</option>
-                <option value="pagerduty">PagerDuty</option>
-                <option value="webhook">Webhook</option>
-                <option value="teams">Microsoft Teams</option>
-              </select>
+              <Select value={newType} onValueChange={setNewType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select channel type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="slack">Slack</SelectItem>
+                  <SelectItem value="pagerduty">PagerDuty</SelectItem>
+                  <SelectItem value="webhook">Webhook</SelectItem>
+                  <SelectItem value="teams">Microsoft Teams</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
@@ -540,10 +545,14 @@ function IntegrationsSection() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">Type</label>
-              <select value={newType} onChange={e => setNewType(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none">
-                {Object.keys(integrationIcons).map(type => <option key={type} value={type}>{type}</option>)}
-              </select>
+              <Select value={newType} onValueChange={setNewType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select integration type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(integrationIcons).map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div>
@@ -664,22 +673,30 @@ function AppearanceSection() {
 
         <div>
           <label className="mb-1.5 block text-sm font-medium">Timezone</label>
-          <select value={prefs.timezone} onChange={e => updateMut.mutate({ timezone: e.target.value })}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none">
-            {["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Berlin", "Europe/Paris", "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney"].map(tz => (
-              <option key={tz} value={tz}>{tz}</option>
-            ))}
-          </select>
+          <Select value={prefs.timezone} onValueChange={(value) => updateMut.mutate({ timezone: value })}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select timezone" />
+            </SelectTrigger>
+            <SelectContent>
+              {["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Berlin", "Europe/Paris", "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney"].map(tz => (
+                <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
           <label className="mb-1.5 block text-sm font-medium">Date Format</label>
-          <select value={prefs.date_format} onChange={e => updateMut.mutate({ date_format: e.target.value })}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none">
-            {["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY", "DD.MM.YYYY"].map(fmt => (
-              <option key={fmt} value={fmt}>{fmt}</option>
-            ))}
-          </select>
+          <Select value={prefs.date_format} onValueChange={(value) => updateMut.mutate({ date_format: value })}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select date format" />
+            </SelectTrigger>
+            <SelectContent>
+              {["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY", "DD.MM.YYYY"].map(fmt => (
+                <SelectItem key={fmt} value={fmt}>{fmt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center justify-between">

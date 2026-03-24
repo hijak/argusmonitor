@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "sync:plugins": "node ./scripts/sync-plugins.mjs",
     "dev": "vite",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "build": "npm run sync:plugins && vite build",
+    "build:dev": "npm run sync:plugins && vite build --mode development",
+    "build:docker": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

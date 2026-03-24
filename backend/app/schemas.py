@@ -490,6 +490,20 @@ class DashboardOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DashboardTemplateOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    category: str
+    widget_count: int
+    available_count: int = 0
+    recommended: bool = False
+    plugin_id: Optional[str] = None
+    service_type: Optional[str] = None
+    service_group: Optional[str] = None
+    profile: Optional[str] = None
+
+
 # --- AI ---
 
 

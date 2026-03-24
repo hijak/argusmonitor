@@ -33,8 +33,8 @@ export function HeroSection() {
           className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground opacity-0 animate-fade-up sm:text-lg"
           style={{ animationDelay: "320ms" }}
         >
-          Browse the official collectors and UI integrations we have already built in the monolith.
-          The long-term plan is to split pieces into their own directories and repos, but right now this page is the source of truth for what ships.
+          Browse official Vordr agent collectors, plugin manifests, and source links.
+          This hub is generated from the dedicated plugins repo and keeps the UI contract standardized in the main app.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3 opacity-0 animate-fade-up" style={{ animationDelay: "440ms" }}>

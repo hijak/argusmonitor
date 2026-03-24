@@ -21,6 +21,7 @@ class AgentSettings:
     verify_tls: bool
     disk_path: str
     ip_address: Optional[str]
+    plugins_repo: Optional[str]
 
 
 def load_settings() -> AgentSettings:
@@ -37,4 +38,5 @@ def load_settings() -> AgentSettings:
         verify_tls=os.getenv("VORDR_AGENT_VERIFY_TLS", "true").lower() != "false",
         disk_path=os.getenv("VORDR_AGENT_DISK_PATH", "/"),
         ip_address=os.getenv("VORDR_AGENT_IP_ADDRESS") or None,
+        plugins_repo=os.getenv("VORDR_AGENT_PLUGINS_REPO") or None,
     )

@@ -33,13 +33,13 @@ export default function OverviewPage() {
   const { data: alerts = [] } = useQuery({ queryKey: ["overview-alerts"], queryFn: api.overviewRecentAlerts, refetchInterval: 15000 });
   const { data: incidents = [] } = useQuery({ queryKey: ["overview-incidents"], queryFn: api.overviewRecentIncidents, refetchInterval: 30000 });
   const { data: transactions = [] } = useQuery({ queryKey: ["overview-tx"], queryFn: api.overviewTransactionSummary, refetchInterval: 30000 });
-  const { data: k8sClusters = [] } = useQuery({ queryKey: ["k8s-clusters"], queryFn: api.listKubernetesClusters, refetchInterval: 30000 });
+  const { data: k8sClusters = [] } = useQuery({ queryKey: ["k8s-clusters"], queryFn: api.listK8sClusters, refetchInterval: 30000 });
   const { data: swarmClusters = [] } = useQuery({ queryKey: ["swarm-clusters"], queryFn: api.listSwarmClusters, refetchInterval: 30000 });
   const { data: proxmoxClusters = [] } = useQuery({ queryKey: ["proxmox-clusters"], queryFn: api.listProxmoxClusters, refetchInterval: 30000 });
   const primaryK8sClusterId = k8sClusters[0]?.id;
   const primarySwarmClusterId = swarmClusters[0]?.id;
   const primaryProxmoxClusterId = proxmoxClusters[0]?.id;
-  const { data: k8sStats } = useQuery({ queryKey: ["overview-k8s-stats", primaryK8sClusterId], queryFn: () => api.getKubernetesClusterStats(primaryK8sClusterId), enabled: !!primaryK8sClusterId, refetchInterval: 30000 });
+  const { data: k8sStats } = useQuery({ queryKey: ["overview-k8s-stats", primaryK8sClusterId], queryFn: () => api.getK8sClusterStats(primaryK8sClusterId), enabled: !!primaryK8sClusterId, refetchInterval: 30000 });
   const { data: swarmStats } = useQuery({ queryKey: ["overview-swarm-stats", primarySwarmClusterId], queryFn: () => api.getSwarmClusterStats(primarySwarmClusterId), enabled: !!primarySwarmClusterId, refetchInterval: 30000 });
   const { data: proxmoxStats } = useQuery({ queryKey: ["overview-proxmox-stats", primaryProxmoxClusterId], queryFn: () => api.getProxmoxClusterStats(primaryProxmoxClusterId), enabled: !!primaryProxmoxClusterId, refetchInterval: 30000 });
 

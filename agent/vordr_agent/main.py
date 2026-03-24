@@ -25,7 +25,7 @@ async def run() -> None:
     client = ArgusClient(settings.server_url, settings.token, settings.verify_tls)
     collector = MetricsCollector()
     tailer = LogTailer(settings.log_files)
-    plugin_manager = PluginManager()
+    plugin_manager = PluginManager(settings.plugins_repo)
 
     logger.info("Starting agent for host %s against %s", settings.hostname, settings.server_url)
     while True:

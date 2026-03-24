@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/lib/api";
 import { toast } from "@/components/ui/sonner";
 import { Loader2, Plus, Users as UsersIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
@@ -64,10 +65,15 @@ export default function UsersPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Role</label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="min-h-11 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
-                </select>
+                <Select value={form.role} onValueChange={(value) => setForm((f) => ({ ...f, role: value }))}>
+                  <SelectTrigger className="min-h-11 w-full">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Timezone</label>

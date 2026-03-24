@@ -19,6 +19,8 @@ export VORDR_AGENT_SERVER_URL=http://localhost:8000
 export VORDR_AGENT_TOKEN=vordr-agent-dev-token
 export VORDR_AGENT_HOSTNAME=$(hostname)
 export VORDR_AGENT_LOG_FILES=/var/log/syslog,/var/log/auth.log
+# Optional separate plugins repo checkout
+# export VORDR_AGENT_PLUGINS_REPO=/opt/vordr-plugins
 # Optional richer collectors
 # export VORDR_POSTGRES_DSN=postgresql://argus:arguspass@127.0.0.1:5432/appdb
 # export VORDR_MYSQL_DSN=mysql://argus:arguspass@127.0.0.1:3306/appdb
@@ -37,6 +39,7 @@ Optional settings:
 - `VORDR_AGENT_VERIFY_TLS` default `true`
 - `VORDR_AGENT_DISK_PATH` default `/` (set this to a host root bind mount like `/hostfs` when running in Docker)
 - `VORDR_AGENT_IP_ADDRESS` explicit IPv4 address to report to Vordr; useful for Docker/bridge deployments where auto-detection sees the container namespace instead of the host LAN IP
+- `VORDR_AGENT_PLUGINS_REPO` path to a local checkout of the separate `vordr-plugins` repo; when set, external collector manifests/implementations override built-ins by matching `plugin_id`
 - `VORDR_POSTGRES_DSN` enables richer PostgreSQL detection against a configured DSN (currently used for endpoint-aware probing)
 - `VORDR_POSTGRES_METRICS_URL` optional postgres-exporter `/metrics` endpoint; when set, the Postgres plugin reads richer health signals from exporter metrics
 

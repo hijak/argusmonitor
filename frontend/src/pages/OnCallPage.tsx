@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { CalendarDays, Plus, Users, Clock3, ShieldAlert, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -165,13 +166,14 @@ export default function OnCallPage() {
               <p className="mt-1 text-sm text-muted-foreground">Calendar view of who is on call and when</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={activeTeamId || ""}
-                onChange={(e) => setSelectedTeamId(e.target.value || null)}
-                className="min-h-11 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                {teams.map((team: any) => <option key={team.id} value={team.id}>{team.name}</option>)}
-              </select>
+              <Select value={activeTeamId || undefined} onValueChange={(value) => setSelectedTeamId(value || null)}>
+                <SelectTrigger className="min-h-11 min-w-[220px]">
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map((team: any) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Prev</button>
               <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">Next</button>
             </div>

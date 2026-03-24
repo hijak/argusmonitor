@@ -33,47 +33,15 @@ import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
 import { ServiceDetailSheet } from "@/components/ServiceDetailSheet";
 import { useServicesStream } from "@/hooks/useServiceStream";
+import { getContractHealth, getContractMetricRows, getPluginFooter, normalizeStatus } from "@/lib/pluginUi";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 const PAGE_SIZE = 100;
 
-function normalizeStatus(status?: string) {
-  switch ((status || "unknown").toLowerCase()) {
-    case "healthy":
-    case "online":
-    case "ok":
-      return "healthy" as const;
-    case "warning":
-    case "degraded":
-      return "warning" as const;
-    case "critical":
-    case "offline":
-    case "error":
-      return "critical" as const;
-    case "info":
-      return "info" as const;
-    default:
-      return "unknown" as const;
-  }
-}
-
 function formatRpm(value: number) {
   if (value >= 1000) return `${(value / 1000).toFixed(1)}k/min`;
   return `${Math.round(value)}/min`;
-}
-
-function formatBytes(value: unknown) {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num) || num <= 0) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let idx = 0;
-  let current = num;
-  while (current >= 1024 && idx < units.length - 1) {
-    current /= 1024;
-    idx += 1;
-  }
-  return `${current.toFixed(current >= 10 ? 0 : 1)} ${units[idx]}`;
 }
 
 function summarizeGroupStatus(services: any[]) {
@@ -99,95 +67,6 @@ function getServiceIcon(service: any) {
       return <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />;
     default:
       return <Waypoints className="h-4 w-4 shrink-0 text-muted-foreground" />;
-  }
-}
-
-function getPluginHealth(service: any) {
-  const meta = service.plugin_metadata || {};
-  const status = normalizeStatus(service.status);
-
-  if (String(meta.metrics_mode || "").includes("error")) {
-    return { variant: status === "critical" ? "critical" : "warning", label: "collector issue" };
-  }
-
-  if (service.plugin_id === "postgres") {
-    if (Number(meta.replication_lag_seconds || 0) > 30) return { variant: "warning", label: "lagging" };
-    if (Number(meta.connection_utilization || 0) > 0.9) return { variant: "warning", label: "high util" };
-    if (meta.metrics_mode === "sql") return { variant: "healthy", label: "sql live" };
-  }
-
-  if (service.plugin_id === "mysql") {
-    if (Number(meta.connection_utilization || 0) > 0.9) return { variant: "warning", label: "high util" };
-    if (Number(meta.slow_queries || 0) > 0) return { variant: "warning", label: "slow queries" };
-    if (meta.metrics_mode === "sql") return { variant: "healthy", label: "sql live" };
-  }
-
-  if (service.plugin_id === "rabbitmq") {
-    if (Number(meta.messages_total || 0) > 10000) return { variant: "warning", label: "backlog" };
-    if (meta.metrics_mode === "management-api") return { variant: "healthy", label: "api live" };
-  }
-
-  if (service.plugin_id === "redis") {
-    if (meta.role === "slave" && meta.master_link_status && meta.master_link_status !== "up") {
-      return { variant: "warning", label: "replica issue" };
-    }
-    if (meta.metrics_mode === "info") return { variant: "healthy", label: "info live" };
-  }
-
-  return { variant: status, label: service.plugin_id ? "discovered" : "unknown" };
-}
-
-function getPluginMetricRows(service: any) {
-  const meta = service.plugin_metadata || {};
-
-  switch (service.plugin_id) {
-    case "postgres":
-      return [
-        { label: "DBs", value: meta.database_count ?? service.endpoints_count ?? "—" },
-        { label: "Active", value: meta.active_connections ?? "—" },
-        { label: "Lag", value: meta.replication_lag_seconds !== undefined ? `${Math.round(Number(meta.replication_lag_seconds || 0))}s` : "—" },
-      ];
-    case "mysql":
-      return [
-        { label: "DBs", value: meta.database_count ?? service.endpoints_count ?? "—" },
-        { label: "Threads", value: meta.threads_running ?? "—" },
-        { label: "Util", value: meta.connection_utilization !== undefined ? `${Math.round(Number(meta.connection_utilization) * 100)}%` : "—" },
-      ];
-    case "rabbitmq":
-      return [
-        { label: "Queues", value: meta.queue_count ?? "—" },
-        { label: "Msgs", value: meta.messages_total ?? "—" },
-        { label: "Nodes", value: meta.node_count ?? "—" },
-      ];
-    case "redis":
-      return [
-        { label: "Role", value: meta.role ?? "—" },
-        { label: "Clients", value: meta.connected_clients ?? "—" },
-        { label: "Memory", value: formatBytes(meta.used_memory) },
-      ];
-    default:
-      return [
-        { label: "Type", value: service.service_type || "—" },
-        { label: "Plugin", value: service.plugin_id || "—" },
-        { label: "Endpoints", value: service.endpoints_count || "—" },
-      ];
-  }
-}
-
-function getPluginFooter(service: any) {
-  const meta = service.plugin_metadata || {};
-
-  switch (service.plugin_id) {
-    case "postgres":
-      return meta.version ? `PG ${String(meta.version).split(" ")[1] || meta.version}` : "PostgreSQL";
-    case "mysql":
-      return meta.version ? `MySQL ${meta.version}` : "MySQL";
-    case "rabbitmq":
-      return meta.cluster_name ? `Cluster ${meta.cluster_name}` : "RabbitMQ";
-    case "redis":
-      return meta.version ? `Redis ${meta.version}` : "Redis";
-    default:
-      return service.plugin_id ? `plugin:${service.plugin_id}` : "service";
   }
 }
 
@@ -429,8 +308,15 @@ export default function ServicesPage() {
               <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 2xl:grid-cols-3">
                 {group.services.map((svc: any) => {
                   const status = normalizeStatus(svc.status);
-                  const pluginHealth = getPluginHealth(svc);
-                  const pluginRows = getPluginMetricRows(svc);
+                  const pluginHealth = getContractHealth(svc) || {
+                    variant: status,
+                    label: svc.plugin_id ? "discovered" : "unknown",
+                  };
+                  const pluginRows = getContractMetricRows(svc) || [
+                    { label: "Type", value: svc.service_type || "—" },
+                    { label: "Plugin", value: svc.plugin_id || "—" },
+                    { label: "Endpoints", value: svc.endpoints_count || "—" },
+                  ];
                   return (
                     <DenseCardRow
                       key={svc.id}
@@ -460,7 +346,7 @@ export default function ServicesPage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-2 xs:grid-cols-2 sm:grid-cols-3">
                           <div className="rounded-xl border border-border/60 bg-surface px-2.5 py-2">
                             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Latency</div>
                             <div className={`mt-1 font-mono text-sm ${Number(svc.latency_ms || 0) > 200 ? "text-critical" : Number(svc.latency_ms || 0) > 100 ? "text-warning" : "text-foreground"}`}>
@@ -489,7 +375,7 @@ export default function ServicesPage() {
                               />
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="grid grid-cols-1 gap-2 text-xs xs:grid-cols-2 sm:grid-cols-3">
                             {pluginRows.map((row) => (
                               <div key={row.label} className="rounded-xl border border-border/60 bg-surface px-2.5 py-2">
                                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{row.label}</div>

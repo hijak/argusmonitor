@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/lib/api";
 import { getWorkspaceId, setWorkspaceId } from "@/lib/workspace";
 import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select as UiSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Building2,
   Users,
@@ -52,8 +53,41 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={`min-h-[100px] w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm ${props.className || ""}`} />;
 }
 
-function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm ${props.className || ""}`} />;
+function Select({
+  value,
+  onChange,
+  children,
+  className = "",
+}: {
+  value?: string;
+  onChange?: (e: { target: { value: string } }) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const items = React.Children.toArray(children)
+    .filter(React.isValidElement)
+    .map((child: any) => ({
+      value: child.props.value,
+      label: child.props.children,
+    }));
+
+  const placeholderItem = items.find((item) => item.value === "");
+  const selectableItems = items.filter((item) => item.value !== "");
+
+  return (
+    <UiSelect value={value || undefined} onValueChange={(next) => onChange?.({ target: { value: next } })}>
+      <SelectTrigger className={`w-full ${className}`.trim()}>
+        <SelectValue placeholder={typeof placeholderItem?.label === "string" ? placeholderItem.label : "Select option"} />
+      </SelectTrigger>
+      <SelectContent>
+        {selectableItems.map((item) => (
+          <SelectItem key={item.value || String(item.label)} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </UiSelect>
+  );
 }
 
 function Button({ className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {

@@ -102,7 +102,7 @@ export function PluginModal({ plugin, onClose }: PluginModalProps) {
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</h3>
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
             <div className="font-mono text-card-foreground">{plugin.sourcePath}</div>
-            <div className="mt-1 text-muted-foreground">Official source currently lives inside the main Vordr monolith.</div>
+            <div className="mt-1 text-muted-foreground">Official collector source lives in the dedicated Vordr plugins repository.</div>
           </div>
         </div>
 

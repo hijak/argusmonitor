@@ -173,6 +173,7 @@ export const api = {
 
   // Dashboards
   listDashboards: () => request<any[]>("/dashboards"),
+  listDashboardTemplates: () => request<any[]>("/dashboards/templates"),
   getDashboard: (id: string) => request<any>(`/dashboards/${id}`),
   getDashboardWidgets: (id: string) => request<any[]>(`/dashboards/${id}/widgets`),
   createDashboard: (data: any) =>

@@ -5,27 +5,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
 import { api } from "@/lib/api";
+import { getContractDetailRows, normalizeStatus } from "@/lib/pluginUi";
 import { Activity, Database, Globe, HardDrive, Network, Server, ShieldAlert, TrendingDown, TrendingUp, Waypoints } from "lucide-react";
-
-function normalizeStatus(status?: string) {
-  switch ((status || "unknown").toLowerCase()) {
-    case "healthy":
-    case "online":
-    case "ok":
-      return "healthy" as const;
-    case "warning":
-    case "degraded":
-      return "warning" as const;
-    case "critical":
-    case "offline":
-    case "error":
-      return "critical" as const;
-    case "info":
-      return "info" as const;
-    default:
-      return "unknown" as const;
-  }
-}
 
 function formatValue(value: unknown, fallback = "—") {
   if (value === null || value === undefined || value === "") return fallback;
@@ -53,86 +34,11 @@ function formatMs(value: number) {
 
 function DetailRow({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-border/50 py-3 text-sm last:border-b-0">
+    <div className="flex flex-col gap-1 border-b border-border/50 py-3 text-sm last:border-b-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div className="text-muted-foreground">{label}</div>
-      <div className={`max-w-[60%] text-right text-foreground ${mono ? "font-mono text-xs" : ""}`}>{formatValue(value)}</div>
+      <div className={`text-left text-foreground sm:max-w-[60%] sm:text-right ${mono ? "font-mono text-xs" : ""}`}>{formatValue(value)}</div>
     </div>
   );
-}
-
-function pluginRows(service: any, meta: any) {
-  const pluginId = service.plugin_id;
-
-  if (pluginId === "postgres") {
-    return [
-      { label: "Metrics mode", value: meta.metrics_mode },
-      { label: "Version", value: meta.version },
-      { label: "DB count", value: meta.database_count },
-      { label: "Active connections", value: meta.active_connections },
-      { label: "Idle connections", value: meta.idle_connections },
-      { label: "Total connections", value: meta.total_connections },
-      { label: "Connection util.", value: meta.connection_utilization !== undefined ? `${Math.round(Number(meta.connection_utilization) * 100)}%` : "—" },
-      { label: "Replication lag", value: meta.replication_lag_seconds !== undefined ? `${Math.round(Number(meta.replication_lag_seconds || 0))}s` : "—" },
-      { label: "Commits", value: meta.xact_commit },
-      { label: "Rollbacks", value: meta.xact_rollback },
-    ];
-  }
-
-  if (pluginId === "mysql") {
-    return [
-      { label: "Metrics mode", value: meta.metrics_mode },
-      { label: "Version", value: meta.version },
-      { label: "DB count", value: meta.database_count },
-      { label: "Threads running", value: meta.threads_running },
-      { label: "Threads connected", value: meta.threads_connected },
-      { label: "Connection util.", value: meta.connection_utilization !== undefined ? `${Math.round(Number(meta.connection_utilization) * 100)}%` : "—" },
-      { label: "Questions", value: meta.questions },
-      { label: "Slow queries", value: meta.slow_queries },
-      { label: "Bytes received", value: formatBytes(meta.bytes_received) },
-      { label: "Bytes sent", value: formatBytes(meta.bytes_sent) },
-    ];
-  }
-
-  if (pluginId === "rabbitmq") {
-    return [
-      { label: "Metrics mode", value: meta.metrics_mode },
-      { label: "Version", value: meta.version },
-      { label: "Cluster", value: meta.cluster_name },
-      { label: "Node count", value: meta.node_count },
-      { label: "Queues", value: meta.queue_count },
-      { label: "Connections", value: meta.connection_count },
-      { label: "Channels", value: meta.channel_count },
-      { label: "Consumers", value: meta.consumer_count },
-      { label: "Messages ready", value: meta.messages_ready },
-      { label: "Unacked", value: meta.messages_unacknowledged },
-      { label: "Publish rate", value: meta.publish_rate_per_sec !== undefined ? `${Number(meta.publish_rate_per_sec).toFixed(1)}/s` : "—" },
-      { label: "Deliver rate", value: meta.deliver_rate_per_sec !== undefined ? `${Number(meta.deliver_rate_per_sec).toFixed(1)}/s` : "—" },
-    ];
-  }
-
-  if (pluginId === "redis") {
-    return [
-      { label: "Metrics mode", value: meta.metrics_mode },
-      { label: "Version", value: meta.version },
-      { label: "Role", value: meta.role },
-      { label: "Connected clients", value: meta.connected_clients },
-      { label: "Keys", value: meta.keys },
-      { label: "Used memory", value: formatBytes(meta.used_memory) },
-      { label: "OPS/sec", value: meta.instantaneous_ops_per_sec !== undefined ? Number(meta.instantaneous_ops_per_sec).toFixed(1) : "—" },
-      { label: "Commands total", value: meta.total_commands_processed },
-      { label: "Hit rate", value: meta.keyspace_hit_rate !== undefined ? `${Math.round(Number(meta.keyspace_hit_rate) * 100)}%` : "—" },
-      { label: "Uptime", value: meta.uptime_in_seconds !== undefined ? `${Math.round(Number(meta.uptime_in_seconds || 0) / 3600)}h` : "—" },
-    ];
-  }
-
-  return [
-    { label: "Plugin", value: service.plugin_id },
-    { label: "Service type", value: service.service_type },
-    { label: "Suggested", value: meta.suggested === undefined ? "—" : String(meta.suggested) },
-    { label: "Discovery source", value: meta.source },
-    { label: "Port", value: meta.port },
-    { label: "Version", value: meta.version },
-  ];
 }
 
 const historyRanges = [
@@ -166,7 +72,14 @@ export function ServiceDetailSheet({
   const status = normalizeStatus(service.status);
   const meta = service.plugin_metadata || {};
   const sparkData = (history.length ? history.map((point: any) => Number(point.latency_ms)) : (service.spark || []).map((value: any) => Number(value))).filter((value: number) => Number.isFinite(value));
-  const detailRows = pluginRows(service, meta).filter((row) => row.value !== undefined && row.value !== null && row.value !== "");
+  const detailRows = (getContractDetailRows(service) || [
+    { label: "Plugin", value: service.plugin_id },
+    { label: "Service type", value: service.service_type },
+    { label: "Suggested", value: meta.suggested === undefined ? "—" : String(meta.suggested) },
+    { label: "Discovery source", value: meta.source },
+    { label: "Port", value: meta.port },
+    { label: "Version", value: meta.version },
+  ]).filter((row) => row.value !== undefined && row.value !== null && row.value !== "");
   const metricCards = [
     { label: "Latency", value: `${Math.round(Number(service.latency_ms || 0))}ms`, tone: status === "critical" ? "text-critical" : status === "warning" ? "text-warning" : "text-foreground" },
     { label: "Traffic", value: `${Math.round(Number(service.requests_per_min || 0))}/min`, tone: "text-foreground" },
