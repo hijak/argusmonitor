@@ -48,7 +48,7 @@ import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
 import { ServiceDetailSheet } from "@/components/ServiceDetailSheet";
 import { useServicesStream } from "@/hooks/useServiceStream";
-import { getContractHealth, getContractMetricRows, getPluginFooter, normalizeStatus } from "@/lib/pluginUi";
+import { getContractHealth, getContractMetricRows, getPluginDisplayTitle, getPluginFooter, normalizeStatus } from "@/lib/pluginUi";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -342,6 +342,7 @@ export default function ServicesPage() {
                   {services.map((svc: any) => {
                     const status = normalizeStatus(svc.status);
                     const ports = formatPortsSummary(svc);
+                    const displayTitle = getPluginDisplayTitle(svc);
                     return (
                       <TableRow
                         key={svc.id}
@@ -352,7 +353,7 @@ export default function ServicesPage() {
                           <div className="min-w-0 max-w-full overflow-hidden">
                             <div className="flex min-w-0 items-center gap-2">
                               {getServiceIcon(svc)}
-                              <span className="truncate font-medium text-foreground">{svc.name}</span>
+                              <span className="truncate font-medium text-foreground">{displayTitle}</span>
                             </div>
                             {svc.endpoint && (
                               <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{svc.endpoint}</div>
@@ -459,6 +460,7 @@ export default function ServicesPage() {
               <div className="grid gap-3 p-3 sm:p-4 md:grid-cols-2 2xl:grid-cols-3">
                 {group.services.map((svc: any) => {
                   const status = normalizeStatus(svc.status);
+                  const displayTitle = getPluginDisplayTitle(svc);
                   const pluginHealth = getContractHealth(svc) || {
                     variant: status,
                     label: svc.plugin_id ? "discovered" : "unknown",
@@ -483,7 +485,7 @@ export default function ServicesPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               {getServiceIcon(svc)}
-                              <h3 className="truncate text-sm font-medium text-foreground">{svc.name}</h3>
+                              <h3 className="truncate text-sm font-medium text-foreground">{displayTitle}</h3>
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                               {svc.service_type && <span className="rounded bg-muted px-1.5 py-0.5 uppercase tracking-wide">{svc.service_type}</span>}

@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "npm run sync:plugins && vite build",
     "build:dev": "npm run sync:plugins && vite build --mode development",
-    "build:docker": "vite build",
+    "build:docker": "npm run sync:plugins && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

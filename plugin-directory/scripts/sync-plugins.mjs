@@ -6,6 +6,10 @@ const manifestsDir = path.join(pluginRepo, "manifests");
 const outFile = path.resolve(process.cwd(), "src", "generated", "plugins.generated.ts");
 
 if (!fs.existsSync(manifestsDir)) {
+  if (fs.existsSync(outFile)) {
+    console.log(`Plugin manifests directory not found: ${manifestsDir}; keeping existing generated catalogue at ${outFile}`);
+    process.exit(0);
+  }
   throw new Error(`Plugin manifests directory not found: ${manifestsDir}`);
 }
 

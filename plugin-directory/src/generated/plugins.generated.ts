@@ -26,6 +26,61 @@ export const generatedPlugins: GeneratedPlugin[] = [
     "rating": 5,
     "repoUrl": "https://github.com/hijak/vordr-plugins",
     "verified": true,
+    "id": "ai-gateways",
+    "name": "AI Gateways Collector",
+    "description": "Aggregates LLM gateways, router surfaces, and model-serving containers into a single AI stack service.",
+    "author": "Argus Core",
+    "category": "AI",
+    "version": "0.1.0",
+    "iconKey": "sparkles",
+    "tags": [
+      "ai",
+      "llm",
+      "gateway",
+      "router",
+      "models"
+    ],
+    "sourcePath": "collectors/stack_profiles.py",
+    "entrypoint": "AIGatewaysPlugin",
+    "serviceType": "ai-gateway",
+    "status": "official",
+    "maturity": "beta",
+    "integration": "agent",
+    "summary": [
+      "Finds AI gateway and model-serving containers using name/image heuristics.",
+      "Emits one service representing the AI gateway surface for dashboards and overview pages.",
+      "Useful for local labs running router/openai/ollama style services."
+    ],
+    "config": {
+      "integration": "agent",
+      "runtime": "docker-local"
+    },
+    "ui": {
+      "title": "AI Gateways",
+      "detailRows": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count",
+        "containers",
+        "images",
+        "public_endpoints"
+      ],
+      "summaryMetrics": [
+        "container_count",
+        "exposed_count"
+      ],
+      "healthSignals": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count"
+      ]
+    }
+  },
+  {
+    "downloads": 0,
+    "rating": 5,
+    "repoUrl": "https://github.com/hijak/vordr-plugins",
+    "verified": true,
     "id": "mysql",
     "name": "MySQL Collector",
     "description": "SQL-backed MySQL and MariaDB collector with thread stats, slow query visibility, bytes in/out, and connection utilization.",
@@ -258,6 +313,224 @@ export const generatedPlugins: GeneratedPlugin[] = [
         "master_link_status",
         "metrics_mode",
         "role"
+      ]
+    }
+  },
+  {
+    "downloads": 0,
+    "rating": 5,
+    "repoUrl": "https://github.com/hijak/vordr-plugins",
+    "verified": true,
+    "id": "telephony-pbx",
+    "name": "Telephony PBX Collector",
+    "description": "Aggregates Asterisk/PBX/SIP style containers into a single telephony stack service.",
+    "author": "Argus Core",
+    "category": "Voice",
+    "version": "0.1.0",
+    "iconKey": "phone",
+    "tags": [
+      "telephony",
+      "pbx",
+      "asterisk",
+      "sip",
+      "voice"
+    ],
+    "sourcePath": "collectors/stack_profiles.py",
+    "entrypoint": "TelephonyPBXPlugin",
+    "serviceType": "telephony-pbx",
+    "status": "official",
+    "maturity": "beta",
+    "integration": "agent",
+    "summary": [
+      "Detects telephony and PBX style runtime containers from Docker names and port surfaces.",
+      "Creates one aggregated telephony service instead of multiple low-signal duplicates.",
+      "Intended for homelab Asterisk/SIP/IVR style stacks."
+    ],
+    "config": {
+      "integration": "agent",
+      "runtime": "docker-local"
+    },
+    "ui": {
+      "title": "Telephony & PBX",
+      "detailRows": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count",
+        "containers",
+        "images",
+        "public_endpoints"
+      ],
+      "summaryMetrics": [
+        "container_count",
+        "exposed_count"
+      ],
+      "healthSignals": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count"
+      ]
+    }
+  },
+  {
+    "downloads": 0,
+    "rating": 5,
+    "repoUrl": "https://github.com/hijak/vordr-plugins",
+    "verified": true,
+    "id": "voice-stack",
+    "name": "Voice Stack Collector",
+    "description": "Aggregates TTS, speech, and voice-serving containers into a single voice stack service.",
+    "author": "Argus Core",
+    "category": "Voice",
+    "version": "0.1.0",
+    "iconKey": "waveform",
+    "tags": [
+      "voice",
+      "tts",
+      "speech",
+      "audio"
+    ],
+    "sourcePath": "collectors/stack_profiles.py",
+    "entrypoint": "VoiceStackPlugin",
+    "serviceType": "voice-stack",
+    "status": "official",
+    "maturity": "beta",
+    "integration": "agent",
+    "summary": [
+      "Matches TTS and speech-serving containers by name and image hints.",
+      "Produces one stack-level voice service for dashboards and plugin-aware views.",
+      "Useful for Kokoro, Whisper, and similar local media services."
+    ],
+    "config": {
+      "integration": "agent",
+      "runtime": "docker-local"
+    },
+    "ui": {
+      "title": "Voice Stack",
+      "detailRows": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count",
+        "containers",
+        "images",
+        "public_endpoints"
+      ],
+      "summaryMetrics": [
+        "container_count",
+        "exposed_count"
+      ],
+      "healthSignals": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count"
+      ]
+    }
+  },
+  {
+    "downloads": 0,
+    "rating": 5,
+    "repoUrl": "https://github.com/hijak/vordr-plugins",
+    "verified": true,
+    "id": "vordr-stack",
+    "name": "Vordr Stack Collector",
+    "description": "Aggregates Vordr backend/frontend/worker/plugin-directory style containers into a single stack-level service.",
+    "author": "Argus Core",
+    "category": "Stack",
+    "version": "0.1.0",
+    "iconKey": "boxes",
+    "tags": [
+      "vordr",
+      "stack",
+      "docker",
+      "platform"
+    ],
+    "sourcePath": "collectors/stack_profiles.py",
+    "entrypoint": "VordrStackPlugin",
+    "serviceType": "vordr-stack",
+    "status": "official",
+    "maturity": "beta",
+    "integration": "agent",
+    "summary": [
+      "Detects Vordr-named containers from local Docker discovery context.",
+      "Emits one aggregated stack service instead of duplicating every underlying container.",
+      "Feeds dashboards with a first-class Vordr stack plugin target."
+    ],
+    "config": {
+      "integration": "agent",
+      "runtime": "docker-local"
+    },
+    "ui": {
+      "title": "Vordr Stack",
+      "detailRows": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count",
+        "containers",
+        "images",
+        "public_endpoints"
+      ],
+      "summaryMetrics": [
+        "container_count",
+        "exposed_count"
+      ],
+      "healthSignals": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count"
+      ]
+    }
+  },
+  {
+    "downloads": 0,
+    "rating": 5,
+    "repoUrl": "https://github.com/hijak/vordr-plugins",
+    "verified": true,
+    "id": "web-publishing",
+    "name": "Web Publishing Collector",
+    "description": "Aggregates websites, frontends, docs, and plugin-directory style web surfaces into a single publishing service.",
+    "author": "Argus Core",
+    "category": "Web",
+    "version": "0.1.0",
+    "iconKey": "globe",
+    "tags": [
+      "web",
+      "frontend",
+      "docs",
+      "website",
+      "publishing"
+    ],
+    "sourcePath": "collectors/stack_profiles.py",
+    "entrypoint": "WebPublishingPlugin",
+    "serviceType": "web-publishing",
+    "status": "official",
+    "maturity": "beta",
+    "integration": "agent",
+    "summary": [
+      "Groups public-ish web surfaces like frontends, docs, and sites into one collector.",
+      "Uses Docker container names and ports as the source of truth for now.",
+      "Gives dashboards and service lists a clean web publishing stack target."
+    ],
+    "config": {
+      "integration": "agent",
+      "runtime": "docker-local"
+    },
+    "ui": {
+      "title": "Web Publishing",
+      "detailRows": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count",
+        "containers",
+        "images",
+        "public_endpoints"
+      ],
+      "summaryMetrics": [
+        "container_count",
+        "exposed_count"
+      ],
+      "healthSignals": [
+        "metrics_mode",
+        "container_count",
+        "exposed_count"
       ]
     }
   }

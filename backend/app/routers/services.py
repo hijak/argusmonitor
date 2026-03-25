@@ -382,10 +382,27 @@ async def discover_services(
         (str(service.host_id) if service.host_id else "", service.plugin_id or "", service.endpoint or service.url or service.name): service
         for service in existing_services
     }
+    stronger_existing_keys = set()
+    for service in existing_services:
+        metadata = service.plugin_metadata or {}
+        if metadata.get("suggested"):
+            continue
+        endpoint_value = service.endpoint or service.url or ""
+        if not endpoint_value or not service.host_id or not service.plugin_id:
+            continue
+        endpoint_str = str(endpoint_value)
+        port = None
+        if ":" in endpoint_str:
+            candidate = endpoint_str.rsplit(":", 1)[-1].split("/", 1)[0]
+            if candidate.isdigit():
+                port = candidate
+        if port:
+            stronger_existing_keys.add((str(service.host_id), service.plugin_id, port))
 
     discovered = []
     created = 0
     updated = 0
+    skipped = 0
     for host in hosts[:25]:
         scan_results = await asyncio.gather(*[_tcp_open(host.ip_address, spec["port"]) for spec in DEFAULT_DISCOVERY_PORTS])
         for spec, is_open in zip(DEFAULT_DISCOVERY_PORTS, scan_results):
@@ -403,6 +420,23 @@ async def discover_services(
             if scheme:
                 default_port = (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
                 url = f"{scheme}://{host.ip_address}" + ("" if default_port else f":{port}")
+
+            stronger_key = (str(host.id), plugin_id, str(port))
+            if stronger_key in stronger_existing_keys:
+                skipped += 1
+                discovered.append({
+                    "host": host.name,
+                    "host_id": str(host.id),
+                    "port": port,
+                    "endpoint": endpoint,
+                    "url": url,
+                    "plugin_id": plugin_id,
+                    "service_type": service_type,
+                    "prometheus": False,
+                    "skipped": True,
+                    "reason": "stronger-existing-service",
+                })
+                continue
 
             key = (str(host.id), plugin_id, endpoint)
             service = existing_by_key.get(key)
@@ -470,7 +504,7 @@ async def discover_services(
             })
 
     await db.flush()
-    return {"created": created, "updated": updated, "discovered": discovered[:100]}
+    return {"created": created, "updated": updated, "skipped": skipped, "discovered": discovered[:100]}
 
 
 @router.get("/stream")

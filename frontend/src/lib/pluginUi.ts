@@ -138,6 +138,16 @@ export function getContractHealth(service: any) {
   return { variant: status, label: service?.plugin_id ? "discovered" : "unknown" };
 }
 
+export function getPluginDisplayTitle(service: any) {
+  const meta = service?.plugin_metadata || {};
+  const contract = getPluginContract(service);
+  if (contract?.ui?.title) return contract.ui.title;
+  if (meta.display_name) return String(meta.display_name);
+  if (service?.name) return String(service.name);
+  if (service?.plugin_id) return `plugin:${service.plugin_id}`;
+  return "service";
+}
+
 export function getPluginFooter(service: any) {
   const meta = service?.plugin_metadata || {};
   const contract = getPluginContract(service);
