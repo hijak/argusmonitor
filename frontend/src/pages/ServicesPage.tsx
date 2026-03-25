@@ -10,6 +10,19 @@ import { PagerBar, PagerMeta, PagerSummary } from "@/components/PagerBar";
 import { MetricCard } from "@/components/MetricCard";
 import { Input } from "@/components/ui/input";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,6 +34,8 @@ import {
   Database,
   Globe,
   HardDrive,
+  LayoutGrid,
+  List,
   Radar,
   Search,
   Server,
@@ -70,11 +85,51 @@ function getServiceIcon(service: any) {
   }
 }
 
+function getServicePorts(service: any): string[] {
+  const metadata = service?.plugin_metadata || {};
+  const rawPorts = metadata.ports || metadata.published_ports || metadata.exposed_ports || metadata.port_list || [];
+
+  if (Array.isArray(rawPorts) && rawPorts.length > 0) {
+    return rawPorts
+      .map((port: any) => {
+        if (port == null) return null;
+        if (typeof port === "string" || typeof port === "number") return String(port);
+        if (typeof port === "object") {
+          if (port.published && port.target) return `${port.published}→${port.target}${port.protocol ? `/${port.protocol}` : ""}`;
+          if (port.port && port.targetPort) return `${port.port}→${port.targetPort}${port.protocol ? `/${port.protocol}` : ""}`;
+          if (port.port) return `${port.port}${port.protocol ? `/${port.protocol}` : ""}`;
+          if (port.published) return `${port.published}${port.protocol ? `/${port.protocol}` : ""}`;
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  const explicitPort = metadata.port;
+  if (explicitPort) return [String(explicitPort)];
+
+  const endpoint = service?.endpoint || service?.url || "";
+  if (typeof endpoint === "string") {
+    const matches = [...endpoint.matchAll(/:(\d{2,5})(?=$|\/|,|\s)/g)].map((m) => m[1]);
+    if (matches.length > 0) return Array.from(new Set(matches));
+  }
+
+  return [];
+}
+
+function formatPortsSummary(service: any) {
+  const ports = getServicePorts(service);
+  if (ports.length === 0) return { short: "—", full: "", hasPorts: false };
+  const short = ports.length > 2 ? `${ports.slice(0, 2).join(", ")} +${ports.length - 2}` : ports.join(", ");
+  return { short, full: ports.join(", "), hasPorts: true };
+}
+
 export default function ServicesPage() {
   const queryClient = useQueryClient();
   const [selectedService, setSelectedService] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"cards" | "compact">("cards");
   const [page, setPage] = useState(0);
 
   const { data: serviceResponse, isLoading } = useQuery({
@@ -218,7 +273,7 @@ export default function ServicesPage() {
       </motion.div>
 
       <motion.div variants={item}>
-        <FilterBar className="grid gap-3 lg:grid-cols-[1fr_220px_180px]">
+        <FilterBar className="grid gap-3 lg:grid-cols-[1fr_220px_220px_180px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -243,19 +298,115 @@ export default function ServicesPage() {
               <SelectItem value="unknown">Unknown</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex min-h-10 items-center gap-1 rounded-lg border border-border bg-background p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${viewMode === "cards" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("compact")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${viewMode === "compact" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <List className="h-4 w-4" />
+              Compact
+            </button>
+          </div>
           <FilterStat label="Page" value={`${page + 1} / ${totalPages}`} />
         </FilterBar>
       </motion.div>
 
       <motion.div variants={item} className="space-y-4">
-        {grouped.map((group) => {
-          const groupStatus = summarizeGroupStatus(group.services);
-          const host = group.host;
-          const criticalCount = group.services.filter((svc) => normalizeStatus(svc.status) === "critical").length;
-          const warningCount = group.services.filter((svc) => normalizeStatus(svc.status) === "warning").length;
+        {viewMode === "compact" ? (
+          <div className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-sm">
+            <div className="overflow-x-auto">
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[28%] min-w-[240px]">Service</TableHead>
+                    <TableHead className="w-[110px]">Status</TableHead>
+                    <TableHead className="w-[20%] min-w-[160px]">Host</TableHead>
+                    <TableHead className="w-[90px]">Latency</TableHead>
+                    <TableHead className="w-[90px] hidden xl:table-cell">Traffic</TableHead>
+                    <TableHead className="w-[110px]">Ports</TableHead>
+                    <TableHead className="w-[90px] hidden lg:table-cell">Uptime</TableHead>
+                    <TableHead className="w-[90px] hidden 2xl:table-cell">Type</TableHead>
+                    <TableHead className="w-[110px] hidden 2xl:table-cell">Plugin</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {services.map((svc: any) => {
+                    const status = normalizeStatus(svc.status);
+                    const ports = formatPortsSummary(svc);
+                    return (
+                      <TableRow
+                        key={svc.id}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedService(svc)}
+                      >
+                        <TableCell className="max-w-0">
+                          <div className="min-w-0 max-w-full overflow-hidden">
+                            <div className="flex min-w-0 items-center gap-2">
+                              {getServiceIcon(svc)}
+                              <span className="truncate font-medium text-foreground">{svc.name}</span>
+                            </div>
+                            {svc.endpoint && (
+                              <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{svc.endpoint}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap"><StatusBadge variant={status}>{svc.status}</StatusBadge></TableCell>
+                        <TableCell className="max-w-0">
+                          <div className="min-w-0 max-w-full overflow-hidden text-sm text-foreground truncate">{svc.host_name || "Unassigned"}</div>
+                          {svc.host_ip_address && <div className="truncate font-mono text-xs text-muted-foreground">{svc.host_ip_address}</div>}
+                        </TableCell>
+                        <TableCell className={`whitespace-nowrap ${Number(svc.latency_ms || 0) > 200 ? "text-critical" : Number(svc.latency_ms || 0) > 100 ? "text-warning" : "text-foreground"}`}>
+                          {Math.round(Number(svc.latency_ms || 0))}ms
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap hidden xl:table-cell">{formatRpm(Number(svc.requests_per_min || 0))}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {ports.hasPorts ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="max-w-[96px] truncate font-mono text-xs text-muted-foreground">
+                                  {ports.short}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="max-w-sm whitespace-pre-wrap font-mono text-xs">{ports.full}</div>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap hidden lg:table-cell">{Number(svc.uptime_percent || 0).toFixed(1)}%</TableCell>
+                        <TableCell className="hidden 2xl:table-cell">
+                          {svc.service_type ? <span className="inline-block max-w-[88px] truncate rounded bg-muted px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">{svc.service_type}</span> : "—"}
+                        </TableCell>
+                        <TableCell className="hidden 2xl:table-cell">
+                          {svc.plugin_id ? <span className="inline-block max-w-[104px] truncate rounded bg-primary/10 px-2 py-1 text-[11px] text-primary">{svc.plugin_id}</span> : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        ) : (
+          grouped.map((group) => {
+            const groupStatus = summarizeGroupStatus(group.services);
+            const host = group.host;
+            const criticalCount = group.services.filter((svc) => normalizeStatus(svc.status) === "critical").length;
+            const warningCount = group.services.filter((svc) => normalizeStatus(svc.status) === "warning").length;
 
-          return (
-            <section key={group.key} className="overflow-hidden rounded-2xl border border-border/80 bg-card/90 shadow-sm">
+            return (
+              <section key={group.key} className="overflow-hidden rounded-2xl border border-border/80 bg-card/90 shadow-sm">
               <div className="flex flex-col gap-4 border-b border-border px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -406,8 +557,9 @@ export default function ServicesPage() {
                 })}
               </div>
             </section>
-          );
-        })}
+            );
+          })
+        )}
 
         {!isLoading && grouped.length === 0 && <EmptyState message="No services found for this filter." />}
 
