@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -19,6 +19,12 @@ const typeIcons: Record<string, typeof Server> = {
   network: Wifi,
 };
 
+const historyRanges = [
+  { label: "1h", hours: 1 },
+  { label: "24h", hours: 24 },
+  { label: "7d", hours: 24 * 7 },
+] as const;
+
 type HostDetailVariant = "compact" | "detailed";
 
 interface HostDetailModalProps {
@@ -28,12 +34,14 @@ interface HostDetailModalProps {
 }
 
 export function HostDetailModal({ hostId, onClose, variant = "compact" }: HostDetailModalProps) {
+  const [rangeHours, setRangeHours] = useState<number>(24);
+
   const { data: seedData, isLoading } = useQuery({
-    queryKey: ["host-metrics", hostId],
-    queryFn: () => api.getHostMetrics(hostId!),
+    queryKey: ["host-metrics", hostId, rangeHours],
+    queryFn: () => api.getHostMetrics(hostId!, rangeHours),
     enabled: !!hostId,
   });
-  const data = useHostMetricsStream(hostId, seedData, !!hostId);
+  const data = useHostMetricsStream(hostId, seedData, !!hostId, rangeHours);
 
   return (
     <AnimatePresence>
@@ -61,7 +69,7 @@ export function HostDetailModal({ hostId, onClose, variant = "compact" }: HostDe
                 <LoadingState message="Loading host data..." className="w-full rounded-xl border border-border bg-card" />
               </div>
             ) : (
-              <HostContent data={data} onClose={onClose} variant={variant} />
+              <HostContent data={data} onClose={onClose} variant={variant} rangeHours={rangeHours} onRangeChange={setRangeHours} />
             )}
           </motion.div>
         </>
@@ -77,7 +85,19 @@ function formatBandwidth(bytesPerSec: number) {
   return `${bytesPerSec.toFixed(0)} B/s`;
 }
 
-function HostContent({ data, onClose, variant }: { data: any; onClose: () => void; variant: HostDetailVariant }) {
+function HostContent({
+  data,
+  onClose,
+  variant,
+  rangeHours,
+  onRangeChange,
+}: {
+  data: any;
+  onClose: () => void;
+  variant: HostDetailVariant;
+  rangeHours: number;
+  onRangeChange: (hours: number) => void;
+}) {
   const host = data.host;
   const Icon = typeIcons[host.type] || Server;
   const detailed = variant === "detailed";
@@ -126,6 +146,14 @@ function HostContent({ data, onClose, variant }: { data: any; onClose: () => voi
     [host.agent_version, host.data_source, host.ip_address, host.last_seen, host.os, host.tags, host.type, host.uptime],
   );
 
+  const latestPointTime =
+    data.cpu?.length || data.memory?.length || data.disk?.length || data.network_in?.length || data.network_out?.length
+      ? host.last_seen
+        ? new Date(host.last_seen).toLocaleString()
+        : null
+      : null;
+  const rangeLabel = rangeHours >= 24 ? `${Math.round(rangeHours / 24)}d` : `${rangeHours}h`;
+
   return (
     <>
       <div className="sticky top-0 z-10 border-b border-border bg-card/95 px-6 py-4 backdrop-blur">
@@ -164,6 +192,27 @@ function HostContent({ data, onClose, variant }: { data: any; onClose: () => voi
       </div>
 
       <div className="space-y-6 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-4 py-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Telemetry range</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {latestPointTime ? `${rangeLabel} window • latest ${latestPointTime}` : `${rangeLabel} window`}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {historyRanges.map((range) => (
+              <button
+                key={range.label}
+                type="button"
+                onClick={() => onRangeChange(range.hours)}
+                className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${rangeHours === range.hours ? "bg-primary text-primary-foreground" : "bg-surface text-muted-foreground hover:text-foreground"}`}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={cn("grid gap-3", detailed ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1 md:grid-cols-3")}>
           {telemetryCards.map(({ label, value, icon: CardIcon }) => (
             <GaugeCard key={label} label={label} value={value} icon={CardIcon} emphasis={detailed} />

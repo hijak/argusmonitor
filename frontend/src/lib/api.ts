@@ -93,7 +93,7 @@ export const api = {
   createHost: (data: any) =>
     request<any>("/hosts", { method: "POST", body: JSON.stringify(data) }),
   getHost: (id: string) => request<any>(`/hosts/${id}`),
-  getHostMetrics: (id: string) => request<any>(`/hosts/${id}/metrics`),
+  getHostMetrics: (id: string, hours = 24) => request<any>(`/hosts/${id}/metrics?hours=${hours}`),
   deleteHost: (id: string) =>
     request<void>(`/hosts/${id}`, { method: "DELETE" }),
 

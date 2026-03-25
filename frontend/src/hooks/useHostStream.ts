@@ -36,7 +36,7 @@ export function useHostsStream(initialHosts: any[], options: HostStreamOptions =
   });
 }
 
-export function useHostMetricsStream(hostId: string | null, initialData: any, enabled = true) {
+export function useHostMetricsStream(hostId: string | null, initialData: any, enabled = true, hours = 24) {
   const [data, setData] = useState<any>(initialData);
 
   useEffect(() => {
@@ -52,8 +52,9 @@ export function useHostMetricsStream(hostId: string | null, initialData: any, en
     const params = new URLSearchParams({ token });
     const workspaceId = getWorkspaceId();
     if (workspaceId) params.set("workspace_id", workspaceId);
+    params.set("hours", String(hours));
     return `${API_BASE}/api/hosts/${hostId}/metrics/stream?${params.toString()}`;
-  }, [enabled, hostId]);
+  }, [enabled, hostId, hours]);
 
   useEffect(() => {
     if (!streamUrl) return;

@@ -208,12 +208,20 @@ async def _host_counts(db: AsyncSession, workspace_id: UUID) -> HostCountsOut:
     )
 
 
-def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
-    cpu_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.cpu_percent, 1)} for m in metrics if m.cpu_percent is not None]
-    mem_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.memory_percent, 1)} for m in metrics if m.memory_percent is not None]
-    disk_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.disk_percent, 1)} for m in metrics if m.disk_percent is not None]
-    network_in_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.network_in_bytes or 0, 2)} for m in metrics]
-    network_out_data = [{"time": m.recorded_at.strftime("%H:%M:%S"), "value": round(m.network_out_bytes or 0, 2)} for m in metrics]
+def _metric_time_label(recorded_at: datetime, hours: int) -> str:
+    if hours >= 24 * 7:
+        return recorded_at.strftime("%d %b %H:%M")
+    if hours >= 24:
+        return recorded_at.strftime("%d %b %H:%M")
+    return recorded_at.strftime("%H:%M")
+
+
+def _serialize_host_metrics(host: Host, metrics: list[HostMetric], hours: int = 24) -> dict:
+    cpu_data = [{"time": _metric_time_label(m.recorded_at, hours), "value": round(m.cpu_percent, 1)} for m in metrics if m.cpu_percent is not None]
+    mem_data = [{"time": _metric_time_label(m.recorded_at, hours), "value": round(m.memory_percent, 1)} for m in metrics if m.memory_percent is not None]
+    disk_data = [{"time": _metric_time_label(m.recorded_at, hours), "value": round(m.disk_percent, 1)} for m in metrics if m.disk_percent is not None]
+    network_in_data = [{"time": _metric_time_label(m.recorded_at, hours), "value": round(m.network_in_bytes or 0, 2)} for m in metrics]
+    network_out_data = [{"time": _metric_time_label(m.recorded_at, hours), "value": round(m.network_out_bytes or 0, 2)} for m in metrics]
 
     latest_interfaces = metrics[-1].network_interfaces if metrics and getattr(metrics[-1], 'network_interfaces', None) else []
     return {
@@ -245,6 +253,18 @@ def _serialize_host_metrics(host: Host, metrics: list[HostMetric]) -> dict:
         "network_in": network_in_data,
         "network_out": network_out_data,
     }
+
+
+async def _load_host_metrics(db: AsyncSession, host_id: UUID, hours: int) -> list[HostMetric]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    metrics_result = await db.execute(
+        select(HostMetric)
+        .where(HostMetric.host_id == host_id, HostMetric.recorded_at >= cutoff)
+        .order_by(HostMetric.recorded_at.desc())
+        .limit(max(48, hours * 12))
+    )
+    return list(reversed(metrics_result.scalars().all()))
+
 
 
 @router.get("", response_model=HostListResponse)
@@ -385,6 +405,7 @@ async def update_host(
 @router.get("/{host_id}/metrics")
 async def get_host_metrics(
     host_id: UUID,
+    hours: int = Query(24, ge=1, le=24 * 30),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
@@ -394,14 +415,8 @@ async def get_host_metrics(
     if not host:
         raise HTTPException(status_code=404, detail="Host not found")
 
-    metrics_result = await db.execute(
-        select(HostMetric)
-        .where(HostMetric.host_id == host_id)
-        .order_by(HostMetric.recorded_at.desc())
-        .limit(48)
-    )
-    metrics = list(reversed(metrics_result.scalars().all()))
-    return _serialize_host_metrics(host, metrics)
+    metrics = await _load_host_metrics(db, host_id, hours)
+    return _serialize_host_metrics(host, metrics, hours=hours)
 
 
 @router.get("/{host_id}/metrics/stream")
@@ -410,6 +425,7 @@ async def stream_host_metrics(
     request: Request,
     token: str = Query(...),
     workspace_id: UUID | None = Query(default=None),
+    hours: int = Query(24, ge=1, le=24 * 30),
 ):
     stream_user = await _get_stream_user(token)
     workspace_id = await _get_user_workspace_id(stream_user.id, workspace_id)
@@ -426,14 +442,8 @@ async def stream_host_metrics(
                 if not host:
                     payload = json.dumps({"host": None, "cpu": [], "memory": [], "disk": []}, separators=(",", ":"))
                 else:
-                    metrics_result = await db.execute(
-                        select(HostMetric)
-                        .where(HostMetric.host_id == host_id)
-                        .order_by(HostMetric.recorded_at.desc())
-                        .limit(48)
-                    )
-                    metrics = list(reversed(metrics_result.scalars().all()))
-                    payload = json.dumps(_serialize_host_metrics(host, metrics), separators=(",", ":"))
+                    metrics = await _load_host_metrics(db, host_id, hours)
+                    payload = json.dumps(_serialize_host_metrics(host, metrics, hours=hours), separators=(",", ":"))
 
             if payload != last_payload:
                 yield f"data: {payload}\n\n"
