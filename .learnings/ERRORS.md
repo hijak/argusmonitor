@@ -377,3 +377,100 @@ Add an Alembic migration whenever expanding ORM models, and smoke-test auth/logi
 - Related Files: backend/app/models.py, backend/alembic/versions/0003_users_timezone_is_active.py
 
 ---
+## [ERR-20260326-002] alembic_revision_id_too_long
+
+**Logged**: 2026-03-26T16:11:12+00:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Backend restart failed because the Alembic revision identifier exceeded the effective size of the `alembic_version.version_num` column.
+
+### Error
+```
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(32)
+[SQL: UPDATE alembic_version SET version_num='0017_service_classification_states' WHERE alembic_version.version_num = '0016_worker_job_dedupe_claiming']
+```
+
+### Context
+- Operation attempted: rebuild/restart backend after adding service classification migration
+- Migration file: `backend/alembic/versions/0017_service_classification_states.py`
+- Environment: Docker Compose backend startup runs Alembic automatically
+
+### Suggested Fix
+Keep Alembic revision IDs short enough for the existing `alembic_version.version_num` storage, even when filenames are descriptive.
+
+### Metadata
+- Reproducible: yes
+- Related Files: backend/alembic/versions/0017_service_classification_states.py
+
+### Resolution
+- **Resolved**: 2026-03-26T16:11:12+00:00
+- **Notes**: Shortened revision id to `0017_service_classify` and restarted backend/worker.
+
+---
+
+## [ERR-20260326-003] agent_smoke_test_wrong_python_env
+
+**Logged**: 2026-03-26T16:37:22+00:00
+**Priority**: medium
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Agent runtime smoke test initially failed with `ModuleNotFoundError: No module named 'httpx'`, but the real problem was running the test outside the agent's dependency environment.
+
+### Error
+```
+ModuleNotFoundError: No module named 'httpx'
+```
+
+### Context
+- Operation attempted: `python3 - <<'PY' ... PluginManager().discover_services(...)`
+- New built-ins added: Prometheus and Kubernetes, plus upgraded Docker collector
+- Environment: `/Users/jack/clawd/projects/vordr/agent`
+- `agent/requirements.txt` already includes `httpx==0.28.1`
+
+### Suggested Fix
+Run smoke tests inside the agent venv / built runtime instead of ambient workspace Python.
+
+### Metadata
+- Reproducible: yes
+- Related Files: agent/requirements.txt, agent/vordr_agent/plugins/prometheus.py, agent/vordr_agent/plugins/kubernetes.py, agent/vordr_agent/plugins/docker_local.py
+
+### Resolution
+- **Resolved**: 2026-03-26T16:39:00+00:00
+- **Notes**: Corrected diagnosis; requirements were already present.
+
+---
+
+## [ERR-20260326-004] python_literal_used_json_boolean
+
+**Logged**: 2026-03-26T16:43:58+00:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Backend crashed on import because I pasted JSON-style `true` into a Python module instead of `True`.
+
+### Error
+```
+NameError: name 'true' is not defined. Did you mean: 'True'?
+```
+
+### Context
+- File: `backend/app/routers/services.py`
+- Area: expanded discovery port fingerprints
+- Effect: backend crash loop on startup
+
+### Suggested Fix
+When pasting structured literals into Python code, normalize JSON booleans/nulls (`true/false/null`) to Python (`True/False/None`) before rebuild.
+
+### Resolution
+- **Resolved**: 2026-03-26T16:43:58+00:00
+- **Notes**: Replaced `true` with `True` and rebuilt backend/frontend.
+
+---
+

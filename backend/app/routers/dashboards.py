@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -22,7 +22,7 @@ PLUGIN_TEMPLATE_SPECS = {
         "id": "plugin-postgres-overview",
         "name": "PostgreSQL Fleet",
         "description": "Connections, replication lag, commits, and memory across discovered PostgreSQL services.",
-        "category": "plugin",
+        "category": "technology",
         "widget_count": 6,
         "plugin_id": "postgres",
         "service_type": "postgresql",
@@ -31,7 +31,7 @@ PLUGIN_TEMPLATE_SPECS = {
         "id": "plugin-mysql-overview",
         "name": "MySQL Fleet",
         "description": "Threads, slow queries, bytes in/out, and uptime across discovered MySQL services.",
-        "category": "plugin",
+        "category": "technology",
         "widget_count": 6,
         "plugin_id": "mysql",
         "service_type": "mysql",
@@ -40,7 +40,7 @@ PLUGIN_TEMPLATE_SPECS = {
         "id": "plugin-redis-overview",
         "name": "Redis Fleet",
         "description": "OPS, memory, hit rate, and connected clients for Redis instances.",
-        "category": "plugin",
+        "category": "technology",
         "widget_count": 6,
         "plugin_id": "redis",
         "service_type": "redis",
@@ -49,7 +49,7 @@ PLUGIN_TEMPLATE_SPECS = {
         "id": "plugin-rabbitmq-overview",
         "name": "RabbitMQ Fleet",
         "description": "Queue backlog, consumers, channels, and publish/deliver rates for RabbitMQ.",
-        "category": "plugin",
+        "category": "technology",
         "widget_count": 6,
         "plugin_id": "rabbitmq",
         "service_type": "rabbitmq",
@@ -58,57 +58,77 @@ PLUGIN_TEMPLATE_SPECS = {
         "id": "plugin-docker-local-overview",
         "name": "Docker Local Runtime",
         "description": "Container inventory, uptime, endpoints, and exposure for locally discovered Docker services.",
-        "category": "plugin",
+        "category": "technology",
         "widget_count": 5,
         "plugin_id": "docker-local",
         "service_type": "docker-container",
     },
-    "vordr-stack": {
-        "id": "plugin-vordr-stack-overview",
-        "name": "Vordr Stack",
-        "description": "Aggregated health, exposure, and inventory for the Vordr platform containers on this host.",
-        "category": "plugin",
+    "prometheus": {
+        "id": "plugin-prometheus-overview",
+        "name": "Prometheus Monitoring",
+        "description": "Target health, scrape coverage, query activity, and TSDB pressure for Prometheus servers.",
+        "category": "technology",
         "widget_count": 6,
-        "plugin_id": "vordr-stack",
-        "service_type": "vordr-stack",
+        "plugin_id": "prometheus",
+        "service_type": "prometheus",
     },
-    "web-publishing": {
-        "id": "plugin-web-publishing-overview",
-        "name": "Web Publishing Surfaces",
-        "description": "Aggregated websites, docs, frontends, and publishing surfaces discovered on the host.",
-        "category": "plugin",
-        "widget_count": 5,
-        "plugin_id": "web-publishing",
-        "service_type": "web-publishing",
+    "kubernetes": {
+        "id": "plugin-kubernetes-overview",
+        "name": "Kubernetes Control Planes",
+        "description": "API readiness, distribution, version signals, and control-plane availability for Kubernetes clusters.",
+        "category": "technology",
+        "widget_count": 6,
+        "plugin_id": "kubernetes",
+        "service_type": "kubernetes",
     },
-    "ai-gateways": {
-        "id": "plugin-ai-gateways-overview",
-        "name": "AI Gateways & Models",
-        "description": "Aggregated AI gateway and model-serving runtime surfaces for the host.",
-        "category": "plugin",
+    "nginx": {
+        "id": "plugin-nginx-overview",
+        "name": "Nginx Edge",
+        "description": "Public web surfaces, response shape, active connections, and uptime for Nginx endpoints.",
+        "category": "technology",
         "widget_count": 5,
-        "plugin_id": "ai-gateways",
-        "service_type": "ai-gateway",
+        "plugin_id": "nginx",
+        "service_type": "http",
     },
-    "telephony-pbx": {
-        "id": "plugin-telephony-pbx-overview",
-        "name": "Telephony & PBX",
-        "description": "Aggregated telephony, SIP, and PBX runtime surfaces discovered on the host.",
-        "category": "plugin",
-        "widget_count": 5,
-        "plugin_id": "telephony-pbx",
-        "service_type": "telephony-pbx",
+    "mongodb": {
+        "id": "plugin-mongodb-overview",
+        "name": "MongoDB Fleet",
+        "description": "Connections, query counters, database inventory, and uptime across MongoDB instances.",
+        "category": "technology",
+        "widget_count": 6,
+        "plugin_id": "mongodb",
+        "service_type": "mongodb",
     },
-    "voice-stack": {
-        "id": "plugin-voice-stack-overview",
-        "name": "Voice Stack",
-        "description": "Aggregated TTS and speech-serving runtime surfaces discovered on the host.",
-        "category": "plugin",
+    "elasticsearch": {
+        "id": "plugin-elasticsearch-overview",
+        "name": "Elasticsearch Cluster",
+        "description": "Cluster health, shards, indices, and storage footprint for Elasticsearch services.",
+        "category": "technology",
+        "widget_count": 6,
+        "plugin_id": "elasticsearch",
+        "service_type": "elasticsearch",
+    },
+    "kafka": {
+        "id": "plugin-kafka-overview",
+        "name": "Kafka Brokers",
+        "description": "Broker reachability and messaging infrastructure coverage for Kafka deployments.",
+        "category": "technology",
         "widget_count": 5,
-        "plugin_id": "voice-stack",
-        "service_type": "voice-stack",
+        "plugin_id": "kafka",
+        "service_type": "kafka",
+    },
+    "nats": {
+        "id": "plugin-nats-overview",
+        "name": "NATS Mesh",
+        "description": "Core NATS messaging surfaces, uptime, and service inventory in one board.",
+        "category": "technology",
+        "widget_count": 5,
+        "plugin_id": "nats",
+        "service_type": "nats",
     },
 }
+
+COMPAT_PROFILE_PLUGIN_IDS = {"vordr-stack", "web-publishing", "ai-gateways", "telephony-pbx", "voice-stack"}
 
 SERVICE_GROUP_TEMPLATES = {
     "web": {
@@ -178,7 +198,7 @@ PROFILE_TEMPLATE_SPECS = {
         "keywords": ["tts", "voice", "kokoro", "whisper", "speech", "audio"],
         "category": "profiles",
     },
-    "telephony": {
+    "telephony-pbx": {
         "name": "Telephony & PBX",
         "description": "Asterisk/PBX style runtime surfaces, ports, and uptime in one prefab board.",
         "widget_count": 5,
@@ -338,6 +358,17 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
     services = services_result.scalars().all()
 
     counts_by_plugin = Counter((svc.plugin_id or "unknown") for svc in services if svc.plugin_id)
+    suspected_counts_by_plugin = Counter((svc.suspected_plugin_id or "unknown") for svc in services if svc.suspected_plugin_id and not svc.plugin_id)
+    hinted_counts_by_profile = Counter(
+        profile_id
+        for svc in services
+        for profile_id in (svc.suggested_profile_ids or [])
+        if profile_id
+    )
+    weighted_counts_by_plugin = {
+        plugin_id: counts_by_plugin.get(plugin_id, 0) + (suspected_counts_by_plugin.get(plugin_id, 0) * 0.5)
+        for plugin_id in set(counts_by_plugin) | set(suspected_counts_by_plugin)
+    }
     counts_by_type = Counter((svc.service_type or "unknown") for svc in services if svc.service_type)
     counts_by_group = Counter(SERVICE_GROUP_MAP.get((svc.service_type or "").lower()) for svc in services if SERVICE_GROUP_MAP.get((svc.service_type or "").lower()))
     counts_by_profile = {profile_id: len(_profile_services(services, profile_id)) for profile_id in PROFILE_TEMPLATE_SPECS}
@@ -347,6 +378,10 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
         templates.append({
             **spec,
             "available_count": len(services),
+            "verified_count": 0,
+            "suspected_count": 0,
+            "hinted_count": 0,
+            "recommendation_reason": "Core operational overview" if spec["id"] in {"infra-overview", "services-overview", "service-catalog-overview"} else None,
             "recommended": spec["id"] in {"infra-overview", "services-overview", "service-catalog-overview"},
             "plugin_id": None,
             "service_type": None,
@@ -364,6 +399,10 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
             "category": "service-group",
             "widget_count": group_spec["widget_count"],
             "available_count": available_count,
+            "verified_count": available_count,
+            "suspected_count": 0,
+            "hinted_count": 0,
+            "recommendation_reason": "Detected active service family" if available_count >= 2 else None,
             "recommended": available_count >= 2,
             "plugin_id": None,
             "service_type": None,
@@ -374,16 +413,28 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
 
     for profile_id, profile_spec in PROFILE_TEMPLATE_SPECS.items():
         available_count = counts_by_profile.get(profile_id, 0)
-        if available_count <= 0:
+        hinted_count = hinted_counts_by_profile.get(profile_id, 0)
+        evidence_count = max(available_count, hinted_count)
+        if evidence_count <= 0:
             continue
+        recommended = available_count >= 2 or hinted_count >= 2
+        reason = None
+        if available_count >= 2:
+            reason = "Multiple matching services fit this profile"
+        elif hinted_count >= 2:
+            reason = "Multiple services carry this profile hint"
         templates.append({
             "id": f"profile-{profile_id}",
             "name": profile_spec["name"],
             "description": profile_spec["description"],
             "category": "profiles",
             "widget_count": profile_spec["widget_count"],
-            "available_count": available_count,
-            "recommended": available_count >= 2,
+            "available_count": evidence_count,
+            "verified_count": available_count,
+            "suspected_count": 0,
+            "hinted_count": hinted_count,
+            "recommendation_reason": reason,
+            "recommended": recommended,
             "plugin_id": None,
             "service_type": None,
             "service_group": None,
@@ -392,19 +443,59 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
         })
 
     for plugin_id, spec in PLUGIN_TEMPLATE_SPECS.items():
-        available_count = counts_by_plugin.get(plugin_id, 0)
+        available_count = weighted_counts_by_plugin.get(plugin_id, 0)
+        verified_count = counts_by_plugin.get(plugin_id, 0)
+        suspected_count = suspected_counts_by_plugin.get(plugin_id, 0)
         if available_count <= 0:
             continue
+        reason = None
+        if verified_count > 0:
+            reason = "Verified technology detected"
+        elif suspected_count > 0:
+            reason = "Strong fingerprint match detected"
         templates.append({
             **spec,
             "available_count": available_count,
-            "recommended": available_count > 0,
+            "verified_count": verified_count,
+            "suspected_count": suspected_count,
+            "hinted_count": 0,
+            "recommendation_reason": reason,
+            "recommended": verified_count > 0 or suspected_count > 0,
             "service_group": SERVICE_GROUP_MAP.get((spec.get("service_type") or "").lower()),
             "profile": None,
         })
 
+    for profile_plugin_id in COMPAT_PROFILE_PLUGIN_IDS:
+        available_count = counts_by_plugin.get(profile_plugin_id, 0)
+        hinted_count = hinted_counts_by_profile.get(profile_plugin_id, 0)
+        evidence_count = max(available_count, hinted_count)
+        if evidence_count <= 0:
+            continue
+        profile_spec = PROFILE_TEMPLATE_SPECS.get(profile_plugin_id)
+        if not profile_spec:
+            continue
+        templates.append({
+            "id": f"compat-profile-{profile_plugin_id}",
+            "name": profile_spec["name"],
+            "description": profile_spec["description"],
+            "category": "profiles",
+            "widget_count": profile_spec["widget_count"],
+            "available_count": evidence_count,
+            "verified_count": available_count,
+            "suspected_count": 0,
+            "hinted_count": hinted_count,
+            "recommendation_reason": "Detected legacy profile/plugin overlay",
+            "recommended": evidence_count >= 1,
+            "plugin_id": profile_plugin_id,
+            "service_type": None,
+            "service_group": None,
+            "profile": profile_plugin_id,
+            "preset": f"profile:{profile_plugin_id}",
+        })
+
+    known_plugin_service_types = {spec.get("service_type") for spec in PLUGIN_TEMPLATE_SPECS.values() if spec.get("service_type")}
     for service_type, count in counts_by_type.items():
-        if count <= 0 or service_type in {spec.get("service_type") for spec in PLUGIN_TEMPLATE_SPECS.values()}:
+        if count <= 0 or service_type in known_plugin_service_types:
             continue
         pretty = service_type.replace("-", " ").replace("_", " ").title()
         templates.append({
@@ -414,6 +505,10 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
             "category": "service-type",
             "widget_count": 5,
             "available_count": count,
+            "verified_count": count,
+            "suspected_count": 0,
+            "hinted_count": 0,
+            "recommendation_reason": "Useful fallback for uncatalogued service type" if count >= 2 else None,
             "recommended": count >= 2,
             "plugin_id": None,
             "service_type": service_type,
@@ -422,7 +517,17 @@ async def _build_dashboard_templates(db: AsyncSession, workspace_id: UUID) -> li
             "preset": f"service-type:{service_type}",
         })
 
-    templates.sort(key=lambda item: (not item.get("recommended", False), -item.get("available_count", 0), item["name"]))
+    def sort_score(item: dict) -> tuple:
+        return (
+            0 if item.get("recommended", False) else 1,
+            -int(item.get("verified_count", 0) or 0),
+            -int(item.get("hinted_count", 0) or 0),
+            -int(item.get("suspected_count", 0) or 0),
+            -int(item.get("available_count", 0) or 0),
+            item["name"],
+        )
+
+    templates.sort(key=sort_score)
     return templates
 
 
@@ -556,7 +661,7 @@ def _service_rows(services: list[Service]) -> list[dict]:
 async def _service_subset_widgets(db: AsyncSession, workspace_id: UUID, plugin_id: str | None = None, service_type: str | None = None) -> list[dict]:
     stmt = select(Service).where(Service.workspace_id == workspace_id)
     if plugin_id:
-        stmt = stmt.where(Service.plugin_id == plugin_id)
+        stmt = stmt.where(or_(Service.plugin_id == plugin_id, and_(Service.plugin_id.is_(None), Service.suspected_plugin_id == plugin_id)))
     if service_type:
         stmt = stmt.where(Service.service_type == service_type)
     result = await db.execute(stmt.order_by(Service.name))
@@ -664,7 +769,14 @@ async def _profile_widgets(db: AsyncSession, workspace_id: UUID, profile: str) -
 
 
 async def _plugin_widgets(db: AsyncSession, workspace_id: UUID, plugin_id: str) -> list[dict]:
-    result = await db.execute(select(Service).where(Service.workspace_id == workspace_id, Service.plugin_id == plugin_id).order_by(Service.name))
+    result = await db.execute(
+        select(Service)
+        .where(
+            Service.workspace_id == workspace_id,
+            or_(Service.plugin_id == plugin_id, and_(Service.plugin_id.is_(None), Service.suspected_plugin_id == plugin_id)),
+        )
+        .order_by(Service.name)
+    )
     services = result.scalars().all()
     if not services:
         return await _service_subset_widgets(db, workspace_id, plugin_id=plugin_id)
@@ -759,7 +871,7 @@ async def _plugin_widgets(db: AsyncSession, workspace_id: UUID, plugin_id: str) 
             {"id": "docker-table", "type": "table", "title": "Container Inventory", "size": "full", "rows": _service_rows(services)},
         ]
 
-    if plugin_id in {"vordr-stack", "web-publishing", "ai-gateways", "telephony-pbx", "voice-stack"}:
+    if plugin_id in COMPAT_PROFILE_PLUGIN_IDS:
         profile_labels = {
             "vordr-stack": "Vordr Stack",
             "web-publishing": "Web Publishing",

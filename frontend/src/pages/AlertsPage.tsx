@@ -1,24 +1,580 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Bell, User, CheckCircle2 } from "lucide-react";
+import { MetricCard } from "@/components/MetricCard";
+import { SectionCard } from "@/components/SectionCard";
+import { Bell, User, CheckCircle2, Siren, Plus, ShieldAlert, Clock3, Route, Pencil, Trash2, BellOff, Wrench, MoreHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.02 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
+const PRESETS = [
+  {
+    key: "host-cpu",
+    label: "Host CPU above 85%",
+    severity: "warning",
+    target_type: "host",
+    condition: { metric: "cpu_percent", operator: ">", value: 85 },
+    scope: {},
+  },
+  {
+    key: "service-latency",
+    label: "Service latency above 250ms",
+    severity: "warning",
+    target_type: "service",
+    condition: { metric: "latency_ms", operator: ">", value: 250 },
+    scope: {},
+  },
+  {
+    key: "postgres-latency",
+    label: "PostgreSQL latency above 200ms",
+    severity: "warning",
+    target_type: "service",
+    condition: { metric: "latency_ms", operator: ">", value: 200 },
+    scope: { plugin_id: "postgres", service_type: "postgresql" },
+  },
+  {
+    key: "redis-latency",
+    label: "Redis latency above 75ms",
+    severity: "warning",
+    target_type: "service",
+    condition: { metric: "latency_ms", operator: ">", value: 75 },
+    scope: { plugin_id: "redis", service_type: "redis" },
+  },
+  {
+    key: "rabbitmq-uptime",
+    label: "RabbitMQ uptime below 99%",
+    severity: "critical",
+    target_type: "service",
+    condition: { metric: "uptime_percent", operator: "<", value: 99 },
+    scope: { plugin_id: "rabbitmq", service_type: "rabbitmq" },
+  },
+];
+
+function pillClasses(active: boolean) {
+  return active
+    ? "bg-primary text-primary-foreground shadow-sm"
+    : "text-muted-foreground hover:bg-surface hover:text-foreground";
+}
+
+function scopeLabel(rule: any) {
+  const parts = [rule.scope?.plugin_id, rule.scope?.service_type, rule.scope?.service_id, rule.scope?.host_id].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "workspace-wide";
+}
+
+function routeLabel(rule: any, teams: any[]) {
+  if (!rule.oncall_team_id) return "workspace default route";
+  const team = teams.find((entry: any) => entry.id === rule.oncall_team_id);
+  return team ? team.name : "team route";
+}
+
+function toLocalDateTimeInputValue(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, services, initialRule }: any) {
+  const [name, setName] = useState("");
+  const [severity, setSeverity] = useState("warning");
+  const [targetType, setTargetType] = useState("service");
+  const [metric, setMetric] = useState("latency_ms");
+  const [operator, setOperator] = useState(">");
+  const [threshold, setThreshold] = useState("250");
+  const [cooldownSeconds, setCooldownSeconds] = useState("300");
+  const [pluginId, setPluginId] = useState("all");
+  const [serviceType, setServiceType] = useState("all");
+  const [serviceId, setServiceId] = useState("all");
+  const [hostId, setHostId] = useState("all");
+  const [teamId, setTeamId] = useState("none");
+  const [policyId, setPolicyId] = useState("none");
+
+  const uniquePluginIds = useMemo(() => Array.from(new Set((services || []).map((s: any) => s.plugin_id).filter(Boolean))).sort(), [services]);
+  const uniqueServiceTypes = useMemo(() => Array.from(new Set((services || []).map((s: any) => s.service_type).filter(Boolean))).sort(), [services]);
+  const uniqueHosts = useMemo(
+    () => Array.from(new Map((services || []).filter((s: any) => s.host_id).map((s: any) => [s.host_id, { id: s.host_id, name: s.host_name || s.host_id }])).values()),
+    [services],
+  );
+  const isHostTarget = targetType === "host";
+  const metricOptions = isHostTarget
+    ? [
+        { value: "cpu_percent", label: "CPU %" },
+        { value: "memory_percent", label: "Memory %" },
+        { value: "disk_percent", label: "Disk %" },
+      ]
+    : [
+        { value: "latency_ms", label: "Latency (ms)" },
+        { value: "uptime_percent", label: "Uptime %" },
+        { value: "requests_per_min", label: "Requests / min" },
+      ];
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialRule) {
+      setName(initialRule.name || "");
+      setSeverity(initialRule.severity || "warning");
+      setTargetType(initialRule.target_type || "service");
+      setMetric(initialRule.condition?.metric || "latency_ms");
+      setOperator(initialRule.condition?.operator || ">");
+      setThreshold(String(initialRule.condition?.value ?? 250));
+      setCooldownSeconds(String(initialRule.cooldown_seconds ?? 300));
+      setPluginId(initialRule.scope?.plugin_id || "all");
+      setServiceType(initialRule.scope?.service_type || "all");
+      setServiceId(initialRule.scope?.service_id || (initialRule.target_type === "service" && initialRule.target_id ? String(initialRule.target_id) : "all"));
+      setHostId(initialRule.scope?.host_id || (initialRule.target_type === "host" && initialRule.target_id ? String(initialRule.target_id) : "all"));
+      setTeamId(initialRule.oncall_team_id || "none");
+      setPolicyId(initialRule.escalation_policy_id || "none");
+      return;
+    }
+
+    setName("");
+    setSeverity("warning");
+    setTargetType("service");
+    setMetric("latency_ms");
+    setOperator(">");
+    setThreshold("250");
+    setCooldownSeconds("300");
+    setPluginId("all");
+    setServiceType("all");
+    setServiceId("all");
+    setHostId("all");
+    setTeamId("none");
+    setPolicyId("none");
+  }, [open, initialRule]);
+
+  useEffect(() => {
+    if (isHostTarget) {
+      setMetric((current) => (["cpu_percent", "memory_percent", "disk_percent"].includes(current) ? current : "cpu_percent"));
+      setPluginId("all");
+      setServiceType("all");
+      setServiceId("all");
+    } else {
+      setMetric((current) => (["latency_ms", "uptime_percent", "requests_per_min"].includes(current) ? current : "latency_ms"));
+      setHostId("all");
+    }
+  }, [isHostTarget]);
+
+  const applyPreset = (preset: any) => {
+    setName(preset.label);
+    setSeverity(preset.severity);
+    setTargetType(preset.target_type);
+    setMetric(preset.condition.metric);
+    setOperator(preset.condition.operator);
+    setThreshold(String(preset.condition.value));
+    setPluginId(preset.scope?.plugin_id || "all");
+    setServiceType(preset.scope?.service_type || "all");
+    setServiceId("all");
+    setHostId("all");
+  };
+
+  const submit = () => {
+    const scope: any = {};
+    if (pluginId !== "all") scope.plugin_id = pluginId;
+    if (serviceType !== "all") scope.service_type = serviceType;
+    if (serviceId !== "all") scope.service_id = serviceId;
+    if (hostId !== "all") scope.host_id = hostId;
+
+    onSubmit({
+      name: name.trim(),
+      severity,
+      type: "threshold",
+      target_type: targetType,
+      target_id:
+        serviceId !== "all" && targetType === "service"
+          ? serviceId
+          : hostId !== "all" && targetType === "host"
+            ? hostId
+            : null,
+      condition: {
+        metric,
+        operator,
+        value: Number(threshold),
+      },
+      scope,
+      oncall_team_id: teamId === "none" ? null : teamId,
+      escalation_policy_id: policyId === "none" ? null : policyId,
+      cooldown_seconds: Number(cooldownSeconds || 300),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{initialRule ? "Edit alert rule" : "Create alert rule"}</DialogTitle>
+          <DialogDescription>Scope alerts to hosts, services, plugins, and on-call teams.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {!initialRule && (
+            <div className="space-y-2">
+              <Label>Quick presets</Label>
+              <div className="flex flex-wrap gap-2">
+                {PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className="rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-surface-hover"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="rule-name">Rule name</Label>
+              <Input id="rule-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Redis latency above 75ms" />
+            </div>
+            <div className="space-y-2">
+              <Label>Severity</Label>
+              <Select value={severity} onValueChange={setSeverity}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Target type</Label>
+              <Select value={targetType} onValueChange={setTargetType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="host">Host</SelectItem>
+                  <SelectItem value="service">Service</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Metric</Label>
+              <Select value={metric} onValueChange={setMetric}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {metricOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Operator</Label>
+              <Select value={operator} onValueChange={setOperator}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[">", ">=", "<", "<=", "==", "!="].map((value) => (
+                    <SelectItem key={value} value={value}>{value}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="threshold">Threshold</Label>
+              <Input id="threshold" type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cooldown">Cooldown seconds</Label>
+              <Input id="cooldown" type="number" value={cooldownSeconds} onChange={(e) => setCooldownSeconds(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="min-h-[188px]">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {isHostTarget ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Host scope</Label>
+                    <Select value={hostId} onValueChange={setHostId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any host</SelectItem>
+                        {uniqueHosts.map((host: any) => (
+                          <SelectItem key={host.id} value={host.id}>{host.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Host targeting</Label>
+                    <div className="flex min-h-10 items-center rounded-md border border-border bg-background px-3 text-sm text-muted-foreground">
+                      Host rules can target a specific host or apply workspace-wide.
+                    </div>
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Scope preview</Label>
+                    <div className="rounded-md border border-dashed border-border bg-background/50 px-3 py-3 text-sm text-muted-foreground">
+                      {hostId === "all" ? "All hosts in this workspace" : `Only host: ${uniqueHosts.find((host: any) => host.id === hostId)?.name || hostId}`}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Plugin scope</Label>
+                    <Select value={pluginId} onValueChange={setPluginId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any plugin</SelectItem>
+                        {uniquePluginIds.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Service type</Label>
+                    <Select value={serviceType} onValueChange={setServiceType}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any service type</SelectItem>
+                        {uniqueServiceTypes.map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Specific service</Label>
+                    <Select value={serviceId} onValueChange={setServiceId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any service</SelectItem>
+                        {(services || []).map((service: any) => <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Service targeting</Label>
+                    <div className="flex min-h-10 items-center rounded-md border border-border bg-background px-3 text-sm text-muted-foreground">
+                      Filter by plugin, service type, or lock to a single service.
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>On-call team</Label>
+              <Select value={teamId} onValueChange={setTeamId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Workspace default</SelectItem>
+                  {(teams || []).map((team: any) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Escalation policy</Label>
+              <Select value={policyId} onValueChange={setPolicyId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Default policy matching</SelectItem>
+                  {(policies || []).map((policy: any) => <SelectItem key={policy.id} value={policy.id}>{policy.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <button type="button" onClick={() => onOpenChange(false)} className="rounded-md border border-border px-4 py-2 text-sm">Cancel</button>
+          <button type="button" disabled={pending || !name.trim()} onClick={submit} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            {pending ? (initialRule ? "Saving..." : "Creating...") : (initialRule ? "Save changes" : "Create rule")}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SilenceDialog({ open, onOpenChange, onSubmit, pending, workspaceId, alert }: any) {
+  const [name, setName] = useState("");
+  const [reason, setReason] = useState("");
+  const [startsAt, setStartsAt] = useState(toLocalDateTimeInputValue(new Date()));
+  const [endsAt, setEndsAt] = useState(toLocalDateTimeInputValue(new Date(Date.now() + 60 * 60 * 1000)));
+
+  useEffect(() => {
+    if (!open || !alert) return;
+    setName(`Silence: ${alert.service || alert.host || alert.message}`);
+    setReason(alert.message || "");
+    setStartsAt(toLocalDateTimeInputValue(new Date()));
+    setEndsAt(toLocalDateTimeInputValue(new Date(Date.now() + 60 * 60 * 1000)));
+  }, [open, alert]);
+
+  const matcher: any = {};
+  if (alert?.service) matcher.service = alert.service;
+  if (alert?.host) matcher.host = alert.host;
+  if (alert?.severity) matcher.severity = alert.severity;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Create silence</DialogTitle>
+          <DialogDescription>Suppress alerts matching this alert pattern for a fixed time window.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Reason</Label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Deploy in progress" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Starts</Label>
+              <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Ends</Label>
+              <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Matcher preview</Label>
+            <div className="rounded-md border border-dashed border-border bg-background/50 px-3 py-3 text-sm text-muted-foreground">
+              {Object.keys(matcher).length ? JSON.stringify(matcher) : "No matcher context"}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <button type="button" onClick={() => onOpenChange(false)} className="rounded-md border border-border px-4 py-2 text-sm">Cancel</button>
+          <button
+            type="button"
+            disabled={pending || !workspaceId || !name.trim()}
+            onClick={() => onSubmit({
+              workspace_id: workspaceId,
+              name: name.trim(),
+              matcher,
+              starts_at: new Date(startsAt).toISOString(),
+              ends_at: new Date(endsAt).toISOString(),
+              reason: reason.trim() || null,
+            })}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {pending ? "Creating..." : "Create silence"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MaintenanceDialog({ open, onOpenChange, onSubmit, pending, workspaceId, alert }: any) {
+  const [name, setName] = useState("");
+  const [reason, setReason] = useState("");
+  const [startsAt, setStartsAt] = useState(toLocalDateTimeInputValue(new Date()));
+  const [endsAt, setEndsAt] = useState(toLocalDateTimeInputValue(new Date(Date.now() + 60 * 60 * 1000)));
+
+  useEffect(() => {
+    if (!open || !alert) return;
+    setName(`Maintenance: ${alert.service || alert.host || "alert scope"}`);
+    setReason(alert.message || "");
+    setStartsAt(toLocalDateTimeInputValue(new Date()));
+    setEndsAt(toLocalDateTimeInputValue(new Date(Date.now() + 60 * 60 * 1000)));
+  }, [open, alert]);
+
+  let scopeType = "all";
+  let scope: any = {};
+  if (alert?.service) {
+    scopeType = "service";
+    scope = { services: [alert.service] };
+  } else if (alert?.host) {
+    scopeType = "host";
+    scope = { hosts: [alert.host] };
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Create maintenance window</DialogTitle>
+          <DialogDescription>Suppress matching alerts during planned maintenance.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Reason</Label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Scheduled upgrade" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Starts</Label>
+              <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Ends</Label>
+              <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Scope preview</Label>
+            <div className="rounded-md border border-dashed border-border bg-background/50 px-3 py-3 text-sm text-muted-foreground">
+              {scopeType} · {JSON.stringify(scope)}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <button type="button" onClick={() => onOpenChange(false)} className="rounded-md border border-border px-4 py-2 text-sm">Cancel</button>
+          <button
+            type="button"
+            disabled={pending || !workspaceId || !name.trim()}
+            onClick={() => onSubmit({
+              workspace_id: workspaceId,
+              name: name.trim(),
+              starts_at: new Date(startsAt).toISOString(),
+              ends_at: new Date(endsAt).toISOString(),
+              scope_type: scopeType,
+              scope,
+              reason: reason.trim() || null,
+            })}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {pending ? "Creating..." : "Create maintenance"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function AlertsPage() {
   const [filter, setFilter] = useState<"all" | "critical" | "warning" | "info">("all");
   const [showAcked, setShowAcked] = useState(true);
+  const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<any | null>(null);
+  const [silenceAlert, setSilenceAlert] = useState<any | null>(null);
+  const [maintenanceAlert, setMaintenanceAlert] = useState<any | null>(null);
   const queryClient = useQueryClient();
 
   const { data: alerts = [] } = useQuery({
-    queryKey: ["alerts"],
-    queryFn: () => api.listAlerts(),
+    queryKey: ["alerts", filter, showAcked],
+    queryFn: () => api.listAlerts({ severity: filter === "all" ? undefined : filter, acknowledged: showAcked ? undefined : false }),
     refetchInterval: 15000,
+  });
+  const { data: rules = [] } = useQuery({ queryKey: ["alert-rules"], queryFn: api.listAlertRules });
+  const { data: services = [] } = useQuery({ queryKey: ["services", "alerts-builder"], queryFn: () => api.listServices().then((r: any) => r.items || []) });
+  const { data: teams = [] } = useQuery({ queryKey: ["oncall-teams", "alerts-builder"], queryFn: api.listOnCallTeams });
+  const { data: workspaces = [] } = useQuery({ queryKey: ["workspaces", "alerts-builder"], queryFn: () => api.listWorkspaces() });
+  const workspaceId = workspaces[0]?.id;
+  const { data: policies = [] } = useQuery({
+    queryKey: ["escalation-policies", workspaceId],
+    queryFn: () => workspaceId ? api.listEscalationPolicies(workspaceId) : Promise.resolve([]),
   });
 
   const ackMutation = useMutation({
@@ -40,34 +596,71 @@ export default function AlertsPage() {
   });
 
   const createRuleMutation = useMutation({
-    mutationFn: () => api.createAlertRule({
-      name: `CPU above 85% • ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-      description: "Default alert rule created from the UI",
-      severity: "warning",
-      type: "threshold",
-      condition: { metric: "cpu_percent", operator: ">", value: 85 },
-      target_type: "host",
-      cooldown_seconds: 300,
-    }),
+    mutationFn: (payload: any) => api.createAlertRule(payload),
     onSuccess: () => {
       toast.success("Alert rule created");
-      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      setRuleDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to create alert rule"),
   });
 
-  const filtered = alerts.filter((a: any) => {
-    if (filter !== "all" && a.severity !== filter) return false;
-    if (!showAcked && a.acknowledged) return false;
-    return true;
+  const updateRuleMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => api.updateAlertRule(id, payload),
+    onSuccess: () => {
+      toast.success("Alert rule updated");
+      setEditingRule(null);
+      setRuleDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to update alert rule"),
   });
 
-  const counts = {
+  const deleteRuleMutation = useMutation({
+    mutationFn: (id: string) => api.deleteAlertRule(id),
+    onSuccess: () => {
+      toast.success("Alert rule deleted");
+      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete alert rule"),
+  });
+
+  const createSilenceMutation = useMutation({
+    mutationFn: (payload: any) => api.createSilence(payload),
+    onSuccess: () => {
+      toast.success("Silence created");
+      setSilenceAlert(null);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to create silence"),
+  });
+
+  const createMaintenanceMutation = useMutation({
+    mutationFn: (payload: any) => api.createMaintenanceWindow(payload),
+    onSuccess: () => {
+      toast.success("Maintenance window created");
+      setMaintenanceAlert(null);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to create maintenance window"),
+  });
+
+  const counts = useMemo(() => ({
     all: alerts.length,
     critical: alerts.filter((a: any) => a.severity === "critical").length,
     warning: alerts.filter((a: any) => a.severity === "warning").length,
     info: alerts.filter((a: any) => a.severity === "info").length,
-  };
+    active: alerts.filter((a: any) => !a.resolved).length,
+    acknowledged: alerts.filter((a: any) => a.acknowledged).length,
+    routed: alerts.filter((a: any) => a.assigned_user || a.assigned_team_id).length,
+  }), [alerts]);
+
+  const summaryCards = [
+    { label: "Active alerts", value: counts.active, icon: <Bell className="h-4 w-4 text-primary" /> },
+    { label: "Critical", value: counts.critical, icon: <ShieldAlert className="h-4 w-4 text-critical" /> },
+    { label: "Acknowledged", value: counts.acknowledged, icon: <CheckCircle2 className="h-4 w-4 text-success" /> },
+    { label: "Rules", value: rules.length, icon: <Siren className="h-4 w-4 text-warning" /> },
+  ];
+
+  const ruleById = useMemo(() => new Map(rules.map((rule: any) => [rule.id, rule])), [rules]);
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -79,106 +672,297 @@ export default function AlertsPage() {
   };
 
   return (
-    <motion.div className="p-6 space-y-6" variants={container} initial="hidden" animate="show">
+    <motion.div className="space-y-5 p-4 sm:space-y-6 sm:p-6" variants={container} initial="hidden" animate="show">
       <motion.div variants={item}>
-        <PageHeader title="Alerts" description="Active and recent alerts across all services">
+        <PageHeader title="Alerts" description="Live incidents, rule routing, silences, and maintenance windows.">
           <button
-            onClick={() => createRuleMutation.mutate()}
-            disabled={createRuleMutation.isPending}
-            className="flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            onClick={() => {
+              setEditingRule(null);
+              setRuleDialogOpen(true);
+            }}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            <Bell className="h-4 w-4" />
-            {createRuleMutation.isPending ? "Creating..." : "Create Alert Rule"}
+            <Plus className="h-4 w-4" /> Create Rule
           </button>
         </PageHeader>
       </motion.div>
 
-      <motion.div variants={item} className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-          {(["all", "critical", "warning", "info"] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
-                filter === f ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)} ({counts[f]})
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => setShowAcked(v => !v)}
-          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-            showAcked ? "border-border text-muted-foreground" : "border-primary/30 text-primary bg-primary/5"
-          }`}
-        >
-          {showAcked ? "Hide Acknowledged" : "Show Acknowledged"}
-        </button>
+      <motion.div variants={item} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((card) => (
+          <MetricCard key={card.label} label={card.label} value={card.value} icon={card.icon} className="p-4" />
+        ))}
       </motion.div>
 
-      <motion.div variants={item} className="rounded-lg border border-border bg-card">
-        <div className="divide-y divide-border">
-          {filtered.map((alert: any) => (
-            <motion.div
-              key={alert.id}
-              variants={item}
-              className={`flex flex-col gap-4 px-5 py-4 transition-colors hover:bg-surface-hover lg:flex-row lg:items-center ${alert.acknowledged ? "opacity-70" : ""}`}
+      <motion.div variants={item}>
+        <SectionCard
+          title="Filter live alerts"
+          description="Focus the feed by severity and acknowledgement state."
+          icon={<Bell className="h-4 w-4" />}
+          actions={
+            <button
+              onClick={() => setShowAcked((v) => !v)}
+              className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${showAcked ? "border-border text-muted-foreground hover:bg-surface-hover" : "border-primary/30 bg-primary/5 text-primary"}`}
             >
-              <div className="flex flex-1 items-start gap-4 min-w-0">
-                <div className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${
-                  alert.severity === "critical" ? "bg-critical pulse-live" :
-                  alert.severity === "warning" ? "bg-warning" : "bg-primary"
-                }`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">{alert.message}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{alert.service || "Unknown service"}</span>
-                    <span>•</span>
-                    <span className="font-mono">{alert.host || "N/A"}</span>
-                    <span>•</span>
-                    <span>{timeAgo(alert.created_at)}</span>
-                  </div>
-                  {alert.assigned_user && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                      <User className="h-3 w-3" /> On call: {alert.assigned_user.name}
+              {showAcked ? "Hide acknowledged" : "Show acknowledged"}
+            </button>
+          }
+          contentClassName="p-4 sm:p-5"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {(["all", "critical", "warning", "info"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilter(value)}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${pillClasses(filter === value)}`}
+              >
+                {value === "all" ? "All alerts" : value.charAt(0).toUpperCase() + value.slice(1)}
+                <span className="ml-2 rounded bg-black/10 px-1.5 py-0.5 text-[11px] leading-none text-current/90">
+                  {counts[value]}
+                </span>
+              </button>
+            ))}
+          </div>
+        </SectionCard>
+      </motion.div>
+
+      <motion.div variants={item} className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_380px]">
+        <SectionCard
+          title="Live alert feed"
+          description="Newest alerts first, with acknowledgement, rule editing, silence, and maintenance controls."
+          icon={<ShieldAlert className="h-4 w-4" />}
+          contentClassName="p-0"
+        >
+          <div className="divide-y divide-border/80">
+            {alerts.map((alert: any) => {
+              const linkedRule = alert.rule_id ? ruleById.get(alert.rule_id) : null;
+              return (
+                <motion.div
+                  key={alert.id}
+                  variants={item}
+                  className={`px-4 py-4 sm:px-5 ${alert.acknowledged ? "opacity-75" : ""}`}
+                >
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${alert.severity === "critical" ? "bg-critical pulse-live" : alert.severity === "warning" ? "bg-warning" : "bg-primary"}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p className="text-sm font-semibold text-foreground sm:text-[15px]">{alert.message}</p>
+                            <span className={`text-[11px] font-medium uppercase tracking-wide ${alert.severity === "critical" ? "text-critical" : alert.severity === "warning" ? "text-warning" : "text-primary"}`}>
+                              {alert.severity}
+                            </span>
+                            {alert.resolved && <span className="text-[11px] font-medium uppercase tracking-wide text-emerald-400">resolved</span>}
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <span>{alert.service || "Unknown service"}</span>
+                            <span className="text-border">•</span>
+                            <span className="font-mono">{alert.host || "No host"}</span>
+                            <span className="text-border">•</span>
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="h-3 w-3" /> {timeAgo(alert.created_at)}
+                            </span>
+                          </div>
+
+                          {(alert.assigned_user || alert.assigned_team_id || alert.acknowledged_by || linkedRule) && (
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                              {(alert.assigned_user || alert.assigned_team_id) && (
+                                <span className="inline-flex items-center gap-1.5 text-primary">
+                                  <Route className="h-3 w-3" />
+                                  {alert.assigned_user ? `On call: ${alert.assigned_user.name}` : `Team route: ${alert.assigned_team_id}`}
+                                </span>
+                              )}
+                              {(alert.assigned_user || alert.assigned_team_id) && (linkedRule || alert.acknowledged_by) && <span className="text-border">•</span>}
+                              {linkedRule && (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Siren className="h-3 w-3" /> Rule: {linkedRule.name}
+                                </span>
+                              )}
+                              {linkedRule && alert.acknowledged_by && <span className="text-border">•</span>}
+                              {alert.acknowledged_by && (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <User className="h-3 w-3" /> Acked by {alert.acknowledged_by}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
+
+                    <div className="flex flex-wrap items-center gap-2 xl:w-[200px] xl:justify-end">
+                      {!alert.resolved && (
+                        !alert.acknowledged ? (
+                          <button
+                            onClick={() => ackMutation.mutate(alert.id)}
+                            className="min-h-10 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                          >
+                            Ack
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => resolveMutation.mutate(alert.id)}
+                            className="flex min-h-10 items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                          >
+                            <CheckCircle2 className="h-3 w-3" /> Resolve
+                          </button>
+                        )
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-border px-3 py-2 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                            aria-label={`More actions for ${alert.message}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          {!alert.acknowledged && !alert.resolved && (
+                            <DropdownMenuItem onClick={() => ackMutation.mutate(alert.id)}>
+                              <CheckCircle2 className="mr-2 h-4 w-4" /> Acknowledge
+                            </DropdownMenuItem>
+                          )}
+                          {!alert.resolved && (
+                            <DropdownMenuItem onClick={() => resolveMutation.mutate(alert.id)}>
+                              <CheckCircle2 className="mr-2 h-4 w-4" /> Resolve alert
+                            </DropdownMenuItem>
+                          )}
+                          {!alert.resolved && <DropdownMenuSeparator />}
+                          {linkedRule && (
+                            <DropdownMenuItem onClick={() => { setEditingRule(linkedRule); setRuleDialogOpen(true); }}>
+                              <Pencil className="mr-2 h-4 w-4" /> Edit rule
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => setSilenceAlert(alert)}>
+                            <BellOff className="mr-2 h-4 w-4" /> Create silence
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setMaintenanceAlert(alert)}>
+                            <Wrench className="mr-2 h-4 w-4" /> Maintenance window
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+            {alerts.length === 0 && (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+                No alerts matching the current filters.
+              </div>
+            )}
+          </div>
+        </SectionCard>
+
+        <div className="space-y-4">
+          <SectionCard
+            title="Rule coverage"
+            description="Current alert rules and where they route."
+            icon={<Siren className="h-4 w-4" />}
+            actions={
+              <button
+                onClick={() => { setEditingRule(null); setRuleDialogOpen(true); }}
+                className="flex min-h-10 items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add rule
+              </button>
+            }
+            contentClassName="p-0"
+          >
+            <div className="divide-y divide-border/80">
+              {rules.slice(0, 8).map((rule: any) => (
+                <div key={rule.id} className="px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">{rule.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {rule.target_type || "any"} · {rule.condition?.metric} {rule.condition?.operator} {rule.condition?.value}
+                      </div>
+                    </div>
+                    <StatusBadge variant={rule.severity === "critical" ? "critical" : rule.severity === "warning" ? "warning" : "info"}>
+                      {rule.severity}
+                    </StatusBadge>
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                    <div><span className="font-medium text-foreground">Scope:</span> {scopeLabel(rule)}</div>
+                    <div><span className="font-medium text-foreground">Route:</span> {routeLabel(rule, teams)}</div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => { setEditingRule(rule); setRuleDialogOpen(true); }}
+                      className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                    >
+                      <Pencil className="h-3 w-3" /> Edit
+                    </button>
+                    <button
+                      onClick={() => deleteRuleMutation.mutate(rule.id)}
+                      className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-critical hover:bg-surface-hover"
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </button>
+                  </div>
                 </div>
+              ))}
+              {rules.length === 0 && (
+                <div className="px-4 py-8 text-sm text-muted-foreground">No rules yet.</div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Routing snapshot"
+            description="How much of the current feed is assigned or team-routed."
+            icon={<Route className="h-4 w-4" />}
+            contentClassName="p-4"
+          >
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-xl border border-border/80 bg-background/60 p-3">
+                <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Team or user routed</div>
+                <div className="mt-2 text-2xl font-semibold text-foreground">{counts.routed}</div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                {alert.acknowledged_by && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <User className="h-3 w-3" />{alert.acknowledged_by}
-                  </span>
-                )}
-                <StatusBadge variant={alert.severity === "info" ? "info" : alert.severity === "critical" ? "critical" : "warning"}>
-                  {alert.severity}
-                </StatusBadge>
-                {!alert.acknowledged && !alert.resolved && (
-                  <button
-                    onClick={() => ackMutation.mutate(alert.id)}
-                    className="min-h-10 rounded-md border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-                  >
-                    Ack
-                  </button>
-                )}
-                {!alert.resolved && (
-                  <button
-                    onClick={() => resolveMutation.mutate(alert.id)}
-                    className="flex min-h-10 items-center gap-1 rounded-md border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-                  >
-                    <CheckCircle2 className="h-3 w-3" /> Resolve
-                  </button>
-                )}
+              <div className="rounded-xl border border-border/80 bg-background/60 p-3">
+                <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Visible rules</div>
+                <div className="mt-2 text-2xl font-semibold text-foreground">{Math.min(rules.length, 8)}</div>
               </div>
-            </motion.div>
-          ))}
-          {filtered.length === 0 && (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">No alerts matching filters</div>
-          )}
+            </div>
+          </SectionCard>
         </div>
       </motion.div>
+
+      <RuleDialog
+        open={ruleDialogOpen}
+        onOpenChange={(open: boolean) => {
+          setRuleDialogOpen(open);
+          if (!open) setEditingRule(null);
+        }}
+        onSubmit={(payload: any) => editingRule ? updateRuleMutation.mutate({ id: editingRule.id, payload }) : createRuleMutation.mutate(payload)}
+        pending={createRuleMutation.isPending || updateRuleMutation.isPending}
+        teams={teams}
+        policies={policies}
+        services={services}
+        initialRule={editingRule}
+      />
+
+      <SilenceDialog
+        open={!!silenceAlert}
+        onOpenChange={(open: boolean) => !open && setSilenceAlert(null)}
+        onSubmit={(payload: any) => createSilenceMutation.mutate(payload)}
+        pending={createSilenceMutation.isPending}
+        workspaceId={workspaceId}
+        alert={silenceAlert}
+      />
+
+      <MaintenanceDialog
+        open={!!maintenanceAlert}
+        onOpenChange={(open: boolean) => !open && setMaintenanceAlert(null)}
+        onSubmit={(payload: any) => createMaintenanceMutation.mutate(payload)}
+        pending={createMaintenanceMutation.isPending}
+        workspaceId={workspaceId}
+        alert={maintenanceAlert}
+      />
     </motion.div>
   );
 }

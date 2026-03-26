@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import AlertInstance, AlertRule, User
 from app.services.alert_suppression import get_active_suppression
 from app.services.escalation import apply_escalation_for_alert
-from app.services.oncall import get_active_oncall_user
+from app.services.oncall import get_active_oncall_user_for_team
 
 
 async def emit_alert(
@@ -41,11 +41,13 @@ async def emit_alert(
     if existing:
         return existing, None
 
-    oncall_user = await get_active_oncall_user(db)
+    oncall_team_id = rule.oncall_team_id if rule else None
+    oncall_user = await get_active_oncall_user_for_team(db, oncall_team_id)
     alert = AlertInstance(
         workspace_id=workspace_id,
         rule_id=rule.id if rule else None,
         assigned_user_id=oncall_user.id if oncall_user else None,
+        assigned_team_id=oncall_team_id,
         message=message,
         severity=severity,
         service=service,
@@ -56,7 +58,7 @@ async def emit_alert(
     db.add(alert)
     await db.flush()
     await db.refresh(alert)
-    deliveries = await apply_escalation_for_alert(db, alert)
+    deliveries = await apply_escalation_for_alert(db, alert, rule)
     alert.extra_data = {**(alert.extra_data or {}), "escalation_deliveries": deliveries}
     await db.flush()
     return alert, None

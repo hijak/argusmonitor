@@ -48,7 +48,7 @@ import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
 import { ServiceDetailSheet } from "@/components/ServiceDetailSheet";
 import { useServicesStream } from "@/hooks/useServiceStream";
-import { formatPluginBadge, getContractHealth, getContractMetricRows, getPluginDisplayTitle, getPluginFooter, humanizeServiceType, normalizeStatus } from "@/lib/pluginUi";
+import { formatPluginBadge, getContractHealth, getContractMetricRows, getPluginDisplayTitle, getPluginFooter, getServiceClassification, humanizeServiceType, normalizeStatus } from "@/lib/pluginUi";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -129,6 +129,9 @@ export default function ServicesPage() {
   const [selectedService, setSelectedService] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [classificationFilter, setClassificationFilter] = useState<"all" | "verified" | "suspected" | "generic">("all");
+  const [familyFilter, setFamilyFilter] = useState("all");
+  const [profileHintFilter, setProfileHintFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"cards" | "compact">("cards");
   const [page, setPage] = useState(0);
 
@@ -184,15 +187,27 @@ export default function ServicesPage() {
   };
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, { key: string; host: any | null; services: any[] }>();
+    const groups = new Map<string, { key: string; host: any | null; services: any[]; bucket: string; bucketLabel: string }>();
 
-    services.forEach((svc: any) => {
-      const key = svc.host_id || "unassigned";
+    const bucketForService = (svc: any) => {
+      if (svc.classification_state === "verified") return { bucket: `verified:${svc.plugin_id || svc.service_type || "service"}`, bucketLabel: `Verified · ${formatPluginBadge(svc.plugin_id || svc.service_type || "service")}` };
+      if (svc.classification_state === "suspected") return { bucket: `suspected:${svc.suspected_plugin_id || svc.service_type || "service"}`, bucketLabel: `Suspected · ${formatPluginBadge(svc.suspected_plugin_id || svc.service_type || "service")}` };
+      if (["http", "https", "web-publishing"].includes(String(svc.service_type || ""))) return { bucket: "generic:web", bucketLabel: "Generic web services" };
+      if (String(svc.service_type || "").includes("prometheus")) return { bucket: "generic:prometheus", bucketLabel: "Generic Prometheus / exporters" };
+      return { bucket: `generic:${svc.service_type || "other"}`, bucketLabel: `Generic · ${humanizeServiceType(svc.service_type || "other")}` };
+    };
+
+    filteredServices.forEach((svc: any) => {
+      const bucketInfo = bucketForService(svc);
+      const hostKey = svc.host_id || "unassigned";
+      const key = `${bucketInfo.bucket}::${hostKey}`;
       if (!groups.has(key)) {
         groups.set(key, {
           key,
           host: toHostSummary(svc),
           services: [],
+          bucket: bucketInfo.bucket,
+          bucketLabel: bucketInfo.bucketLabel,
         });
       }
       groups.get(key)!.services.push(svc);
@@ -215,6 +230,7 @@ export default function ServicesPage() {
         const severityRank = { critical: 0, warning: 1, healthy: 2, unknown: 3 } as Record<string, number>;
         const diff = (severityRank[aStatus] ?? 99) - (severityRank[bStatus] ?? 99);
         if (diff !== 0) return diff;
+        if (a.bucketLabel !== b.bucketLabel) return a.bucketLabel.localeCompare(b.bucketLabel);
         const aName = a.host?.name || "Unassigned";
         const bName = b.host?.name || "Unassigned";
         return aName.localeCompare(bName);
@@ -413,7 +429,7 @@ export default function ServicesPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
                       {host ? <Server className="h-4 w-4 text-muted-foreground" /> : <Unplug className="h-4 w-4 text-muted-foreground" />}
-                      <span className="truncate">{host?.name || "Unassigned / external services"}</span>
+                      <span className="truncate">{group.bucketLabel} · {host?.name || "Unassigned / external services"}</span>
                     </div>
                     <StatusBadge variant={normalizeStatus(host?.status || groupStatus)}>
                       {host?.status || groupStatus}
@@ -461,13 +477,14 @@ export default function ServicesPage() {
                 {group.services.map((svc: any) => {
                   const status = normalizeStatus(svc.status);
                   const displayTitle = getPluginDisplayTitle(svc);
-                  const pluginHealth = getContractHealth(svc) || {
-                    variant: status,
-                    label: svc.plugin_id ? "discovered" : "unknown",
-                  };
+                  const classification = getServiceClassification(svc);
+                  const pluginHealth = getContractHealth(svc) || classification;
                   const pluginRows = getContractMetricRows(svc) || [
                     { label: "Type", value: svc.service_type || "—" },
-                    { label: "Plugin", value: svc.plugin_id || "—" },
+                    { label: "Classification", value: svc.classification_state || "generic" },
+                    { label: "Technology", value: svc.plugin_id || svc.suspected_plugin_id || "—" },
+                    { label: "Confidence", value: svc.classification_confidence ? `${Math.round(Number(svc.classification_confidence) * 100)}%` : "—" },
+                    { label: "Profiles", value: Array.isArray(svc.suggested_profile_ids) && svc.suggested_profile_ids.length ? svc.suggested_profile_ids.join(", ") : "—" },
                     { label: "Endpoints", value: svc.endpoints_count || "—" },
                   ];
                   return (
@@ -489,7 +506,9 @@ export default function ServicesPage() {
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                               {svc.service_type && <span className="rounded bg-muted px-1.5 py-0.5">{humanizeServiceType(svc.service_type)}</span>}
-                              {svc.plugin_id && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">{formatPluginBadge(svc.plugin_id)}</span>}
+                              {(svc.plugin_id || svc.suspected_plugin_id) && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">{formatPluginBadge(svc.plugin_id || svc.suspected_plugin_id)}</span>}
+                              {svc.classification_state && <span className="rounded bg-surface px-1.5 py-0.5">{svc.classification_state}</span>}
+                              {Array.isArray(svc.suggested_profile_ids) && svc.suggested_profile_ids.length ? <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-300">{svc.suggested_profile_ids.length} profile hint{svc.suggested_profile_ids.length === 1 ? "" : "s"}</span> : null}
                               {svc.endpoints_count ? <span className="rounded bg-surface px-1.5 py-0.5">{svc.endpoints_count} endpoint{svc.endpoints_count === 1 ? "" : "s"}</span> : null}
                             </div>
                           </div>

@@ -22,8 +22,8 @@ const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } 
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
 const categoryMeta: Record<string, { label: string; icon: any }> = {
-  plugin: { label: "Plugin templates", icon: Boxes },
-  profiles: { label: "Prefab stacks", icon: Sparkles },
+  technology: { label: "Technology dashboards", icon: Boxes },
+  profiles: { label: "Profile overlays", icon: Sparkles },
   "service-group": { label: "Service families", icon: Workflow },
   "service-type": { label: "Service-type templates", icon: Workflow },
   core: { label: "Core dashboards", icon: LayoutDashboard },
@@ -75,7 +75,7 @@ export default function DashboardsPage() {
     };
     createDashboardMutation.mutate({
       name: template.name,
-      type: template.category === "plugin" || template.category === "service-type" ? "system" : "custom",
+      type: template.category === "technology" || template.category === "service-type" ? "system" : "custom",
       config,
     });
   };
@@ -97,15 +97,22 @@ export default function DashboardsPage() {
     return `${Math.floor(mins / 60)}h ago`;
   };
 
+  const filteredTemplates = useMemo(() => {
+    return templates.filter((template: any) => filter === "all" || template.category === filter);
+  }, [templates, filter]);
+
+  const recommendedTemplates = useMemo(() => {
+    return filteredTemplates.filter((template: any) => template.recommended).slice(0, 6);
+  }, [filteredTemplates]);
+
   const groupedTemplates = useMemo(() => {
-    const filtered = templates.filter((template: any) => filter === "all" || template.category === filter);
-    return filtered.reduce((acc: Record<string, any[]>, template: any) => {
+    return filteredTemplates.reduce((acc: Record<string, any[]>, template: any) => {
       const key = template.category || "other";
       acc[key] = acc[key] || [];
       acc[key].push(template);
       return acc;
     }, {});
-  }, [templates, filter]);
+  }, [filteredTemplates]);
 
   const filterOptions = useMemo(() => {
     const values = Array.from(new Set((templates || []).map((template: any) => template.category).filter(Boolean)));
@@ -142,12 +149,13 @@ export default function DashboardsPage() {
                 <div>
                   <h2 className="text-sm font-semibold text-foreground">Template-first dashboards</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Prefabs are now tied to detected plugins and service types, so PostgreSQL gets PostgreSQL boards, Redis gets Redis boards, and Docker gets container runtime boards.
+                    Dashboards are now organised around detected technologies and optional profile overlays, so PostgreSQL gets PostgreSQL boards, Redis gets Redis boards, and stack-style rollups stay clearly marked as profiles.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span className="rounded-full border border-border bg-background px-2.5 py-1">{templates.length} templates</span>
-                  <span className="rounded-full border border-border bg-background px-2.5 py-1">{templates.filter((t: any) => t.category === "plugin").length} plugin-aware</span>
+                  <span className="rounded-full border border-border bg-background px-2.5 py-1">{templates.filter((t: any) => t.category === "technology").length} technology-aware</span>
+                  <span className="rounded-full border border-border bg-background px-2.5 py-1">{templates.filter((t: any) => t.recommended).length} recommended now</span>
                   <span className="rounded-full border border-border bg-background px-2.5 py-1">{dashboards.length} saved dashboards</span>
                 </div>
               </div>
@@ -193,6 +201,48 @@ export default function DashboardsPage() {
           ))}
         </div>
 
+        {recommendedTemplates.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Recommended right now</h2>
+              <span className="text-xs text-muted-foreground">{recommendedTemplates.length}</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {recommendedTemplates.map((template: any) => (
+                <button
+                  key={`recommended-${template.id}`}
+                  onClick={() => createFromTemplate(template)}
+                  className="rounded-2xl border border-primary/30 bg-primary/5 p-5 text-left transition-colors hover:border-primary/50 hover:bg-primary/10"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-foreground">{template.name}</h3>
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Recommended</span>
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">{template.description}</p>
+                    </div>
+                    <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+                  </div>
+                  {template.recommendation_reason ? (
+                    <div className="mt-3 rounded-lg border border-primary/20 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                      {template.recommendation_reason}
+                    </div>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                    <span className="rounded-full border border-border bg-background px-2 py-1">{template.widget_count} widgets</span>
+                    {template.available_count ? <span className="rounded-full border border-border bg-background px-2 py-1">{template.available_count} matching</span> : null}
+                    {template.verified_count ? <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-300">{template.verified_count} verified</span> : null}
+                    {template.suspected_count ? <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-300">{template.suspected_count} suspected</span> : null}
+                    {template.hinted_count ? <span className="rounded-full bg-sky-500/10 px-2 py-1 text-sky-300">{template.hinted_count} hinted</span> : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="space-y-6">
           {Object.entries(groupedTemplates).map(([category, items]) => {
             const meta = categoryMeta[category] || { label: prettyType(category), icon: LayoutDashboard };
@@ -229,8 +279,20 @@ export default function DashboardsPage() {
                         {template.available_count ? (
                           <span className="rounded-full border border-border bg-background px-2 py-1">{template.available_count} matching services</span>
                         ) : null}
-                        {template.plugin_id ? (
-                          <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">plugin:{template.plugin_id}</span>
+                        {template.verified_count ? (
+                          <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-300">{template.verified_count} verified</span>
+                        ) : null}
+                        {template.suspected_count ? (
+                          <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-300">{template.suspected_count} suspected</span>
+                        ) : null}
+                        {template.hinted_count ? (
+                          <span className="rounded-full bg-sky-500/10 px-2 py-1 text-sky-300">{template.hinted_count} hinted</span>
+                        ) : null}
+                        {template.category === "technology" && template.plugin_id ? (
+                          <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">tech:{template.plugin_id}</span>
+                        ) : null}
+                        {template.category === "profiles" && template.profile ? (
+                          <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-300">profile:{prettyType(template.profile)}</span>
                         ) : null}
                         {!template.plugin_id && template.service_type ? (
                           <span className="rounded-full bg-muted px-2 py-1">{prettyType(template.service_type)}</span>
@@ -242,6 +304,9 @@ export default function DashboardsPage() {
                           <span className="rounded-full bg-muted px-2 py-1">{prettyType(template.profile)}</span>
                         ) : null}
                       </div>
+                      {template.recommendation_reason ? (
+                        <p className="mt-3 text-xs text-muted-foreground">{template.recommendation_reason}</p>
+                      ) : null}
                     </button>
                   ))}
                 </div>

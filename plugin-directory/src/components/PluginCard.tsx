@@ -1,4 +1,4 @@
-import { ArrowUpRight, Github, Shield, Star } from "lucide-react";
+import { ArrowUpRight, Github, Layers3, Shield, Star } from "lucide-react";
 import type { Plugin } from "@/pages/Index";
 
 interface PluginCardProps {
@@ -9,6 +9,7 @@ interface PluginCardProps {
 
 export function PluginCard({ plugin, index, onClick }: PluginCardProps) {
   const Icon = plugin.icon;
+  const isProfile = plugin.kind === "profile";
 
   return (
     <div
@@ -21,20 +22,22 @@ export function PluginCard({ plugin, index, onClick }: PluginCardProps) {
           <Icon className="h-5 w-5 text-primary" />
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          {plugin.verified && (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              <Shield className="h-3 w-3" />
-              Official
-            </span>
-          )}
+          <span className={`inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium ${
+            isProfile ? "bg-amber-500/10 text-amber-300" : "bg-primary/10 text-primary"
+          }`}>
+            {isProfile ? <Layers3 className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
+            {isProfile ? "Profile" : plugin.verified ? "Official" : "Plugin"}
+          </span>
           <span className="rounded-sm bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {plugin.maturity}
           </span>
         </div>
       </div>
 
-      <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-muted-foreground">
         <span>{plugin.category}</span>
+        <span>•</span>
+        <span>{plugin.family}</span>
         <span>•</span>
         <span>{plugin.integration}</span>
       </div>
@@ -44,7 +47,7 @@ export function PluginCard({ plugin, index, onClick }: PluginCardProps) {
       </h3>
       <p className="mb-4 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{plugin.description}</p>
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
+      <div className="mb-3 flex flex-wrap gap-1.5">
         {plugin.tags.slice(0, 4).map((tag) => (
           <span key={tag} className="rounded-sm bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground">
             {tag}
@@ -52,10 +55,18 @@ export function PluginCard({ plugin, index, onClick }: PluginCardProps) {
         ))}
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+        {plugin.discovery.methods.map((method) => (
+          <span key={method} className="rounded-full border border-border bg-background px-2 py-1 uppercase tracking-wide">
+            {method}
+          </span>
+        ))}
+      </div>
+
       <div className="grid grid-cols-3 gap-2 text-xs">
         <Metric label="Rating" value={String(plugin.rating)} icon={<Star className="h-3 w-3 text-primary fill-primary" />} />
         <Metric label="Version" value={`v${plugin.version}`} />
-        <Metric label="Status" value={plugin.status} />
+        <Metric label="Kind" value={plugin.kind} />
       </div>
 
       <div className="mt-4 border-t border-border pt-3">

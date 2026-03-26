@@ -15,23 +15,61 @@ from app.auth import decode_token, get_current_user
 from app.database import async_session, get_db
 from app.models import AlertRule, Host, Monitor, Service, ServiceMetric, User, Workspace, WorkspaceMembership
 from app.schemas import ServiceCreate, ServiceListResponse, ServiceMetricPointOut, ServiceOut, ServiceUpdate, ServiceWithSparkline
+from app.services.alert_rules import evaluate_service_alert_rules
 from app.services.service_metrics import build_service_metric, fetch_latest_service_metrics, should_record_service_metric
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/services", tags=["services"])
 STREAM_INTERVAL_SECONDS = 10
+PROFILE_HINTS_BY_SERVICE_TYPE = {
+    "http": ["web-publishing"],
+    "https": ["web-publishing"],
+    "web-publishing": ["web-publishing"],
+    "ai-gateway": ["ai-gateways"],
+    "telephony-pbx": ["telephony-pbx"],
+    "voice-stack": ["voice-stack"],
+    "vordr-stack": ["vordr-stack"],
+}
 DEFAULT_DISCOVERY_PORTS = [
     {"port": 80, "label": "HTTP", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 443, "label": "HTTPS", "service_type": "https", "plugin_id": None, "scheme": "https"},
     {"port": 3000, "label": "Web UI", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 5432, "label": "PostgreSQL", "service_type": "postgresql", "plugin_id": "postgres", "scheme": None},
     {"port": 6379, "label": "Redis", "service_type": "redis", "plugin_id": "redis", "scheme": None},
+    {"port": 27017, "label": "MongoDB", "service_type": "mongodb", "plugin_id": "mongodb", "scheme": None},
+    {"port": 9200, "label": "Elasticsearch", "service_type": "elasticsearch", "plugin_id": "elasticsearch", "scheme": "http"},
+    {"port": 9090, "label": "Prometheus", "service_type": "prometheus", "plugin_id": "prometheus", "scheme": "http"},
+    {"port": 9100, "label": "Node Exporter", "service_type": "prometheus-exporter", "plugin_id": None, "scheme": "http"},
+    {"port": 9093, "label": "Alertmanager", "service_type": "prometheus", "plugin_id": "prometheus", "scheme": "http"},
+    {"port": 2375, "label": "Docker API", "service_type": "docker-container", "plugin_id": "docker-local", "scheme": "http"},
+    {"port": 2376, "label": "Docker API TLS", "service_type": "docker-container", "plugin_id": "docker-local", "scheme": None},
+    {"port": 6443, "label": "Kubernetes API", "service_type": "kubernetes", "plugin_id": "kubernetes", "scheme": "https"},
+    {"port": 10250, "label": "Kubelet", "service_type": "kubernetes", "plugin_id": "kubernetes", "scheme": "https"},
     {"port": 8000, "label": "API", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 8080, "label": "HTTP Alt", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 8096, "label": "Service", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 8200, "label": "Vault", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 8787, "label": "Web App", "service_type": "http", "plugin_id": None, "scheme": "http"},
     {"port": 9123, "label": "TTS", "service_type": "http", "plugin_id": None, "scheme": "http"},
+    {"port": 9092, "label": "Kafka", "service_type": "kafka", "plugin_id": "kafka", "scheme": None},
+    {"port": 4222, "label": "NATS", "service_type": "nats", "plugin_id": "nats", "scheme": None},
+    {"port": 80, "label": "Nginx", "service_type": "http", "plugin_id": "nginx", "scheme": "http", "hint_only": True},
+    {"port": 443, "label": "Nginx TLS", "service_type": "https", "plugin_id": "nginx", "scheme": "https", "hint_only": True},
+]
+
+PROMETHEUS_FINGERPRINTS = [
+    {"match": ["nginx_http_requests_total", "nginx_connections_active"], "plugin_id": "nginx", "service_type": "http", "confidence": 0.9},
+    {"match": ["prometheus_engine_queries", "prometheus_tsdb_head_series"], "plugin_id": "prometheus", "service_type": "prometheus", "confidence": 0.95},
+    {"match": ["process_open_fds", "go_gc_duration_seconds", "node_cpu_seconds_total"], "plugin_id": None, "service_type": "prometheus-exporter", "confidence": 0.55},
+    {"match": ["pg_up", "pg_stat_database_xact_commit"], "plugin_id": "postgres", "service_type": "postgresql", "confidence": 0.95},
+    {"match": ["redis_up", "redis_memory_used_bytes"], "plugin_id": "redis", "service_type": "redis", "confidence": 0.95},
+    {"match": ["rabbitmq_queue_messages", "rabbitmq_connections"], "plugin_id": "rabbitmq", "service_type": "rabbitmq", "confidence": 0.95},
+    {"match": ["mongodb_up", "mongodb_ss_connections"], "plugin_id": "mongodb", "service_type": "mongodb", "confidence": 0.95},
+    {"match": ["elasticsearch_cluster_health_status", "elasticsearch_indices_docs"], "plugin_id": "elasticsearch", "service_type": "elasticsearch", "confidence": 0.95},
+    {"match": ["kube_node_info", "kube_pod_status_phase"], "plugin_id": "kubernetes", "service_type": "kubernetes", "confidence": 0.95},
+    {"match": ["container_cpu_usage_seconds_total", "container_memory_usage_bytes"], "plugin_id": "docker-local", "service_type": "docker-container", "confidence": 0.8},
+    {"match": ["kafka_brokertopicmetrics_messagesin_total", "kafka_server_replicamanager_partitioncount"], "plugin_id": "kafka", "service_type": "kafka", "confidence": 0.95},
+    {"match": ["gnatsd_varz_in_msgs", "gnatsd_varz_connections"], "plugin_id": "nats", "service_type": "nats", "confidence": 0.95},
 ]
 DEFAULT_ALERT_RULES = [
     {
@@ -41,6 +79,7 @@ DEFAULT_ALERT_RULES = [
         "type": "threshold",
         "condition": {"metric": "cpu_percent", "operator": ">", "value": 90, "duration_minutes": 5},
         "target_type": "host",
+        "scope": {},
         "cooldown_seconds": 300,
     },
     {
@@ -50,6 +89,7 @@ DEFAULT_ALERT_RULES = [
         "type": "threshold",
         "condition": {"metric": "memory_percent", "operator": ">", "value": 85, "duration_minutes": 5},
         "target_type": "host",
+        "scope": {},
         "cooldown_seconds": 300,
     },
     {
@@ -59,6 +99,7 @@ DEFAULT_ALERT_RULES = [
         "type": "threshold",
         "condition": {"metric": "disk_percent", "operator": ">", "value": 90, "duration_minutes": 10},
         "target_type": "host",
+        "scope": {},
         "cooldown_seconds": 600,
     },
     {
@@ -68,6 +109,7 @@ DEFAULT_ALERT_RULES = [
         "type": "threshold",
         "condition": {"metric": "latency_ms", "operator": ">", "value": 250, "duration_minutes": 3},
         "target_type": "service",
+        "scope": {},
         "cooldown_seconds": 300,
     },
     {
@@ -77,7 +119,38 @@ DEFAULT_ALERT_RULES = [
         "type": "threshold",
         "condition": {"metric": "uptime_percent", "operator": "<", "value": 99.5},
         "target_type": "service",
+        "scope": {},
         "cooldown_seconds": 900,
+    },
+    {
+        "name": "PostgreSQL latency above 200ms",
+        "description": "Trigger when PostgreSQL services are slow",
+        "severity": "warning",
+        "type": "threshold",
+        "condition": {"metric": "latency_ms", "operator": ">", "value": 200, "duration_minutes": 3},
+        "target_type": "service",
+        "scope": {"plugin_id": "postgres", "service_type": "postgresql"},
+        "cooldown_seconds": 300,
+    },
+    {
+        "name": "Redis latency above 75ms",
+        "description": "Trigger when Redis services slow down",
+        "severity": "warning",
+        "type": "threshold",
+        "condition": {"metric": "latency_ms", "operator": ">", "value": 75, "duration_minutes": 2},
+        "target_type": "service",
+        "scope": {"plugin_id": "redis", "service_type": "redis"},
+        "cooldown_seconds": 180,
+    },
+    {
+        "name": "RabbitMQ uptime below 99%",
+        "description": "Trigger when RabbitMQ availability drops",
+        "severity": "critical",
+        "type": "threshold",
+        "condition": {"metric": "uptime_percent", "operator": "<", "value": 99},
+        "target_type": "service",
+        "scope": {"plugin_id": "rabbitmq", "service_type": "rabbitmq"},
+        "cooldown_seconds": 600,
     },
 ]
 
@@ -114,6 +187,61 @@ def _service_status(latency_ms: float) -> str:
     if latency_ms > 200:
         return "warning"
     return "healthy"
+
+
+def _classification_for_discovery(plugin_id: str | None, service_type: str | None, source: str) -> dict:
+    suggested_profiles = list(PROFILE_HINTS_BY_SERVICE_TYPE.get((service_type or "").lower(), []))
+    if plugin_id:
+        if plugin_id in {"ai-gateways", "telephony-pbx", "voice-stack", "vordr-stack", "web-publishing"}:
+            if plugin_id not in suggested_profiles:
+                suggested_profiles.append(plugin_id)
+            return {
+                "plugin_id": None,
+                "suspected_plugin_id": None,
+                "classification_state": "generic",
+                "classification_confidence": 0.4,
+                "classification_source": source,
+                "suggested_profile_ids": suggested_profiles,
+            }
+        return {
+            "plugin_id": None,
+            "suspected_plugin_id": plugin_id,
+            "classification_state": "suspected",
+            "classification_confidence": 0.65,
+            "classification_source": source,
+            "suggested_profile_ids": suggested_profiles,
+        }
+    return {
+        "plugin_id": None,
+        "suspected_plugin_id": None,
+        "classification_state": "generic",
+        "classification_confidence": 0.3,
+        "classification_source": source,
+        "suggested_profile_ids": suggested_profiles,
+    }
+
+
+def _classification_for_verified(plugin_id: str | None, service_type: str | None, source: str) -> dict:
+    suggested_profiles = list(PROFILE_HINTS_BY_SERVICE_TYPE.get((service_type or "").lower(), []))
+    if plugin_id in {"ai-gateways", "telephony-pbx", "voice-stack", "vordr-stack", "web-publishing"}:
+        if plugin_id and plugin_id not in suggested_profiles:
+            suggested_profiles.append(plugin_id)
+        return {
+            "plugin_id": None,
+            "suspected_plugin_id": None,
+            "classification_state": "generic",
+            "classification_confidence": 0.5,
+            "classification_source": source,
+            "suggested_profile_ids": suggested_profiles,
+        }
+    return {
+        "plugin_id": plugin_id,
+        "suspected_plugin_id": plugin_id,
+        "classification_state": "verified" if plugin_id else "generic",
+        "classification_confidence": 1.0 if plugin_id else 0.35,
+        "classification_source": source,
+        "suggested_profile_ids": suggested_profiles,
+    }
 
 
 def _downsample_metric_points(points: list[ServiceMetric], max_points: int = 120) -> list[ServiceMetric]:
@@ -288,18 +416,37 @@ async def _tcp_open(host: str, port: int, timeout: float = 0.35) -> bool:
     return await asyncio.to_thread(_tcp_open_sync, host, port, timeout)
 
 
-async def _is_prometheus_endpoint(url: str, timeout: float = 1.5) -> bool:
+async def _inspect_prometheus_endpoint(url: str, timeout: float = 1.5) -> tuple[bool, dict | None]:
     metrics_url = url.rstrip("/") + "/metrics"
-    started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(metrics_url, headers={"Accept": "text/plain"})
             if response.status_code >= 400:
-                return False
-            text = response.text[:4000]
-            return "# HELP" in text or "# TYPE" in text or "_total" in text or "_bucket" in text
+                return False, None
+            text = response.text[:20000]
+            is_prom = "# HELP" in text or "# TYPE" in text or "_total" in text or "_bucket" in text
+            if not is_prom:
+                return False, None
+            lower_text = text.lower()
+            for fingerprint in PROMETHEUS_FINGERPRINTS:
+                matches = fingerprint.get("match", [])
+                if matches and all(token.lower() in lower_text for token in matches):
+                    return True, {
+                        "plugin_id": fingerprint.get("plugin_id"),
+                        "service_type": fingerprint.get("service_type"),
+                        "confidence": fingerprint.get("confidence", 0.8),
+                        "source": "prometheus-fingerprint",
+                        "matched_metrics": matches,
+                    }
+            return True, {
+                "plugin_id": None,
+                "service_type": "prometheus-exporter",
+                "confidence": 0.55,
+                "source": "prometheus-fingerprint",
+                "matched_metrics": [],
+            }
     except Exception:
-        return False
+        return False, None
 
 
 @router.get("", response_model=ServiceListResponse)
@@ -440,6 +587,23 @@ async def discover_services(
 
             key = (str(host.id), plugin_id, endpoint)
             service = existing_by_key.get(key)
+            classification = _classification_for_discovery(plugin_id, service_type, "known-port-scan")
+            prometheus = False
+            if url:
+                prometheus, prom_fingerprint = await _inspect_prometheus_endpoint(url)
+                if prometheus and prom_fingerprint:
+                    if prom_fingerprint.get("plugin_id"):
+                        classification = {
+                            **_classification_for_discovery(prom_fingerprint.get("plugin_id"), prom_fingerprint.get("service_type") or service_type, prom_fingerprint.get("source") or "prometheus-fingerprint"),
+                            "classification_confidence": prom_fingerprint.get("confidence", 0.8),
+                        }
+                    else:
+                        classification = {
+                            **classification,
+                            "service_type": prom_fingerprint.get("service_type") or service_type,
+                            "classification_confidence": max(classification.get("classification_confidence") or 0, prom_fingerprint.get("confidence", 0.55)),
+                            "classification_source": prom_fingerprint.get("source") or "prometheus-fingerprint",
+                        }
             if service is None:
                 service = Service(
                     workspace_id=workspace.id,
@@ -448,9 +612,14 @@ async def discover_services(
                     status="healthy",
                     url=url,
                     endpoint=endpoint,
-                    plugin_id=plugin_id,
-                    service_type=service_type,
-                    plugin_metadata={"suggested": True, "source": "known-port-scan", "port": port},
+                    plugin_id=classification["plugin_id"],
+                    suspected_plugin_id=classification["suspected_plugin_id"],
+                    classification_state=classification["classification_state"],
+                    classification_confidence=classification["classification_confidence"],
+                    classification_source=classification["classification_source"],
+                    suggested_profile_ids=classification["suggested_profile_ids"],
+                    service_type=classification.get("service_type") or service_type,
+                    plugin_metadata={"source": classification["classification_source"], "port": port},
                     uptime_percent=100.0,
                     latency_ms=20 + (port % 30),
                     requests_per_min=0,
@@ -465,32 +634,34 @@ async def discover_services(
                 service.host_id = host.id
                 service.url = url
                 service.endpoint = endpoint
-                service.plugin_id = plugin_id
-                service.service_type = service_type
-                service.plugin_metadata = {**(service.plugin_metadata or {}), "suggested": True, "source": "known-port-scan", "port": port}
+                service.plugin_id = classification["plugin_id"]
+                service.suspected_plugin_id = classification["suspected_plugin_id"]
+                service.classification_state = classification["classification_state"]
+                service.classification_confidence = classification["classification_confidence"]
+                service.classification_source = classification["classification_source"]
+                service.suggested_profile_ids = classification["suggested_profile_ids"]
+                service.service_type = classification.get("service_type") or service_type
+                service.plugin_metadata = {**(service.plugin_metadata or {}), "source": classification["classification_source"], "port": port}
                 updated += 1
 
-            prometheus = False
-            if url:
-                prometheus = await _is_prometheus_endpoint(url)
-                if prometheus:
-                    existing_monitor = (
-                        await db.execute(select(Monitor).where(Monitor.workspace_id == workspace.id, Monitor.type == "prometheus", Monitor.target == f"{url.rstrip('/')}/metrics"))
-                    ).scalars().first()
-                    if not existing_monitor:
-                        db.add(
-                            Monitor(
-                                workspace_id=workspace.id,
-                                name=f"{service.name} Prometheus",
-                                type="prometheus",
-                                target=f"{url.rstrip('/')}/metrics",
-                                interval_seconds=60,
-                                timeout_seconds=15,
-                                enabled=True,
-                                config={"source": "service-discovery", "linked_service_id": str(service.id)},
-                                status="unknown",
-                            )
+            if url and prometheus:
+                existing_monitor = (
+                    await db.execute(select(Monitor).where(Monitor.workspace_id == workspace.id, Monitor.type == "prometheus", Monitor.target == f"{url.rstrip('/')}/metrics"))
+                ).scalars().first()
+                if not existing_monitor:
+                    db.add(
+                        Monitor(
+                            workspace_id=workspace.id,
+                            name=f"{service.name} Prometheus",
+                            type="prometheus",
+                            target=f"{url.rstrip('/')}/metrics",
+                            interval_seconds=60,
+                            timeout_seconds=15,
+                            enabled=True,
+                            config={"source": "service-discovery", "linked_service_id": str(service.id)},
+                            status="unknown",
                         )
+                    )
 
             discovered.append({
                 "host": host.name,
@@ -498,8 +669,12 @@ async def discover_services(
                 "port": port,
                 "endpoint": endpoint,
                 "url": url,
-                "plugin_id": plugin_id,
-                "service_type": service_type,
+                "plugin_id": classification["plugin_id"],
+                "suspected_plugin_id": classification["suspected_plugin_id"],
+                "classification_state": classification["classification_state"],
+                "classification_confidence": classification["classification_confidence"],
+                "suggested_profile_ids": classification["suggested_profile_ids"],
+                "service_type": classification.get("service_type") or service_type,
                 "prometheus": prometheus,
             })
 
@@ -627,6 +802,7 @@ async def update_service(
         if should_record_service_metric(service, latest_metric):
             db.add(build_service_metric(service))
     await db.flush()
+    await evaluate_service_alert_rules(db, workspace.id, service)
     await db.refresh(service)
     return service
 

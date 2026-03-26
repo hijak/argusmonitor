@@ -3,11 +3,24 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AlertInstance, EscalationPolicy, NotificationChannel
+from app.models import AlertInstance, AlertRule, EscalationPolicy, NotificationChannel
 from app.services.notifications import deliver_notification
 
 
-async def apply_escalation_for_alert(db: AsyncSession, alert: AlertInstance) -> list[dict]:
+def _policy_matches_alert(policy: EscalationPolicy, alert: AlertInstance, rule: AlertRule | None) -> bool:
+    target_type = policy.target_type or "all"
+    if target_type in {"all", "alert"}:
+        return True
+    if target_type == "team" and alert.assigned_team_id:
+        return str(policy.target_id) == str(alert.assigned_team_id)
+    if target_type == "service" and rule and rule.target_type == "service" and rule.target_id:
+        return str(policy.target_id) == str(rule.target_id)
+    if target_type == "plugin" and rule:
+        return str(policy.target_id) == str((rule.scope or {}).get("plugin_id"))
+    return False
+
+
+async def apply_escalation_for_alert(db: AsyncSession, alert: AlertInstance, rule: AlertRule | None = None) -> list[dict]:
     if not alert.workspace_id:
         return []
 
@@ -30,7 +43,9 @@ async def apply_escalation_for_alert(db: AsyncSession, alert: AlertInstance) -> 
 
     deliveries: list[dict] = []
     for policy in policies:
-        if policy.target_type not in {"all", "alert"}:
+        if rule and rule.escalation_policy_id and str(policy.id) != str(rule.escalation_policy_id):
+            continue
+        if not _policy_matches_alert(policy, alert, rule):
             continue
         for step in policy.steps or []:
             channel_type = (step.get("channel") or "").lower()

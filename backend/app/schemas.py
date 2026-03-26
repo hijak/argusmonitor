@@ -188,6 +188,11 @@ class ServiceOut(BaseModel):
     host_type: Optional[str] = None
     host_ip_address: Optional[str] = None
     plugin_id: Optional[str] = None
+    suspected_plugin_id: Optional[str] = None
+    classification_state: str = "generic"
+    classification_confidence: Optional[float] = None
+    suggested_profile_ids: list[str] = []
+    classification_source: Optional[str] = None
     service_type: Optional[str] = None
     endpoint: Optional[str] = None
     plugin_metadata: dict[str, Any] = {}
@@ -371,6 +376,9 @@ class AlertRuleCreate(BaseModel):
     condition: dict[str, Any] = {}
     target_type: Optional[str] = None
     target_id: Optional[UUID] = None
+    scope: dict[str, Any] = {}
+    oncall_team_id: Optional[UUID] = None
+    escalation_policy_id: Optional[UUID] = None
     cooldown_seconds: int = 300
 
 
@@ -383,6 +391,9 @@ class AlertRuleOut(BaseModel):
     condition: dict[str, Any]
     target_type: Optional[str]
     target_id: Optional[UUID]
+    scope: dict[str, Any] = {}
+    oncall_team_id: Optional[UUID] = None
+    escalation_policy_id: Optional[UUID] = None
     enabled: bool
     cooldown_seconds: int
     created_at: datetime
@@ -394,6 +405,7 @@ class AlertInstanceOut(BaseModel):
     id: UUID
     rule_id: Optional[UUID]
     assigned_user_id: Optional[UUID] = None
+    assigned_team_id: Optional[UUID] = None
     message: str
     severity: str
     service: Optional[str]
@@ -498,6 +510,10 @@ class DashboardTemplateOut(BaseModel):
     widget_count: int
     available_count: int = 0
     recommended: bool = False
+    verified_count: int = 0
+    suspected_count: int = 0
+    hinted_count: int = 0
+    recommendation_reason: Optional[str] = None
     plugin_id: Optional[str] = None
     service_type: Optional[str] = None
     service_group: Optional[str] = None
@@ -953,8 +969,28 @@ class OnCallTeamOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OnCallTeamUpdate(BaseModel):
+    name: str
+    timezone: str = "UTC"
+    description: Optional[str] = None
+
+
+class OnCallTeamMemberUpdate(BaseModel):
+    role: str = "member"
+
+
 class OnCallShiftCreate(BaseModel):
     team_id: UUID
+    user_id: Optional[UUID] = None
+    person_name: Optional[str] = None
+    email: Optional[str] = None
+    start_at: datetime
+    end_at: datetime
+    escalation_level: int = 1
+    notes: Optional[str] = None
+
+
+class OnCallShiftUpdate(BaseModel):
     user_id: Optional[UUID] = None
     person_name: Optional[str] = None
     email: Optional[str] = None

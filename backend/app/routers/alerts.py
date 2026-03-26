@@ -5,10 +5,9 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import AlertRule, AlertInstance, User, Workspace
+from app.models import AlertRule, AlertInstance, EscalationPolicy, OnCallTeam, User, Workspace
 from app.schemas import AlertRuleCreate, AlertRuleOut, AlertInstanceOut
 from app.auth import get_current_user
-from app.services.oncall import get_active_oncall_user
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -19,12 +18,25 @@ async def _ensure_alert_schema(db: AsyncSession) -> None:
         connection = sync_session.connection()
         inspector = inspect(connection)
         tables = inspector.get_table_names()
-        if "alert_instances" not in tables:
-            return
-        columns = {c["name"] for c in inspector.get_columns("alert_instances")}
-        if "assigned_user_id" not in columns:
-            connection.execute(text("ALTER TABLE alert_instances ADD COLUMN assigned_user_id UUID REFERENCES users(id) ON DELETE SET NULL"))
-            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_instances_assigned_user_id ON alert_instances(assigned_user_id)"))
+        if "alert_instances" in tables:
+            instance_columns = {c["name"] for c in inspector.get_columns("alert_instances")}
+            if "assigned_user_id" not in instance_columns:
+                connection.execute(text("ALTER TABLE alert_instances ADD COLUMN assigned_user_id UUID REFERENCES users(id) ON DELETE SET NULL"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_instances_assigned_user_id ON alert_instances(assigned_user_id)"))
+            if "assigned_team_id" not in instance_columns:
+                connection.execute(text("ALTER TABLE alert_instances ADD COLUMN assigned_team_id UUID REFERENCES oncall_teams(id) ON DELETE SET NULL"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_instances_assigned_team_id ON alert_instances(assigned_team_id)"))
+
+        if "alert_rules" in tables:
+            rule_columns = {c["name"] for c in inspector.get_columns("alert_rules")}
+            if "scope" not in rule_columns:
+                connection.execute(text("ALTER TABLE alert_rules ADD COLUMN scope JSON DEFAULT '{}'::json"))
+            if "oncall_team_id" not in rule_columns:
+                connection.execute(text("ALTER TABLE alert_rules ADD COLUMN oncall_team_id UUID REFERENCES oncall_teams(id) ON DELETE SET NULL"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_rules_oncall_team_id ON alert_rules(oncall_team_id)"))
+            if "escalation_policy_id" not in rule_columns:
+                connection.execute(text("ALTER TABLE alert_rules ADD COLUMN escalation_policy_id UUID REFERENCES escalation_policies(id) ON DELETE SET NULL"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_rules_escalation_policy_id ON alert_rules(escalation_policy_id)"))
 
     await db.run_sync(sync_ensure)
 
@@ -35,8 +47,21 @@ async def list_rules(
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ):
+    await _ensure_alert_schema(db)
     result = await db.execute(select(AlertRule).where(AlertRule.workspace_id == workspace.id).order_by(AlertRule.created_at.desc()))
     return result.scalars().all()
+
+
+async def _validate_rule_links(db: AsyncSession, workspace: Workspace, req: AlertRuleCreate) -> None:
+    if req.oncall_team_id:
+        team = await db.get(OnCallTeam, req.oncall_team_id)
+        if not team or str(team.workspace_id) != str(workspace.id):
+            raise HTTPException(status_code=404, detail="On-call team not found")
+
+    if req.escalation_policy_id:
+        policy = await db.get(EscalationPolicy, req.escalation_policy_id)
+        if not policy or str(policy.workspace_id) != str(workspace.id):
+            raise HTTPException(status_code=404, detail="Escalation policy not found")
 
 
 @router.post("/rules", response_model=AlertRuleOut, status_code=201)
@@ -46,11 +71,60 @@ async def create_rule(
     user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ):
+    await _ensure_alert_schema(db)
+    await _validate_rule_links(db, workspace, req)
+
     rule = AlertRule(workspace_id=workspace.id, **req.model_dump())
     db.add(rule)
     await db.flush()
     await db.refresh(rule)
     return rule
+
+
+@router.put("/rules/{rule_id}", response_model=AlertRuleOut)
+async def update_rule(
+    rule_id: UUID,
+    req: AlertRuleCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    await _ensure_alert_schema(db)
+    await _validate_rule_links(db, workspace, req)
+
+    rule = (
+        await db.execute(
+            select(AlertRule).where(AlertRule.id == rule_id, AlertRule.workspace_id == workspace.id)
+        )
+    ).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+
+    for key, value in req.model_dump().items():
+        setattr(rule, key, value)
+    await db.flush()
+    await db.refresh(rule)
+    return rule
+
+
+@router.delete("/rules/{rule_id}", status_code=204)
+async def delete_rule(
+    rule_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    await _ensure_alert_schema(db)
+    rule = (
+        await db.execute(
+            select(AlertRule).where(AlertRule.id == rule_id, AlertRule.workspace_id == workspace.id)
+        )
+    ).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+
+    await db.delete(rule)
+    await db.flush()
 
 
 @router.get("", response_model=list[AlertInstanceOut])
@@ -82,6 +156,7 @@ async def list_alerts(
             id=alert.id,
             rule_id=alert.rule_id,
             assigned_user_id=alert.assigned_user_id,
+            assigned_team_id=alert.assigned_team_id,
             message=alert.message,
             severity=alert.severity,
             service=alert.service,
@@ -122,6 +197,7 @@ async def acknowledge_alert(
         id=alert.id,
         rule_id=alert.rule_id,
         assigned_user_id=alert.assigned_user_id,
+        assigned_team_id=alert.assigned_team_id,
         message=alert.message,
         severity=alert.severity,
         service=alert.service,
@@ -159,6 +235,7 @@ async def resolve_alert(
         id=alert.id,
         rule_id=alert.rule_id,
         assigned_user_id=alert.assigned_user_id,
+        assigned_team_id=alert.assigned_team_id,
         message=alert.message,
         severity=alert.severity,
         service=alert.service,

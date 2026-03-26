@@ -3,6 +3,7 @@ import {
   Bell,
   GitPullRequest,
   Globe,
+  Layers3,
   Network,
   Search,
   Shield,
@@ -14,12 +15,25 @@ import { PluginModal } from "@/components/PluginModal";
 import { generatedPlugins } from "@/generated/plugins.generated";
 import { iconMap } from "@/lib/icons";
 
+export interface PluginProfile {
+  id: string;
+  name: string;
+  description: string;
+  whenToSuggest?: string[];
+  dashboardPresetIds?: string[];
+  alertPresetIds?: string[];
+  serviceGroups?: string[];
+  tags?: string[];
+}
+
 export interface Plugin {
   id: string;
   name: string;
   description: string;
   author: string;
   category: string;
+  family: string;
+  kind: "technology" | "profile";
   downloads: number;
   rating: number;
   version: string;
@@ -28,11 +42,25 @@ export interface Plugin {
   tags: string[];
   repoUrl: string;
   sourcePath: string;
+  serviceType: string;
   status: "official" | "experimental";
   maturity: "alpha" | "beta" | "stable";
   integration: "agent" | "backend" | "ui" | "hybrid";
   summary: string[];
   config: Record<string, string | boolean | number>;
+  discovery: {
+    methods: string[];
+    target?: string;
+    promotedFrom?: string[];
+    notes?: string[];
+  };
+  fingerprints?: Record<string, string[] | number[]>;
+  profiles?: PluginProfile[];
+  appliesTo?: {
+    pluginIds?: string[];
+    serviceTypes?: string[];
+    families?: string[];
+  };
 }
 
 const REPO_URL = "https://github.com/hijak/vordr-plugins";
@@ -44,10 +72,13 @@ const plugins: Plugin[] = generatedPlugins.map((plugin) => ({
 
 const categories = ["All", ...Array.from(new Set(plugins.map((plugin) => plugin.category)))];
 
+type ViewMode = "technology" | "profile" | "all";
+
 const Index = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("technology");
 
   const filtered = useMemo(() => {
     return plugins.filter((plugin) => {
@@ -56,16 +87,22 @@ const Index = () => {
         plugin.name.toLowerCase().includes(q) ||
         plugin.description.toLowerCase().includes(q) ||
         plugin.tags.some((tag) => tag.toLowerCase().includes(q)) ||
-        plugin.sourcePath.toLowerCase().includes(q);
+        plugin.sourcePath.toLowerCase().includes(q) ||
+        plugin.family.toLowerCase().includes(q);
       const matchesCategory = activeCategory === "All" || plugin.category === activeCategory;
-      return matchesSearch && matchesCategory;
+      const matchesView =
+        viewMode === "all" ||
+        (viewMode === "technology" && plugin.kind === "technology") ||
+        (viewMode === "profile" && plugin.kind === "profile");
+      return matchesSearch && matchesCategory && matchesView;
     });
-  }, [search, activeCategory]);
+  }, [search, activeCategory, viewMode]);
 
   const totals = {
     official: plugins.filter((plugin) => plugin.status === "official").length,
     verified: plugins.filter((plugin) => plugin.verified).length,
-    integrations: new Set(plugins.map((plugin) => plugin.integration)).size,
+    technologies: plugins.filter((plugin) => plugin.kind === "technology").length,
+    profiles: plugins.filter((plugin) => plugin.kind === "profile").length,
   };
 
   return (
@@ -79,17 +116,38 @@ const Index = () => {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search official plugins by name, tag, path, or capability..."
+                placeholder="Search technologies, profiles, tags, paths, or families..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-md border border-input bg-background py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm">
+            <div className="grid grid-cols-4 gap-2 text-center text-xs sm:text-sm">
               <StatChip label="Official" value={totals.official} icon={Shield} />
               <StatChip label="Verified" value={totals.verified} icon={Bell} />
-              <StatChip label="Modes" value={totals.integrations} icon={Globe} />
+              <StatChip label="Tech" value={totals.technologies} icon={Globe} />
+              <StatChip label="Profiles" value={totals.profiles} icon={Layers3} />
             </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {([
+              ["technology", `Technologies (${totals.technologies})`],
+              ["profile", `Profiles (${totals.profiles})`],
+              ["all", `All (${plugins.length})`],
+            ] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                  viewMode === mode
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -104,8 +162,8 @@ const Index = () => {
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-foreground">Official plugin directory</h2>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                Official collectors now live in a separate plugins repo. The hub builds its catalogue from plugin manifests,
-                while the main Vordr UI keeps a standard presentation layer for plugin-backed services.
+                Vordr now treats plugins as technology-first collectors, with optional profiles for stack rollups and fine-tuning.
+                The catalogue defaults to technologies so the core model stays clean instead of turning every stack opinion into a fake plugin.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
@@ -140,11 +198,12 @@ const Index = () => {
         {filtered.length === 0 && (
           <div className="py-20 text-center">
             <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
-            <p className="text-lg text-muted-foreground">No official plugins match that search.</p>
+            <p className="text-lg text-muted-foreground">No matching catalogue entries.</p>
             <button
               onClick={() => {
                 setSearch("");
                 setActiveCategory("All");
+                setViewMode("technology");
               }}
               className="mt-3 text-sm font-medium text-primary hover:underline"
             >

@@ -106,6 +106,14 @@ export function getContractDetailRows(service: any) {
   }));
 }
 
+export function getServiceClassification(service: any) {
+  const state = String(service?.classification_state || "generic");
+  const confidence = Number(service?.classification_confidence ?? 0);
+  if (state === "verified") return { variant: "healthy", label: "verified", confidence };
+  if (state === "suspected") return { variant: "warning", label: `suspected ${Math.round(confidence * 100)}%`, confidence };
+  return { variant: service?.suggested_profile_ids?.length ? "info" : "unknown", label: service?.suggested_profile_ids?.length ? "generic + profile hints" : "generic", confidence };
+}
+
 export function getContractHealth(service: any) {
   const meta = service?.plugin_metadata || {};
   const contract = getPluginContract(service);
@@ -135,7 +143,7 @@ export function getContractHealth(service: any) {
   if (meta.metrics_mode === "info") return { variant: "healthy", label: "info live" };
   if (meta.metrics_mode === "management-api") return { variant: "healthy", label: "api live" };
 
-  return { variant: status, label: service?.plugin_id ? "discovered" : "unknown" };
+  return getServiceClassification(service);
 }
 
 export function getPluginDisplayTitle(service: any) {
@@ -144,7 +152,7 @@ export function getPluginDisplayTitle(service: any) {
   if (contract?.ui?.title) return contract.ui.title;
   if (meta.display_name) return String(meta.display_name);
   if (service?.name) return String(service.name);
-  if (service?.plugin_id) return `plugin:${service.plugin_id}`;
+  if (service?.plugin_id) return `${isProfileOverlayId(service.plugin_id) ? "profile" : "tech"}:${service.plugin_id}`;
   return "service";
 }
 
@@ -165,6 +173,12 @@ export function humanizeServiceType(serviceType?: string | null) {
   return serviceType.replace(/[-_]/g, " ");
 }
 
+const COMPAT_PROFILE_PLUGIN_IDS = new Set(["ai-gateways", "telephony-pbx", "voice-stack", "vordr-stack", "web-publishing"]);
+
+export function isProfileOverlayId(pluginId?: string | null) {
+  return !!pluginId && COMPAT_PROFILE_PLUGIN_IDS.has(pluginId);
+}
+
 export function formatPluginBadge(pluginId?: string | null) {
   if (!pluginId) return "";
   return pluginId.replace(/[-_]/g, " ");
@@ -177,5 +191,5 @@ export function getPluginFooter(service: any) {
     if (meta.version) return `${contract.ui.title} ${meta.version}`;
     return contract.ui.title;
   }
-  return service?.plugin_id ? `plugin:${service.plugin_id}` : "service";
+  return service?.plugin_id ? `${isProfileOverlayId(service.plugin_id) ? "profile" : "tech"}:${service.plugin_id}` : "service";
 }

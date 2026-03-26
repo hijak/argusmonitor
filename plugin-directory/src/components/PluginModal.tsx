@@ -1,4 +1,4 @@
-import { ExternalLink, FileCode2, Github, GitPullRequest, Shield, Tag, X } from "lucide-react";
+import { ExternalLink, FileCode2, Github, GitPullRequest, Layers3, Shield, Tag, X } from "lucide-react";
 import type { Plugin } from "@/pages/Index";
 
 interface PluginModalProps {
@@ -8,6 +8,7 @@ interface PluginModalProps {
 
 export function PluginModal({ plugin, onClose }: PluginModalProps) {
   const Icon = plugin.icon;
+  const isProfile = plugin.kind === "profile";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -33,15 +34,15 @@ export function PluginModal({ plugin, onClose }: PluginModalProps) {
             <div className="min-w-0 flex-1 pr-8">
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <h2 className="truncate text-lg font-bold text-card-foreground">{plugin.name}</h2>
-                {plugin.verified && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                    <Shield className="h-3 w-3" />
-                    Official
-                  </span>
-                )}
+                <span className={`inline-flex shrink-0 items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium ${
+                  isProfile ? "bg-amber-500/10 text-amber-300" : "bg-primary/10 text-primary"
+                }`}>
+                  {isProfile ? <Layers3 className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
+                  {isProfile ? "Profile" : "Technology"}
+                </span>
               </div>
               <p className="text-sm text-muted-foreground">
-                {plugin.category} · {plugin.integration} integration · {plugin.maturity}
+                {plugin.category} · {plugin.family} · {plugin.integration} integration · {plugin.maturity}
               </p>
             </div>
           </div>
@@ -55,6 +56,9 @@ export function PluginModal({ plugin, onClose }: PluginModalProps) {
             </span>
             <span>
               Status <span className="font-medium text-card-foreground">{plugin.status}</span>
+            </span>
+            <span>
+              Service type <span className="font-mono text-card-foreground">{plugin.serviceType}</span>
             </span>
           </div>
         </div>
@@ -74,6 +78,62 @@ export function PluginModal({ plugin, onClose }: PluginModalProps) {
             ))}
           </div>
         </div>
+
+        <div className="grid gap-4 px-6 pb-4 md:grid-cols-2">
+          <div className="rounded-md border border-border bg-muted/30 p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Discovery</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {plugin.discovery.methods.map((method) => (
+                <span key={method} className="rounded-full border border-border bg-background px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {method}
+                </span>
+              ))}
+            </div>
+            {plugin.discovery.target && (
+              <p className="mt-3 text-sm text-card-foreground">Target: {plugin.discovery.target}</p>
+            )}
+            {plugin.discovery.promotedFrom?.length ? (
+              <p className="mt-2 text-xs text-muted-foreground">Promoted from: {plugin.discovery.promotedFrom.join(", ")}</p>
+            ) : null}
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/30 p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kind</h3>
+            <p className="text-sm text-card-foreground">
+              {isProfile
+                ? "Profile overlay used for stack rollups, dashboard tuning, and optional alert presets."
+                : "Technology-first collector intended to represent a real monitored product or runtime."}
+            </p>
+          </div>
+        </div>
+
+        {plugin.profiles?.length ? (
+          <div className="px-6 pb-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Optional profiles</h3>
+            <div className="space-y-2">
+              {plugin.profiles.map((profile) => (
+                <div key={profile.id} className="rounded-md border border-border bg-muted/30 px-3 py-3">
+                  <div className="text-sm font-medium text-card-foreground">{profile.name}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{profile.description}</div>
+                  {profile.whenToSuggest?.length ? (
+                    <div className="mt-2 text-xs text-muted-foreground">Suggest when: {profile.whenToSuggest.join(" · ")}</div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {plugin.appliesTo ? (
+          <div className="px-6 pb-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Applies to</h3>
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm text-card-foreground">
+              {plugin.appliesTo.pluginIds?.length ? <div>Plugins: {plugin.appliesTo.pluginIds.join(", ")}</div> : null}
+              {plugin.appliesTo.serviceTypes?.length ? <div>Service types: {plugin.appliesTo.serviceTypes.join(", ")}</div> : null}
+              {plugin.appliesTo.families?.length ? <div>Families: {plugin.appliesTo.families.join(", ")}</div> : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="px-6 pb-4">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Config</h3>

@@ -329,6 +329,11 @@ class Service(Base):
     )
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id", ondelete="SET NULL"), index=True)
     plugin_id = Column(String(100), index=True)
+    suspected_plugin_id = Column(String(100), index=True)
+    classification_state = Column(String(50), nullable=False, default="generic", index=True)
+    classification_confidence = Column(Float)
+    suggested_profile_ids = Column(JSON, default=list)
+    classification_source = Column(String(100))
     service_type = Column(String(100), index=True)
     endpoint = Column(String(255))
     plugin_metadata = Column(JSON, default=dict)
@@ -543,6 +548,9 @@ class AlertRule(Base):
     condition = Column(JSON, nullable=False)
     target_type = Column(String(50))  # host, service, monitor, transaction
     target_id = Column(UUID(as_uuid=True))
+    scope = Column(JSON, nullable=False, default=dict)
+    oncall_team_id = Column(UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="SET NULL"), index=True)
+    escalation_policy_id = Column(UUID(as_uuid=True), ForeignKey("escalation_policies.id", ondelete="SET NULL"), index=True)
     enabled = Column(Boolean, default=True)
     cooldown_seconds = Column(Integer, default=300)
     created_at = Column(DateTime(timezone=True), default=utcnow)
@@ -565,6 +573,9 @@ class AlertInstance(Base):
     )
     assigned_user_id = Column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    assigned_team_id = Column(
+        UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="SET NULL"), index=True
     )
     message = Column(Text, nullable=False)
     severity = Column(String(50), nullable=False)

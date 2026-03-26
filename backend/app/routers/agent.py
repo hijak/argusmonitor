@@ -1,8 +1,10 @@
 import hashlib
+import logging
+import time
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,9 +13,36 @@ from app.config import get_settings
 from app.database import get_db
 from app.models import AIChatMessage, AgentAction, Host, HostMetric, Service, ServiceMetric, User
 from app.schemas import AgentActionOut, AgentActionResultRequest, AgentHeartbeatRequest, AgentHeartbeatResponse
+from app.services.alert_rules import evaluate_host_alert_rules, evaluate_service_alert_rules
 from app.services.service_metrics import build_service_metric, fetch_latest_service_metrics, should_record_service_metric
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+logger = logging.getLogger(__name__)
+_FAILED_AGENT_AUTH_LOG_TTL_SECONDS = 300
+_failed_agent_auth_log_times: dict[str, float] = {}
+
+
+def _log_failed_agent_auth_once(kind: str, client_ip: str | None, forwarded_for: str | None, cf_connecting_ip: str | None, user_agent: str | None, token_prefix: str | None = None) -> None:
+    key = f"{kind}|{client_ip}|{forwarded_for}|{cf_connecting_ip}|{user_agent}|{token_prefix}"
+    now = time.monotonic()
+    last = _failed_agent_auth_log_times.get(key)
+    if last and (now - last) < _FAILED_AGENT_AUTH_LOG_TTL_SECONDS:
+        return
+    _failed_agent_auth_log_times[key] = now
+    if len(_failed_agent_auth_log_times) > 1024:
+        cutoff = now - _FAILED_AGENT_AUTH_LOG_TTL_SECONDS
+        stale = [k for k, v in _failed_agent_auth_log_times.items() if v < cutoff]
+        for k in stale[:512]:
+            _failed_agent_auth_log_times.pop(k, None)
+    logger.warning(
+        "agent_auth_failed kind=%s client=%s forwarded_for=%s cf_ip=%s ua=%s token_prefix=%s",
+        kind,
+        client_ip,
+        forwarded_for,
+        cf_connecting_ip,
+        user_agent,
+        token_prefix,
+    )
 
 
 def _hash_token(raw: str) -> str:
@@ -21,10 +50,22 @@ def _hash_token(raw: str) -> str:
 
 
 async def require_agent_host(
+    request: Request,
     x_agent_token: str = Header(default=""),
     db: AsyncSession = Depends(get_db),
 ) -> Host | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    cf_connecting_ip = request.headers.get("cf-connecting-ip")
+    user_agent = request.headers.get("user-agent")
+
     if not x_agent_token:
+        _log_failed_agent_auth_once(
+            "missing_token",
+            request.client.host if request.client else None,
+            forwarded_for,
+            cf_connecting_ip,
+            user_agent,
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing agent token")
 
     token_hash = _hash_token(x_agent_token)
@@ -45,6 +86,14 @@ async def require_agent_host(
     if settings.agent_shared_token and x_agent_token == settings.agent_shared_token:
         return None
 
+    _log_failed_agent_auth_once(
+        "invalid_token",
+        request.client.host if request.client else None,
+        forwarded_for,
+        cf_connecting_ip,
+        user_agent,
+        x_agent_token[:6] if x_agent_token else None,
+    )
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid agent token")
 
 
@@ -185,12 +234,35 @@ async def heartbeat(
             key = (service_report.plugin_id, service_report.endpoint or service_report.name)
             seen_keys.add(key)
             service = existing_by_key.get(key)
+            profile_hint_ids = []
+            if service_report.service_type in {"http", "https", "web-publishing"}:
+                profile_hint_ids.append("web-publishing")
+            if service_report.service_type == "ai-gateway":
+                profile_hint_ids.append("ai-gateways")
+            if service_report.service_type == "telephony-pbx":
+                profile_hint_ids.append("telephony-pbx")
+            if service_report.service_type == "voice-stack":
+                profile_hint_ids.append("voice-stack")
+            if service_report.service_type == "vordr-stack":
+                profile_hint_ids.append("vordr-stack")
+
+            verified_plugin_id = service_report.plugin_id
+            if verified_plugin_id in {"ai-gateways", "telephony-pbx", "voice-stack", "vordr-stack", "web-publishing"}:
+                if verified_plugin_id not in profile_hint_ids:
+                    profile_hint_ids.append(verified_plugin_id)
+                verified_plugin_id = None
+
             if service is None:
                 service = Service(
                     workspace_id=host.workspace_id,
                     host_id=host.id,
                     name=service_report.name,
-                    plugin_id=service_report.plugin_id,
+                    plugin_id=verified_plugin_id,
+                    suspected_plugin_id=service_report.plugin_id if verified_plugin_id else None,
+                    classification_state="verified" if verified_plugin_id else "generic",
+                    classification_confidence=1.0 if verified_plugin_id else 0.5,
+                    classification_source="agent",
+                    suggested_profile_ids=profile_hint_ids,
                     service_type=service_report.service_type,
                     endpoint=service_report.endpoint,
                 )
@@ -200,7 +272,12 @@ async def heartbeat(
             service.status = service_report.status
             service.url = service_report.endpoint
             service.endpoint = service_report.endpoint
-            service.plugin_id = service_report.plugin_id
+            service.plugin_id = verified_plugin_id
+            service.suspected_plugin_id = service_report.plugin_id if verified_plugin_id else None
+            service.classification_state = "verified" if verified_plugin_id else "generic"
+            service.classification_confidence = 1.0 if verified_plugin_id else 0.5
+            service.classification_source = "agent"
+            service.suggested_profile_ids = profile_hint_ids
             service.service_type = service_report.service_type
             service.latency_ms = service_report.latency_ms
             service.requests_per_min = service_report.requests_per_min
@@ -234,6 +311,10 @@ async def heartbeat(
             if existing_key not in seen_keys and existing_service.plugin_id:
                 existing_service.status = "unknown"
 
+        for service, *_ in service_metric_payloads:
+            if host.workspace_id:
+                await evaluate_service_alert_rules(db, host.workspace_id, service)
+
     metric = HostMetric(
         host_id=host.id,
         cpu_percent=req.cpu_percent,
@@ -246,6 +327,9 @@ async def heartbeat(
     )
     db.add(metric)
     await db.flush()
+
+    if host.workspace_id:
+        await evaluate_host_alert_rules(db, host.workspace_id, host)
 
     action_result = await db.execute(
         select(AgentAction)

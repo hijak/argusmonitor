@@ -147,6 +147,10 @@ export const api = {
   listAlertRules: () => request<any[]>("/alerts/rules"),
   createAlertRule: (data: any) =>
     request<any>("/alerts/rules", { method: "POST", body: JSON.stringify(data) }),
+  updateAlertRule: (ruleId: string, data: any) =>
+    request<any>(`/alerts/rules/${ruleId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteAlertRule: (ruleId: string) =>
+    request<void>(`/alerts/rules/${ruleId}`, { method: "DELETE" }),
   acknowledgeAlert: (id: string) =>
     request<any>(`/alerts/${id}/acknowledge`, { method: "POST" }),
   resolveAlert: (id: string) =>
@@ -204,11 +208,23 @@ export const api = {
   listOnCallTeams: () => request<any[]>("/oncall/teams"),
   createOnCallTeam: (data: any) =>
     request<any>("/oncall/teams", { method: "POST", body: JSON.stringify(data) }),
+  updateOnCallTeam: (teamId: string, data: any) =>
+    request<any>(`/oncall/teams/${teamId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteOnCallTeam: (teamId: string) =>
+    request<void>(`/oncall/teams/${teamId}`, { method: "DELETE" }),
   addOnCallTeamMember: (teamId: string, data: any) =>
     request<any>(`/oncall/teams/${teamId}/members`, { method: "POST", body: JSON.stringify(data) }),
+  updateOnCallTeamMember: (teamId: string, memberId: string, data: any) =>
+    request<any>(`/oncall/teams/${teamId}/members/${memberId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteOnCallTeamMember: (teamId: string, memberId: string) =>
+    request<void>(`/oncall/teams/${teamId}/members/${memberId}`, { method: "DELETE" }),
   listOnCallShifts: (teamId?: string) => request<any[]>(`/oncall/shifts${teamId ? `?team_id=${encodeURIComponent(teamId)}` : ""}`),
   createOnCallShift: (data: any) =>
     request<any>("/oncall/shifts", { method: "POST", body: JSON.stringify(data) }),
+  updateOnCallShift: (shiftId: string, data: any) =>
+    request<any>(`/oncall/shifts/${shiftId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteOnCallShift: (shiftId: string) =>
+    request<void>(`/oncall/shifts/${shiftId}`, { method: "DELETE" }),
 
   // Users
   listUsers: () => request<any[]>("/users"),

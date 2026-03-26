@@ -28,6 +28,10 @@ export VORDR_AGENT_LOG_FILES=/var/log/syslog,/var/log/auth.log
 # export VORDR_RABBITMQ_API_URL=http://127.0.0.1:15672
 # export VORDR_RABBITMQ_API_USERNAME=argus
 # export VORDR_RABBITMQ_API_PASSWORD=arguspass
+# export VORDR_PROMETHEUS_URL=http://127.0.0.1:9090
+# export VORDR_KUBERNETES_API=https://127.0.0.1:6443
+# export VORDR_KUBERNETES_BEARER_TOKEN=optional
+# export VORDR_KUBERNETES_VERIFY_SSL=false
 ```
 
 Optional settings:

@@ -9,9 +9,16 @@ from types import ModuleType
 
 from vordr_agent.plugin_types import DiscoveredService, DiscoveryContext, ServicePlugin
 from vordr_agent.plugins.docker_local import DockerLocalPlugin
+from vordr_agent.plugins.elasticsearch import ElasticsearchPlugin
 from vordr_agent.plugins.host_core import HostCorePlugin
+from vordr_agent.plugins.kafka import KafkaPlugin
+from vordr_agent.plugins.kubernetes import KubernetesPlugin
+from vordr_agent.plugins.mongodb import MongoDBPlugin
 from vordr_agent.plugins.mysql import MySQLPlugin
+from vordr_agent.plugins.nats import NATSPlugin
+from vordr_agent.plugins.nginx import NginxPlugin
 from vordr_agent.plugins.postgres import PostgresPlugin
+from vordr_agent.plugins.prometheus import PrometheusPlugin
 from vordr_agent.plugins.rabbitmq import RabbitMQPlugin
 from vordr_agent.plugins.redis import RedisPlugin
 
@@ -56,6 +63,13 @@ class PluginManager:
             RabbitMQPlugin(),
             RedisPlugin(),
             DockerLocalPlugin(),
+            PrometheusPlugin(),
+            KubernetesPlugin(),
+            MongoDBPlugin(),
+            ElasticsearchPlugin(),
+            KafkaPlugin(),
+            NATSPlugin(),
+            NginxPlugin(),
         ])
 
     def _load_external_plugins(self, repo_root: Path) -> None:
