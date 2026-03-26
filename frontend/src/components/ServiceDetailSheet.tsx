@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { StatusBadge } from "@/components/StatusBadge";
 import { DetailPanelSection, DetailStatCard } from "@/components/DetailPanel";
 import { api } from "@/lib/api";
-import { getContractDetailRows, normalizeStatus } from "@/lib/pluginUi";
+import { formatPluginBadge, getContractDetailRows, getPluginDisplayTitle, humanizeServiceType, normalizeStatus } from "@/lib/pluginUi";
 import {
   Activity,
   Database,
@@ -260,6 +260,7 @@ export function ServiceDetailSheet({
 
   const status = normalizeStatus(service.status);
   const meta = service.plugin_metadata || {};
+  const displayTitle = getPluginDisplayTitle(service);
   const detailRows = (getContractDetailRows(service) || [
     { label: "Plugin", value: service.plugin_id },
     { label: "Service type", value: service.service_type },
@@ -368,7 +369,7 @@ export function ServiceDetailSheet({
                 )}
               </div>
               <div className="min-w-0">
-                <SheetTitle className="truncate">{service.name}</SheetTitle>
+                <SheetTitle className="truncate">{displayTitle}</SheetTitle>
                 <SheetDescription className="mt-1">
                   {host?.name ? `Found on ${host.name}` : "Service details"}
                 </SheetDescription>
@@ -376,8 +377,8 @@ export function ServiceDetailSheet({
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusBadge variant={status} pulse={status === "critical"}>{service.status}</StatusBadge>
-              {service.service_type && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">{service.service_type}</span>}
-              {service.plugin_id && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">plugin:{service.plugin_id}</span>}
+              {service.service_type && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{humanizeServiceType(service.service_type)}</span>}
+              {service.plugin_id && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{formatPluginBadge(service.plugin_id)}</span>}
               {host?.ip_address && <span className="rounded-full bg-surface px-2 py-0.5 font-mono text-[11px] text-muted-foreground">{host.ip_address}</span>}
             </div>
           </SheetHeader>

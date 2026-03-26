@@ -148,6 +148,28 @@ export function getPluginDisplayTitle(service: any) {
   return "service";
 }
 
+export function humanizeServiceType(serviceType?: string | null) {
+  if (!serviceType) return "service";
+  const special: Record<string, string> = {
+    postgresql: "PostgreSQL",
+    mysql: "MySQL",
+    redis: "Redis",
+    rabbitmq: "RabbitMQ",
+    "ai-gateway": "AI gateway",
+    "telephony-pbx": "Telephony & PBX",
+    "voice-stack": "Voice stack",
+    "vordr-stack": "Vordr stack",
+    "web-publishing": "Web publishing",
+  };
+  if (special[serviceType]) return special[serviceType];
+  return serviceType.replace(/[-_]/g, " ");
+}
+
+export function formatPluginBadge(pluginId?: string | null) {
+  if (!pluginId) return "";
+  return pluginId.replace(/[-_]/g, " ");
+}
+
 export function getPluginFooter(service: any) {
   const meta = service?.plugin_metadata || {};
   const contract = getPluginContract(service);

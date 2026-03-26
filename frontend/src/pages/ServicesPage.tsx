@@ -48,7 +48,7 @@ import { motion } from "framer-motion";
 import { toast } from "@/components/ui/sonner";
 import { ServiceDetailSheet } from "@/components/ServiceDetailSheet";
 import { useServicesStream } from "@/hooks/useServiceStream";
-import { getContractHealth, getContractMetricRows, getPluginDisplayTitle, getPluginFooter, normalizeStatus } from "@/lib/pluginUi";
+import { formatPluginBadge, getContractHealth, getContractMetricRows, getPluginDisplayTitle, getPluginFooter, humanizeServiceType, normalizeStatus } from "@/lib/pluginUi";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -206,7 +206,7 @@ export default function ServicesPage() {
           const aRank = severityRank[normalizeStatus(a.status)] ?? 99;
           const bRank = severityRank[normalizeStatus(b.status)] ?? 99;
           if (aRank !== bRank) return aRank - bRank;
-          return String(a.name).localeCompare(String(b.name));
+          return getPluginDisplayTitle(a).localeCompare(getPluginDisplayTitle(b));
         }),
       }))
       .sort((a, b) => {
@@ -387,10 +387,10 @@ export default function ServicesPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap hidden lg:table-cell">{Number(svc.uptime_percent || 0).toFixed(1)}%</TableCell>
                         <TableCell className="hidden 2xl:table-cell">
-                          {svc.service_type ? <span className="inline-block max-w-[88px] truncate rounded bg-muted px-2 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">{svc.service_type}</span> : "—"}
+                          {svc.service_type ? <span className="inline-block max-w-[88px] truncate rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">{humanizeServiceType(svc.service_type)}</span> : "—"}
                         </TableCell>
                         <TableCell className="hidden 2xl:table-cell">
-                          {svc.plugin_id ? <span className="inline-block max-w-[104px] truncate rounded bg-primary/10 px-2 py-1 text-[11px] text-primary">{svc.plugin_id}</span> : "—"}
+                          {svc.plugin_id ? <span className="inline-block max-w-[104px] truncate rounded bg-primary/10 px-2 py-1 text-[11px] text-primary">{formatPluginBadge(svc.plugin_id)}</span> : "—"}
                         </TableCell>
                       </TableRow>
                     );
@@ -488,8 +488,8 @@ export default function ServicesPage() {
                               <h3 className="truncate text-sm font-medium text-foreground">{displayTitle}</h3>
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
-                              {svc.service_type && <span className="rounded bg-muted px-1.5 py-0.5 uppercase tracking-wide">{svc.service_type}</span>}
-                              {svc.plugin_id && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">plugin:{svc.plugin_id}</span>}
+                              {svc.service_type && <span className="rounded bg-muted px-1.5 py-0.5">{humanizeServiceType(svc.service_type)}</span>}
+                              {svc.plugin_id && <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">{formatPluginBadge(svc.plugin_id)}</span>}
                               {svc.endpoints_count ? <span className="rounded bg-surface px-1.5 py-0.5">{svc.endpoints_count} endpoint{svc.endpoints_count === 1 ? "" : "s"}</span> : null}
                             </div>
                           </div>
