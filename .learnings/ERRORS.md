@@ -474,3 +474,35 @@ When pasting structured literals into Python code, normalize JSON booleans/nulls
 
 ---
 
+## [ERR-20260327-001] cleanup_duplicate_services.py wrong interpreter
+
+**Logged**: 2026-03-27T09:03:00Z
+**Priority**: medium
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Duplicate cleanup script initially ran with a Python interpreter that did not have SQLAlchemy installed.
+
+### Error
+```
+ModuleNotFoundError: No module named 'sqlalchemy'
+```
+
+### Context
+- Command attempted from repo root with an incorrect relative venv path.
+- Script requires the Vordr build venv / backend deps.
+
+### Suggested Fix
+Use `agent/.build-venv/bin/python` with `PYTHONPATH=backend` when running repo maintenance scripts that import backend models.
+
+### Metadata
+- Reproducible: yes
+- Related Files: scripts/cleanup_duplicate_services.py
+- Tags: python, venv, maintenance
+
+### Resolution
+- **Resolved**: 2026-03-27T09:04:00Z
+- **Notes**: Re-ran using the correct build venv path and backend PYTHONPATH.
+
+---

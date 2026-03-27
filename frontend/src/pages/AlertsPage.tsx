@@ -17,49 +17,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.02 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
 
-const PRESETS = [
-  {
-    key: "host-cpu",
-    label: "Host CPU above 85%",
-    severity: "warning",
-    target_type: "host",
-    condition: { metric: "cpu_percent", operator: ">", value: 85 },
-    scope: {},
-  },
-  {
-    key: "service-latency",
-    label: "Service latency above 250ms",
-    severity: "warning",
-    target_type: "service",
-    condition: { metric: "latency_ms", operator: ">", value: 250 },
-    scope: {},
-  },
-  {
-    key: "postgres-latency",
-    label: "PostgreSQL latency above 200ms",
-    severity: "warning",
-    target_type: "service",
-    condition: { metric: "latency_ms", operator: ">", value: 200 },
-    scope: { plugin_id: "postgres", service_type: "postgresql" },
-  },
-  {
-    key: "redis-latency",
-    label: "Redis latency above 75ms",
-    severity: "warning",
-    target_type: "service",
-    condition: { metric: "latency_ms", operator: ">", value: 75 },
-    scope: { plugin_id: "redis", service_type: "redis" },
-  },
-  {
-    key: "rabbitmq-uptime",
-    label: "RabbitMQ uptime below 99%",
-    severity: "critical",
-    target_type: "service",
-    condition: { metric: "uptime_percent", operator: "<", value: 99 },
-    scope: { plugin_id: "rabbitmq", service_type: "rabbitmq" },
-  },
-];
-
 function pillClasses(active: boolean) {
   return active
     ? "bg-primary text-primary-foreground shadow-sm"
@@ -82,7 +39,35 @@ function toLocalDateTimeInputValue(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, services, initialRule }: any) {
+function servicePresetRecommendations(services: any[], presets: any[]) {
+  const presetById = new Map((presets || []).map((preset: any) => [preset.id, preset]));
+  const seen = new Set<string>();
+  const recommended: any[] = [];
+
+  for (const service of services || []) {
+    const contract = service?.plugin_metadata?.plugin_contract || {};
+    const profiles = Array.isArray(contract?.profiles) ? contract.profiles : [];
+    for (const profile of profiles) {
+      const presetIds = Array.isArray(profile?.alertPresetIds) ? profile.alertPresetIds : [];
+      for (const presetId of presetIds) {
+        const preset = presetById.get(presetId);
+        if (!preset || seen.has(presetId)) continue;
+        seen.add(presetId);
+        recommended.push({
+          ...preset,
+          plugin_id: service?.plugin_id || contract?.plugin_id || null,
+          profile_id: profile?.id || null,
+          source: "plugin-profile",
+          recommendation_reason: `${service?.name || service?.plugin_id || "service"} matches profile ${profile?.name || profile?.id || "profile"}`,
+        });
+      }
+    }
+  }
+
+  return recommended;
+}
+
+function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, services, presets, initialRule }: any) {
   const [name, setName] = useState("");
   const [severity, setSeverity] = useState("warning");
   const [targetType, setTargetType] = useState("service");
@@ -103,6 +88,13 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
     () => Array.from(new Map((services || []).filter((s: any) => s.host_id).map((s: any) => [s.host_id, { id: s.host_id, name: s.host_name || s.host_id }])).values()),
     [services],
   );
+  const recommendedPresets = useMemo(() => servicePresetRecommendations(services, presets), [services, presets]);
+  const visiblePresets = useMemo(() => {
+    const hostPresets = (presets || []).filter((preset: any) => preset.target_type === "host");
+    const fallbackServicePresets = (presets || []).filter((preset: any) => preset.target_type === "service").slice(0, 4);
+    return [...recommendedPresets, ...hostPresets, ...fallbackServicePresets].filter((preset: any, index: number, arr: any[]) => arr.findIndex((entry) => entry.id === preset.id) === index).slice(0, 8);
+  }, [recommendedPresets, presets]);
+
   const isHostTarget = targetType === "host";
   const metricOptions = isHostTarget
     ? [
@@ -169,7 +161,8 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
     setMetric(preset.condition.metric);
     setOperator(preset.condition.operator);
     setThreshold(String(preset.condition.value));
-    setPluginId(preset.scope?.plugin_id || "all");
+    setCooldownSeconds(String(preset.cooldown_seconds || 300));
+    setPluginId(preset.scope?.plugin_id || preset.plugin_id || "all");
     setServiceType(preset.scope?.service_type || "all");
     setServiceId("all");
     setHostId("all");
@@ -218,17 +211,22 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
             <div className="space-y-2">
               <Label>Quick presets</Label>
               <div className="flex flex-wrap gap-2">
-                {PRESETS.map((preset) => (
+                {visiblePresets.map((preset) => (
                   <button
-                    key={preset.key}
+                    key={preset.id}
                     type="button"
                     onClick={() => applyPreset(preset)}
                     className="rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-surface-hover"
+                    title={preset.recommendation_reason || preset.description || preset.label}
                   >
                     {preset.label}
+                    {preset.profile_id ? ` · ${preset.profile_id}` : ""}
                   </button>
                 ))}
               </div>
+              {recommendedPresets.length > 0 && (
+                <p className="text-xs text-muted-foreground">Recommended from live plugin/profile matches, plus a few core fallbacks.</p>
+              )}
             </div>
           )}
 
@@ -568,6 +566,7 @@ export default function AlertsPage() {
     refetchInterval: 15000,
   });
   const { data: rules = [] } = useQuery({ queryKey: ["alert-rules"], queryFn: api.listAlertRules });
+  const { data: presets = [] } = useQuery({ queryKey: ["alert-presets"], queryFn: api.listAlertPresets });
   const { data: services = [] } = useQuery({ queryKey: ["services", "alerts-builder"], queryFn: () => api.listServices().then((r: any) => r.items || []) });
   const { data: teams = [] } = useQuery({ queryKey: ["oncall-teams", "alerts-builder"], queryFn: api.listOnCallTeams });
   const { data: workspaces = [] } = useQuery({ queryKey: ["workspaces", "alerts-builder"], queryFn: () => api.listWorkspaces() });
@@ -943,6 +942,7 @@ export default function AlertsPage() {
         teams={teams}
         policies={policies}
         services={services}
+        presets={presets}
         initialRule={editingRule}
       />
 

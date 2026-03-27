@@ -22,6 +22,26 @@ _FAILED_AGENT_AUTH_LOG_TTL_SECONDS = 300
 _failed_agent_auth_log_times: dict[str, float] = {}
 
 
+def _agent_service_identity_key(service: Service) -> tuple[str, str, str, str]:
+    raw_type = (service.service_type or "").lower()
+    normalized_type = "http" if raw_type == "https" else raw_type
+    return (
+        str(service.host_id or ""),
+        str(service.endpoint or service.url or ""),
+        normalized_type,
+        str(service.plugin_id or service.suspected_plugin_id or ""),
+    )
+
+
+def _agent_service_quality_score(service: Service) -> tuple[int, float, int, int]:
+    classification = (service.classification_state or "generic").lower()
+    classification_rank = {"verified": 4, "suspected": 3, "generic": 2}.get(classification, 1)
+    confidence = float(service.classification_confidence or 0)
+    plugin_rank = 2 if service.plugin_id else (1 if service.suspected_plugin_id else 0)
+    endpoint_rank = 1 if (service.endpoint or service.url) else 0
+    return (classification_rank, confidence, plugin_rank, endpoint_rank)
+
+
 def _log_failed_agent_auth_once(kind: str, client_ip: str | None, forwarded_for: str | None, cf_connecting_ip: str | None, user_agent: str | None, token_prefix: str | None = None) -> None:
     key = f"{kind}|{client_ip}|{forwarded_for}|{cf_connecting_ip}|{user_agent}|{token_prefix}"
     now = time.monotonic()
@@ -226,6 +246,12 @@ async def heartbeat(
             (service.plugin_id or "", service.endpoint or service.name): service
             for service in existing_services
         }
+        existing_by_identity: dict[tuple[str, str, str, str], Service] = {}
+        for existing_service in existing_services:
+            identity = _agent_service_identity_key(existing_service)
+            incumbent = existing_by_identity.get(identity)
+            if incumbent is None or _agent_service_quality_score(existing_service) > _agent_service_quality_score(incumbent):
+                existing_by_identity[identity] = existing_service
         latest_metrics = await fetch_latest_service_metrics(db, [service.id for service in existing_services])
 
         seen_keys = set()
@@ -234,6 +260,11 @@ async def heartbeat(
             key = (service_report.plugin_id, service_report.endpoint or service_report.name)
             seen_keys.add(key)
             service = existing_by_key.get(key)
+            if service is None:
+                raw_type = (service_report.service_type or "").lower()
+                normalized_type = "http" if raw_type == "https" else raw_type
+                identity = (str(host.id), str(service_report.endpoint or ""), normalized_type, str(service_report.plugin_id or ""))
+                service = existing_by_identity.get(identity)
             profile_hint_ids = []
             if service_report.service_type in {"http", "https", "web-publishing"}:
                 profile_hint_ids.append("web-publishing")
@@ -268,6 +299,7 @@ async def heartbeat(
                 )
                 db.add(service)
                 existing_by_key[key] = service
+                existing_by_identity[_agent_service_identity_key(service)] = service
             service.name = service_report.name
             service.status = service_report.status
             service.url = service_report.endpoint

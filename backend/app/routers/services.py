@@ -15,6 +15,7 @@ from app.auth import decode_token, get_current_user
 from app.database import async_session, get_db
 from app.models import AlertRule, Host, Monitor, Service, ServiceMetric, User, Workspace, WorkspaceMembership
 from app.schemas import ServiceCreate, ServiceListResponse, ServiceMetricPointOut, ServiceOut, ServiceUpdate, ServiceWithSparkline
+from app.services.alert_presets import ALERT_PRESETS
 from app.services.alert_rules import evaluate_service_alert_rules
 from app.services.service_metrics import build_service_metric, fetch_latest_service_metrics, should_record_service_metric
 from app.services.workspace import get_current_workspace
@@ -70,88 +71,6 @@ PROMETHEUS_FINGERPRINTS = [
     {"match": ["container_cpu_usage_seconds_total", "container_memory_usage_bytes"], "plugin_id": "docker-local", "service_type": "docker-container", "confidence": 0.8},
     {"match": ["kafka_brokertopicmetrics_messagesin_total", "kafka_server_replicamanager_partitioncount"], "plugin_id": "kafka", "service_type": "kafka", "confidence": 0.95},
     {"match": ["gnatsd_varz_in_msgs", "gnatsd_varz_connections"], "plugin_id": "nats", "service_type": "nats", "confidence": 0.95},
-]
-DEFAULT_ALERT_RULES = [
-    {
-        "name": "Host CPU above 90%",
-        "description": "Trigger when host CPU remains above 90%",
-        "severity": "critical",
-        "type": "threshold",
-        "condition": {"metric": "cpu_percent", "operator": ">", "value": 90, "duration_minutes": 5},
-        "target_type": "host",
-        "scope": {},
-        "cooldown_seconds": 300,
-    },
-    {
-        "name": "Host memory above 85%",
-        "description": "Trigger when host memory stays above 85%",
-        "severity": "warning",
-        "type": "threshold",
-        "condition": {"metric": "memory_percent", "operator": ">", "value": 85, "duration_minutes": 5},
-        "target_type": "host",
-        "scope": {},
-        "cooldown_seconds": 300,
-    },
-    {
-        "name": "Host disk above 90%",
-        "description": "Trigger when host disk usage exceeds 90%",
-        "severity": "critical",
-        "type": "threshold",
-        "condition": {"metric": "disk_percent", "operator": ">", "value": 90, "duration_minutes": 10},
-        "target_type": "host",
-        "scope": {},
-        "cooldown_seconds": 600,
-    },
-    {
-        "name": "Service latency above 250ms",
-        "description": "Trigger when a monitored service gets slow",
-        "severity": "warning",
-        "type": "threshold",
-        "condition": {"metric": "latency_ms", "operator": ">", "value": 250, "duration_minutes": 3},
-        "target_type": "service",
-        "scope": {},
-        "cooldown_seconds": 300,
-    },
-    {
-        "name": "Service uptime below 99.5%",
-        "description": "Trigger when service uptime drops below SLO",
-        "severity": "critical",
-        "type": "threshold",
-        "condition": {"metric": "uptime_percent", "operator": "<", "value": 99.5},
-        "target_type": "service",
-        "scope": {},
-        "cooldown_seconds": 900,
-    },
-    {
-        "name": "PostgreSQL latency above 200ms",
-        "description": "Trigger when PostgreSQL services are slow",
-        "severity": "warning",
-        "type": "threshold",
-        "condition": {"metric": "latency_ms", "operator": ">", "value": 200, "duration_minutes": 3},
-        "target_type": "service",
-        "scope": {"plugin_id": "postgres", "service_type": "postgresql"},
-        "cooldown_seconds": 300,
-    },
-    {
-        "name": "Redis latency above 75ms",
-        "description": "Trigger when Redis services slow down",
-        "severity": "warning",
-        "type": "threshold",
-        "condition": {"metric": "latency_ms", "operator": ">", "value": 75, "duration_minutes": 2},
-        "target_type": "service",
-        "scope": {"plugin_id": "redis", "service_type": "redis"},
-        "cooldown_seconds": 180,
-    },
-    {
-        "name": "RabbitMQ uptime below 99%",
-        "description": "Trigger when RabbitMQ availability drops",
-        "severity": "critical",
-        "type": "threshold",
-        "condition": {"metric": "uptime_percent", "operator": "<", "value": 99},
-        "target_type": "service",
-        "scope": {"plugin_id": "rabbitmq", "service_type": "rabbitmq"},
-        "cooldown_seconds": 600,
-    },
 ]
 
 
@@ -252,6 +171,39 @@ def _downsample_metric_points(points: list[ServiceMetric], max_points: int = 120
     if sampled[-1].id != points[-1].id:
         sampled.append(points[-1])
     return sampled[-max_points:]
+
+
+def _normalized_service_type(service: Service | None) -> str:
+    raw = (service.service_type or "").lower() if service else ""
+    if raw == "https":
+        return "http"
+    return raw
+
+
+def _service_identity_key(service: Service | None) -> tuple[str, str, str, str]:
+    if not service:
+        return ("", "", "", "")
+    host_key = str(service.host_id or "")
+    endpoint = str(service.endpoint or service.url or "")
+    service_type = _normalized_service_type(service)
+    plugin = str(service.plugin_id or service.suspected_plugin_id or "")
+    return (host_key, endpoint, service_type, plugin)
+
+
+def _service_quality_score(service: Service | None) -> tuple[int, float, int, int, float]:
+    if not service:
+        return (0, 0.0, 0, 0, 0.0)
+    classification = (service.classification_state or "generic").lower()
+    classification_rank = {"verified": 4, "suspected": 3, "generic": 2}.get(classification, 1)
+    plugin_rank = 2 if service.plugin_id else (1 if service.suspected_plugin_id else 0)
+    endpoint_rank = 1 if (service.endpoint or service.url) else 0
+    source_rank = 1 if (service.classification_source or "") == "agent" else 0
+    confidence = float(service.classification_confidence or 0)
+    return (classification_rank, confidence, plugin_rank, endpoint_rank, float(source_rank))
+
+
+def _should_prefer_service(candidate: Service, incumbent: Service) -> bool:
+    return _service_quality_score(candidate) > _service_quality_score(incumbent)
 
 
 def _service_to_out(
@@ -373,24 +325,32 @@ async def _query_services(
     if plugin_id and plugin_id != "all":
         filters.append(Service.plugin_id == plugin_id)
 
-    total_result = await db.execute(select(func.count()).select_from(Service).where(*filters))
-    total = int(total_result.scalar() or 0)
-
     result = await db.execute(
         select(Service, Host.name, Host.status, Host.type, Host.ip_address)
         .outerjoin(Host, Host.id == Service.host_id)
         .where(*filters)
         .order_by(Service.name)
-        .limit(limit)
-        .offset(offset)
     )
     rows = result.all()
-    services = [row[0] for row in rows]
+    if not rows:
+        return [], 0
+
+    best_by_identity: dict[tuple[str, str, str, str], tuple[Service, str | None, str | None, str | None, str | None]] = {}
+    for service, host_name, host_status, host_type, host_ip_address in rows:
+        identity = _service_identity_key(service)
+        incumbent = best_by_identity.get(identity)
+        if incumbent is None or _should_prefer_service(service, incumbent[0]):
+            best_by_identity[identity] = (service, host_name, host_status, host_type, host_ip_address)
+
+    deduped_rows = sorted(best_by_identity.values(), key=lambda row: row[0].name or "")
+    total = len(deduped_rows)
+    page_rows = deduped_rows[offset: offset + limit]
+    services = [row[0] for row in page_rows]
     if not services:
         return [], total
 
     sparks = await _fetch_service_sparks(db, workspace_id, [service.id for service in services])
-    row_map = {service.id: row for service, *row in rows}
+    row_map = {service.id: row for service, *row in page_rows}
     return [
         _service_to_out(
             service,
@@ -499,7 +459,17 @@ async def seed_default_service_alerts(
     existing_keys = {(rule.name, json.dumps(rule.condition or {}, sort_keys=True)) for rule in existing}
 
     created = 0
-    for rule_data in DEFAULT_ALERT_RULES:
+    for preset in ALERT_PRESETS:
+        rule_data = {
+            "name": preset["label"],
+            "description": preset.get("description") or preset["label"],
+            "severity": preset["severity"],
+            "type": "threshold",
+            "condition": preset["condition"],
+            "target_type": preset["target_type"],
+            "scope": preset.get("scope", {}),
+            "cooldown_seconds": preset.get("cooldown_seconds", 300),
+        }
         key = (rule_data["name"], json.dumps(rule_data["condition"], sort_keys=True))
         if key in existing_keys:
             continue
@@ -507,7 +477,7 @@ async def seed_default_service_alerts(
         created += 1
 
     await db.flush()
-    return {"created": created, "total_defaults": len(DEFAULT_ALERT_RULES)}
+    return {"created": created, "total_defaults": len(ALERT_PRESETS)}
 
 
 @router.post("/discover")
@@ -529,13 +499,19 @@ async def discover_services(
         (str(service.host_id) if service.host_id else "", service.plugin_id or "", service.endpoint or service.url or service.name): service
         for service in existing_services
     }
+    existing_by_endpoint: dict[tuple[str, str], Service] = {}
     stronger_existing_keys = set()
     for service in existing_services:
+        endpoint_value = service.endpoint or service.url or ""
+        if service.host_id and endpoint_value:
+            endpoint_key = (str(service.host_id), str(endpoint_value))
+            incumbent = existing_by_endpoint.get(endpoint_key)
+            if incumbent is None or _should_prefer_service(service, incumbent):
+                existing_by_endpoint[endpoint_key] = service
         metadata = service.plugin_metadata or {}
         if metadata.get("suggested"):
             continue
-        endpoint_value = service.endpoint or service.url or ""
-        if not endpoint_value or not service.host_id or not service.plugin_id:
+        if not endpoint_value or not service.host_id or not (service.plugin_id or service.suspected_plugin_id):
             continue
         endpoint_str = str(endpoint_value)
         port = None
@@ -544,7 +520,7 @@ async def discover_services(
             if candidate.isdigit():
                 port = candidate
         if port:
-            stronger_existing_keys.add((str(service.host_id), service.plugin_id, port))
+            stronger_existing_keys.add((str(service.host_id), service.plugin_id or service.suspected_plugin_id or "", port))
 
     discovered = []
     created = 0
@@ -587,6 +563,8 @@ async def discover_services(
 
             key = (str(host.id), plugin_id, endpoint)
             service = existing_by_key.get(key)
+            if service is None:
+                service = existing_by_endpoint.get((str(host.id), endpoint))
             classification = _classification_for_discovery(plugin_id, service_type, "known-port-scan")
             prometheus = False
             if url:
@@ -629,6 +607,7 @@ async def discover_services(
                 db.add(service)
                 await db.flush()
                 existing_by_key[key] = service
+                existing_by_endpoint[(str(host.id), endpoint)] = service
                 created += 1
             else:
                 service.host_id = host.id

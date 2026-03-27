@@ -125,9 +125,11 @@ class PluginManager:
                         service.metadata = {
                             **(service.metadata or {}),
                             "plugin_contract": {
+                                "plugin_id": manifest.id,
                                 "service_type": manifest.service_type,
                                 "ui": manifest.ui,
                                 "version": manifest.version,
+                                "profiles": manifest.raw.get("profiles", []),
                             },
                         }
                 services.extend(discovered)

@@ -401,6 +401,20 @@ class AlertRuleOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AlertPresetOut(BaseModel):
+    id: str
+    label: str
+    description: Optional[str] = None
+    severity: str
+    target_type: str
+    condition: dict[str, Any]
+    scope: dict[str, Any] = {}
+    cooldown_seconds: int = 0
+    plugin_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    source: str = "core"
+
+
 class AlertInstanceOut(BaseModel):
     id: UUID
     rule_id: Optional[UUID]

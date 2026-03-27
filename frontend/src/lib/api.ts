@@ -144,6 +144,7 @@ export const api = {
     const q = qs.toString();
     return request<any[]>(`/alerts${q ? `?${q}` : ""}`);
   },
+  listAlertPresets: () => request<any[]>("/alerts/presets"),
   listAlertRules: () => request<any[]>("/alerts/rules"),
   createAlertRule: (data: any) =>
     request<any>("/alerts/rules", { method: "POST", body: JSON.stringify(data) }),

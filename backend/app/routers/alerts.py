@@ -6,11 +6,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import AlertRule, AlertInstance, EscalationPolicy, OnCallTeam, User, Workspace
-from app.schemas import AlertRuleCreate, AlertRuleOut, AlertInstanceOut
+from app.schemas import AlertRuleCreate, AlertRuleOut, AlertPresetOut, AlertInstanceOut
+from app.services.alert_presets import ALERT_PRESETS
 from app.auth import get_current_user
 from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
+
+
+@router.get("/presets", response_model=list[AlertPresetOut])
+async def list_alert_presets(
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    return [
+        {
+            "id": preset["id"],
+            "label": preset["label"],
+            "description": preset.get("description"),
+            "severity": preset["severity"],
+            "target_type": preset["target_type"],
+            "condition": preset["condition"],
+            "scope": preset.get("scope", {}),
+            "cooldown_seconds": preset.get("cooldown_seconds", 300),
+            "source": "core",
+        }
+        for preset in ALERT_PRESETS
+    ]
 
 
 async def _ensure_alert_schema(db: AsyncSession) -> None:
