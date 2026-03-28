@@ -10,6 +10,25 @@ from app.services.escalation import apply_escalation_for_alert
 from app.services.oncall import get_active_oncall_user_for_team
 
 
+def _normalize_ownership(ownership: dict[str, Any] | None) -> dict[str, Any]:
+    payload = dict(ownership or {})
+    if not payload:
+        return {}
+
+    if isinstance(payload.get("primary"), dict):
+        primary = payload.pop("primary") or {}
+        payload.setdefault("primary_type", primary.get("type"))
+        payload.setdefault("primary_ref", primary.get("ref"))
+    if isinstance(payload.get("secondary"), dict):
+        secondary = payload.pop("secondary") or {}
+        payload.setdefault("secondary_type", secondary.get("type"))
+        payload.setdefault("secondary_ref", secondary.get("ref"))
+    if "escalationPolicyRef" in payload and "escalation_policy_ref" not in payload:
+        payload["escalation_policy_ref"] = payload.pop("escalationPolicyRef")
+
+    return {k: v for k, v in payload.items() if v not in (None, "", {}, [])}
+
+
 async def emit_alert(
     db: AsyncSession,
     *,
@@ -43,6 +62,9 @@ async def emit_alert(
 
     oncall_team_id = rule.oncall_team_id if rule else None
     oncall_user = await get_active_oncall_user_for_team(db, oncall_team_id)
+    ownership = _normalize_ownership((metadata or {}).get("ownership"))
+    if not ownership and rule and rule.ownership:
+        ownership = _normalize_ownership(rule.ownership)
     alert = AlertInstance(
         workspace_id=workspace_id,
         rule_id=rule.id if rule else None,
@@ -52,6 +74,7 @@ async def emit_alert(
         severity=severity,
         service=service,
         host=host,
+        ownership=ownership,
         extra_data=metadata or {},
         created_at=datetime.now(timezone.utc),
     )

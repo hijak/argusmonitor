@@ -93,6 +93,7 @@ export const api = {
   createHost: (data: any) =>
     request<any>("/hosts", { method: "POST", body: JSON.stringify(data) }),
   getHost: (id: string) => request<any>(`/hosts/${id}`),
+  updateHost: (id: string, data: any) => request<any>(`/hosts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   getHostMetrics: (id: string, hours = 24) => request<any>(`/hosts/${id}/metrics?hours=${hours}`),
   deleteHost: (id: string) =>
     request<void>(`/hosts/${id}`, { method: "DELETE" }),
@@ -150,12 +151,14 @@ export const api = {
     request<any>("/alerts/rules", { method: "POST", body: JSON.stringify(data) }),
   updateAlertRule: (ruleId: string, data: any) =>
     request<any>(`/alerts/rules/${ruleId}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteAlertRule: (ruleId: string) =>
-    request<void>(`/alerts/rules/${ruleId}`, { method: "DELETE" }),
-  acknowledgeAlert: (id: string) =>
-    request<any>(`/alerts/${id}/acknowledge`, { method: "POST" }),
-  resolveAlert: (id: string) =>
-    request<any>(`/alerts/${id}/resolve`, { method: "POST" }),
+  deleteAlertRule: (ruleId: string, deleteHistory = false) =>
+    request<void>(`/alerts/rules/${ruleId}?delete_history=${deleteHistory ? "true" : "false"}`, { method: "DELETE" }),
+  acknowledgeAlert: (id: string, reason?: string | null) =>
+    request<any>(`/alerts/${id}/acknowledge`, { method: "POST", body: JSON.stringify({ reason: reason?.trim() || null }) }),
+  updateAlertSeverity: (id: string, severity: string) =>
+    request<any>(`/alerts/${id}/severity`, { method: "POST", body: JSON.stringify({ severity }) }),
+  resolveAlert: (id: string, message: string) =>
+    request<any>(`/alerts/${id}/resolve`, { method: "POST", body: JSON.stringify({ message }) }),
 
   // Incidents
   listIncidents: () => request<any[]>("/incidents"),
@@ -337,6 +340,11 @@ export const api = {
   getPreferences: () => request<any>("/settings/preferences"),
   updatePreferences: (data: any) =>
     request<any>("/settings/preferences", { method: "PUT", body: JSON.stringify(data) }),
+
+  // Settings - Retention
+  getRetentionPolicy: () => request<any>("/settings/retention"),
+  updateRetentionPolicy: (data: any) =>
+    request<any>("/settings/retention", { method: "PUT", body: JSON.stringify(data) }),
 
   // Settings - Agents
   rotateHostEnrollmentToken: (hostId: string, options?: { scope?: string; ttlHours?: number }) => {

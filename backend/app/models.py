@@ -34,6 +34,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
+    mobile_number = Column(String(50))
     role = Column(String(50), nullable=False, default="admin")
     timezone = Column(String(100), nullable=False, default="UTC")
     is_active = Column(Boolean, nullable=False, default=True)
@@ -284,6 +285,8 @@ class Host(Base):
     )  # healthy, warning, critical, unknown
     ip_address = Column(String(100))
     os = Column(String(255))
+    latitude = Column(Float)
+    longitude = Column(Float)
     cpu_percent = Column(Float, default=0)
     memory_percent = Column(Float, default=0)
     disk_percent = Column(Float, default=0)
@@ -549,6 +552,7 @@ class AlertRule(Base):
     target_type = Column(String(50))  # host, service, monitor, transaction
     target_id = Column(UUID(as_uuid=True))
     scope = Column(JSON, nullable=False, default=dict)
+    ownership = Column(JSON, nullable=False, default=dict)
     oncall_team_id = Column(UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="SET NULL"), index=True)
     escalation_policy_id = Column(UUID(as_uuid=True), ForeignKey("escalation_policies.id", ondelete="SET NULL"), index=True)
     enabled = Column(Boolean, default=True)
@@ -584,8 +588,11 @@ class AlertInstance(Base):
     acknowledged = Column(Boolean, default=False)
     acknowledged_by = Column(String(255))
     acknowledged_at = Column(DateTime(timezone=True))
+    acknowledgment_reason = Column(Text)
+    resolution_message = Column(Text)
     resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime(timezone=True))
+    ownership = Column(JSON, nullable=False, default=dict)
     extra_data = Column("metadata", JSON, default=dict)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 

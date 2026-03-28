@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.02 } } };
@@ -28,7 +30,17 @@ function scopeLabel(rule: any) {
   return parts.length ? parts.join(" · ") : "workspace-wide";
 }
 
+function formatOwnershipLabel(ownership: any) {
+  if (!ownership || Object.keys(ownership).length === 0) return null;
+  const primary = ownership.primary_ref ? `${ownership.primary_type || "target"}:${ownership.primary_ref}` : null;
+  const secondary = ownership.secondary_ref ? `${ownership.secondary_type || "target"}:${ownership.secondary_ref}` : null;
+  const policy = ownership.escalation_policy_ref || ownership.escalation_policy || null;
+  return [primary, secondary ? `fallback ${secondary}` : null, policy ? `policy ${policy}` : null].filter(Boolean).join(" · ");
+}
+
 function routeLabel(rule: any, teams: any[]) {
+  const ownershipLabel = formatOwnershipLabel(rule.ownership);
+  if (ownershipLabel) return ownershipLabel;
   if (!rule.oncall_team_id) return "workspace default route";
   const team = teams.find((entry: any) => entry.id === rule.oncall_team_id);
   return team ? team.name : "team route";
@@ -558,6 +570,8 @@ export default function AlertsPage() {
   const [editingRule, setEditingRule] = useState<any | null>(null);
   const [silenceAlert, setSilenceAlert] = useState<any | null>(null);
   const [maintenanceAlert, setMaintenanceAlert] = useState<any | null>(null);
+  const [ruleToDelete, setRuleToDelete] = useState<any | null>(null);
+  const [deleteRuleHistoryToo, setDeleteRuleHistoryToo] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: alerts = [] } = useQuery({
@@ -616,10 +630,13 @@ export default function AlertsPage() {
   });
 
   const deleteRuleMutation = useMutation({
-    mutationFn: (id: string) => api.deleteAlertRule(id),
-    onSuccess: () => {
-      toast.success("Alert rule deleted");
+    mutationFn: ({ id, deleteHistory }: { id: string; deleteHistory: boolean }) => api.deleteAlertRule(id, deleteHistory),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.deleteHistory ? "Alert rule and history deleted" : "Alert rule deleted; history kept");
+      setRuleToDelete(null);
+      setDeleteRuleHistoryToo(false);
       queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to delete alert rule"),
   });
@@ -772,7 +789,12 @@ export default function AlertsPage() {
                                   {alert.assigned_user ? `On call: ${alert.assigned_user.name}` : `Team route: ${alert.assigned_team_id}`}
                                 </span>
                               )}
-                              {(alert.assigned_user || alert.assigned_team_id) && (linkedRule || alert.acknowledged_by) && <span className="text-border">•</span>}
+                              {formatOwnershipLabel(alert.ownership) && (
+                                <span className="inline-flex items-center gap-1.5 text-warning">
+                                  <Route className="h-3 w-3" /> Owner: {formatOwnershipLabel(alert.ownership)}
+                                </span>
+                              )}
+                              {(alert.assigned_user || alert.assigned_team_id || formatOwnershipLabel(alert.ownership)) && (linkedRule || alert.acknowledged_by) && <span className="text-border">•</span>}
                               {linkedRule && (
                                 <span className="inline-flex items-center gap-1.5">
                                   <Siren className="h-3 w-3" /> Rule: {linkedRule.name}
@@ -897,7 +919,7 @@ export default function AlertsPage() {
                       <Pencil className="h-3 w-3" /> Edit
                     </button>
                     <button
-                      onClick={() => deleteRuleMutation.mutate(rule.id)}
+                      onClick={() => { setRuleToDelete(rule); setDeleteRuleHistoryToo(false); }}
                       className="flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-critical hover:bg-surface-hover"
                     >
                       <Trash2 className="h-3 w-3" /> Delete
@@ -963,6 +985,40 @@ export default function AlertsPage() {
         workspaceId={workspaceId}
         alert={maintenanceAlert}
       />
+
+      <Dialog open={!!ruleToDelete} onOpenChange={(open: boolean) => !open && setRuleToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete alert rule?</DialogTitle>
+            <DialogDescription>
+              {ruleToDelete ? `Delete "${ruleToDelete.name}". By default, alert history is kept.` : "Delete alert rule"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-background/60 p-3">
+              <Checkbox
+                id="delete-rule-history"
+                checked={deleteRuleHistoryToo}
+                onCheckedChange={(checked) => setDeleteRuleHistoryToo(Boolean(checked))}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="delete-rule-history" className="cursor-pointer">Delete history too</Label>
+                <p className="text-xs text-muted-foreground">Default is to keep historical alert records and only remove the rule.</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRuleToDelete(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteRuleMutation.isPending || !ruleToDelete}
+              onClick={() => ruleToDelete && deleteRuleMutation.mutate({ id: ruleToDelete.id, deleteHistory: deleteRuleHistoryToo })}
+            >
+              {deleteRuleMutation.isPending ? "Deleting..." : deleteRuleHistoryToo ? "Delete rule + history" : "Delete rule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

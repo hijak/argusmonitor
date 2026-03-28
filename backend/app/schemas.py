@@ -40,6 +40,7 @@ class UserOut(BaseModel):
     id: UUID
     email: str
     name: str
+    mobile_number: Optional[str] = None
     role: str
     timezone: str = "UTC"
     is_active: bool = True
@@ -54,6 +55,7 @@ class UserCreateRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     name: str
+    mobile_number: Optional[str] = None
     role: str = "member"
     timezone: str = "UTC"
 
@@ -61,6 +63,7 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    mobile_number: Optional[str] = None
     role: Optional[str] = None
     timezone: Optional[str] = None
     is_active: Optional[bool] = None
@@ -74,6 +77,8 @@ class HostCreate(BaseModel):
     type: str = "server"
     ip_address: Optional[str] = None
     os: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     tags: list[str] = []
 
 
@@ -83,6 +88,8 @@ class HostUpdate(BaseModel):
     status: Optional[str] = None
     ip_address: Optional[str] = None
     os: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     cpu_percent: Optional[float] = None
     memory_percent: Optional[float] = None
     disk_percent: Optional[float] = None
@@ -97,6 +104,8 @@ class HostOut(BaseModel):
     status: str
     ip_address: Optional[str]
     os: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
     cpu_percent: float
     memory_percent: float
     disk_percent: float
@@ -377,6 +386,7 @@ class AlertRuleCreate(BaseModel):
     target_type: Optional[str] = None
     target_id: Optional[UUID] = None
     scope: dict[str, Any] = {}
+    ownership: dict[str, Any] = {}
     oncall_team_id: Optional[UUID] = None
     escalation_policy_id: Optional[UUID] = None
     cooldown_seconds: int = 300
@@ -392,6 +402,7 @@ class AlertRuleOut(BaseModel):
     target_type: Optional[str]
     target_id: Optional[UUID]
     scope: dict[str, Any] = {}
+    ownership: dict[str, Any] = {}
     oncall_team_id: Optional[UUID] = None
     escalation_policy_id: Optional[UUID] = None
     enabled: bool
@@ -415,6 +426,27 @@ class AlertPresetOut(BaseModel):
     source: str = "core"
 
 
+class AlertAcknowledgeRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+class AlertIngestRequest(BaseModel):
+    message: str
+    severity: str = "warning"
+    host: Optional[str] = None
+    service: Optional[str] = None
+    metadata: dict[str, Any] = {}
+    ownership: dict[str, Any] = {}
+
+
+class AlertResolveRequest(BaseModel):
+    message: str
+
+
+class AlertSeverityUpdateRequest(BaseModel):
+    severity: str
+
+
 class AlertInstanceOut(BaseModel):
     id: UUID
     rule_id: Optional[UUID]
@@ -424,9 +456,12 @@ class AlertInstanceOut(BaseModel):
     severity: str
     service: Optional[str]
     host: Optional[str]
+    ownership: dict[str, Any] = {}
     acknowledged: bool
     acknowledged_by: Optional[str]
     acknowledged_at: Optional[datetime]
+    acknowledgment_reason: Optional[str] = None
+    resolution_message: Optional[str] = None
     resolved: bool
     created_at: datetime
     assigned_user: Optional[UserOut] = None
@@ -946,6 +981,16 @@ class RetentionPolicyOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RetentionPolicyUpdate(BaseModel):
+    name: Optional[str] = None
+    logs_days: Optional[int] = None
+    metrics_days: Optional[int] = None
+    alert_days: Optional[int] = None
+    incident_days: Optional[int] = None
+    run_days: Optional[int] = None
+    enabled: Optional[bool] = None
 
 
 class OnCallTeamCreate(BaseModel):

@@ -1055,32 +1055,6 @@ export default function ProxmoxPage() {
             )}
           </div>
 
-          {selectedClusterData && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h3 className="mb-3 text-sm font-semibold">Quick notes</h3>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>• Guest hostname, OS, and IPs come from the QEMU guest agent when it is enabled and running inside the VM.</p>
-                <p>
-                  • A VM can be running but still show <span className="font-medium text-foreground">agent unavailable</span> if the guest
-                  agent service is missing or stopped.
-                </p>
-                <p>
-                  • Adding a Proxmox endpoint now triggers an immediate discovery, so a new node/cluster should populate straight away
-                  instead of waiting for a manual refresh.
-                </p>
-                <p>
-                  • If the endpoint belongs to a multi-node Proxmox cluster, this page shows the{" "}
-                  <span className="font-medium text-foreground">whole cluster</span>, not just the connected member.
-                </p>
-                <p>• Task failures here are straight from Proxmox, so they’re useful for spotting noisy backups or broken jobs quickly.</p>
-                {warningTasks.length > 0 && (
-                  <p>
-                    • Current failed/error task count in memory: <span className="font-medium text-warning">{warningTasks.length}</span>.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

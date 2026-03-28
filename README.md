@@ -274,6 +274,44 @@ argus-monitor/
 - No SSO/OAuth integration yet
 - Log ingestion has no retention policy
 
+## Alert ingest ownership overlay
+
+Vordr now accepts direct alert ingestion with optional ownership metadata:
+
+`POST /api/alerts/ingest`
+
+Example payload:
+
+```json
+{
+  "message": "payments-api error rate > 5%",
+  "severity": "critical",
+  "service": "payments-api",
+  "host": "edge-lon-1",
+  "metadata": {
+    "alert_name": "HighErrorRate",
+    "namespace": "payments",
+    "source": "k8s-operator"
+  },
+  "ownership": {
+    "primary": { "type": "team", "ref": "payments-primary" },
+    "secondary": { "type": "user", "ref": "mr-b" },
+    "escalationPolicyRef": "payments-critical",
+    "source": "k8s-operator"
+  }
+}
+```
+
+Vordr normalizes this into alert instance ownership fields:
+- `primary_type`
+- `primary_ref`
+- `secondary_type`
+- `secondary_ref`
+- `escalation_policy_ref`
+- `source`
+
+If no ownership payload is supplied and the alert comes from a matched rule, rule ownership is inherited automatically.
+
 ## Roadmap (v2)
 
 - [ ] Real HTTP/TCP/ping check execution in the scheduler

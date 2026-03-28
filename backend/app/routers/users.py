@@ -35,6 +35,7 @@ async def create_user(
         email=req.email,
         password_hash=hash_password(req.password),
         name=req.name,
+        mobile_number=req.mobile_number,
         role=req.role,
         timezone=req.timezone,
         is_active=True,
