@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ownership-operator-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ownership-operator-controller
+  namespace: ownership-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ownership-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ownership-operator
+subjects:
+  - kind: ServiceAccount
+    name: ownership-operator-controller
+    namespace: ownership-operator-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ownership-operator-controller
+  namespace: ownership-operator-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ownership-operator
+  template:
+    metadata:
+      labels:
+        app: ownership-operator
+    spec:
+      serviceAccountName: ownership-operator-controller
+      containers:
+        - name: manager
+          image: ownership-operator:dev
+          imagePullPolicy: Never
+          env:
+            - name: WATCH_NAMESPACE
+              value: ownership-operator-test
+          ports:
+            - containerPort: 8081
+              name: health
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
