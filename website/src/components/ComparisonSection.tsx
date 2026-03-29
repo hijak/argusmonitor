@@ -2,22 +2,22 @@ import { motion } from "framer-motion";
 import { Minus, Zap } from "lucide-react";
 
 const points = [
-  { pain: "Heavyweight enterprise monitoring suites", solution: "Lean platform with enterprise foundations, not enterprise bloat" },
-  { pain: "Pretty dashboards with shallow insights", solution: "Operational alerts, incidents, on-call ownership, and AI-assisted troubleshooting" },
-  { pain: "Single-tenant tools pretending to be enterprise", solution: "Organizations, workspaces, RBAC, OIDC, and audit trail foundations now landing" },
-  { pain: "Alerting that becomes pure noise during change windows", solution: "Maintenance windows and alert silences to calm the blast radius" },
-  { pain: "Notification integrations that only look connected", solution: "Real webhook, Slack, and SMTP delivery paths" },
-  { pain: "AI chatbots with zero operational context", solution: "AI copilot grounded in your actual monitoring data" },
+  { pain: "Open-source editions that feel like crippled teasers", solution: "A self-hosted edition that remains genuinely useful on its own" },
+  { pain: "Hosted plans that only exist because basic features were hidden", solution: "Cloud positioned around convenience, onboarding, upgrades, and included AI" },
+  { pain: "Enterprise tiers that really just hide basic security", solution: "Enterprise focused on identity, governance, support, and private deployment" },
+  { pain: "AI add-ons with no operational grounding", solution: "AI usage framed around real infrastructure context and deployment choice" },
+  { pain: "Pricing pages that confuse deployment model and feature access", solution: "A simple story: Self-Hosted, Cloud, and Enterprise" },
+  { pain: "Monitoring platforms that get heavier as the pitch gets fancier", solution: "Keep the core lean and monetize the right layers" },
 ];
 
 const ComparisonSection = () => (
-  <section className="py-20 lg:py-28 border-t border-border">
+  <section className="border-t border-border py-20 lg:py-28">
     <div className="container mx-auto px-4 lg:px-8">
-      <div className="mx-auto max-w-2xl text-center mb-14">
-        <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Why Vordr?</h2>
-        <p className="text-muted-foreground text-lg">Built for operators who want clarity, not complexity — and now growing the right enterprise muscles.</p>
+      <div className="mx-auto mb-14 max-w-3xl text-center">
+        <h2 className="mb-4 text-3xl font-display font-bold text-foreground sm:text-4xl">A split people can actually understand.</h2>
+        <p className="text-lg text-muted-foreground">The product story should feel coherent to operators, buyers, and contributors.</p>
       </div>
-      <div className="mx-auto max-w-3xl space-y-3">
+      <div className="mx-auto max-w-4xl space-y-3">
         {points.map((p, i) => (
           <motion.div
             key={i}
@@ -25,14 +25,14 @@ const ComparisonSection = () => (
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.05, duration: 0.25 }}
-            className="grid sm:grid-cols-2 gap-3 sm:gap-6 rounded-lg border border-border bg-card/30 p-4"
+            className="grid gap-3 rounded-lg border border-border bg-card/30 p-4 sm:grid-cols-2 sm:gap-6"
           >
             <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Minus className="h-4 w-4 flex-shrink-0 text-destructive mt-0.5" />
+              <Minus className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
               {p.pain}
             </div>
             <div className="flex items-start gap-2 text-sm text-foreground">
-              <Zap className="h-4 w-4 flex-shrink-0 text-primary mt-0.5" />
+              <Zap className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
               {p.solution}
             </div>
           </motion.div>

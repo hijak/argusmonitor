@@ -4,69 +4,65 @@ import { motion } from "framer-motion";
 
 const tiers = [
   {
-    name: "Community",
+    name: "Self-Hosted",
     price: "Free",
     period: "",
-    desc: "Self-hosted core monitoring for homelabs, tinkering, and technical evaluation.",
-    cta: "Get Started",
+    desc: "Open-source core monitoring for operators who want to run the product themselves.",
+    cta: "View on GitHub",
     ctaVariant: "hero-outline" as const,
     highlight: false,
     features: [
-      "Self-hosted deployment",
-      "Up to 3 nodes",
-      "Dashboards, alerts, and incidents",
-      "Service discovery",
-      "Log collection",
-      "Community support",
+      "Self-hosted control plane",
+      "Core monitoring, alerts, dashboards, and logs",
+      "Service discovery, transactions, and agents",
+      "BYOK AI support",
+      "Docs and community-led support",
     ],
   },
   {
-    name: "Starter",
-    price: "$19",
-    period: "/mo",
-    desc: "Hosted control plane for solo operators and small projects.",
-    cta: "Start Free Trial",
+    name: "Cloud",
+    price: "Talk to us",
+    period: "",
+    desc: "Managed Vordr with a simpler onboarding path, included AI usage, and less operational overhead.",
+    cta: "Book Demo",
     ctaVariant: "hero" as const,
     highlight: true,
     features: [
-      "Hosted control plane",
-      "Up to 10 nodes",
-      "AI copilot with monthly credits",
-      "Read-only host inspections",
-      "Smart alerts & dashboards",
-      "7-day data retention",
-      "Email support",
-      "Optional BYOK upgrade path",
+      "Managed control plane",
+      "Included AI credits",
+      "Managed upgrades and backups",
+      "Shared team usage",
+      "Faster onboarding and evaluation",
     ],
   },
   {
-    name: "Business / Enterprise Foundations",
-    price: "Talk to us",
+    name: "Enterprise",
+    price: "Custom",
     period: "",
-    desc: "For teams that need enterprise buyer basics without dragging in a giant platform.",
-    cta: "Book Demo",
+    desc: "For teams that need identity, governance, procurement readiness, and private deployment options.",
+    cta: "Talk to Sales",
     ctaVariant: "hero-outline" as const,
     highlight: false,
     features: [
-      "Organizations and workspaces",
-      "RBAC foundation",
-      "OIDC / SSO foundation",
-      "Audit logs",
-      "Maintenance windows and silences",
-      "Real Slack / webhook / email delivery",
-      "Priority support",
+      "SSO / SAML / SCIM",
+      "Advanced RBAC and audit visibility",
+      "Private deployment options",
+      "Premium support and onboarding",
+      "Policy and governance-oriented controls",
     ],
   },
 ];
 
 const PricingSection = () => (
-  <section id="pricing" className="py-20 lg:py-28 border-t border-border">
+  <section id="pricing" className="border-t border-border py-20 lg:py-28">
     <div className="container mx-auto px-4 lg:px-8">
-      <div className="mx-auto max-w-2xl text-center mb-14">
-        <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Simple, honest pricing.</h2>
-        <p className="text-muted-foreground text-lg">Start free. Scale when you need it. Enterprise buyer features are arriving as a focused layer, not a bloated edition.</p>
+      <div className="mx-auto mb-14 max-w-3xl text-center">
+        <h2 className="mb-4 text-3xl font-display font-bold text-foreground sm:text-4xl">One product. Three ways to buy it.</h2>
+        <p className="text-lg text-muted-foreground">
+          The pricing story is simple: Self-Hosted gives you the product, Cloud removes the operational burden, and Enterprise adds organizational control.
+        </p>
       </div>
-      <div className="mx-auto max-w-5xl grid md:grid-cols-3 gap-6">
+      <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
         {tiers.map((t, i) => (
           <motion.div
             key={t.name}
@@ -74,23 +70,23 @@ const PricingSection = () => (
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.08, duration: 0.3 }}
-            className={`relative rounded-lg border p-6 flex flex-col ${t.highlight ? "border-primary/40 bg-card/70 glow-amber-subtle" : "border-border bg-card/40"}`}
+            className={`relative flex flex-col rounded-lg border p-6 ${t.highlight ? "border-primary/40 bg-card/70 glow-amber-subtle" : "border-border bg-card/40"}`}
           >
             {t.highlight && (
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-display font-semibold text-primary-foreground">
-                Most popular
+                Recommended
               </span>
             )}
-            <h3 className="font-display font-bold text-lg text-foreground">{t.name}</h3>
-            <div className="mt-3 mb-1 flex items-baseline gap-1">
+            <h3 className="text-lg font-display font-bold text-foreground">{t.name}</h3>
+            <div className="mb-1 mt-3 flex items-baseline gap-1">
               <span className="text-3xl font-display font-extrabold text-foreground">{t.price}</span>
               {t.period && <span className="text-sm text-muted-foreground">{t.period}</span>}
             </div>
-            <p className="text-sm text-muted-foreground mb-6">{t.desc}</p>
-            <ul className="space-y-2 mb-8 flex-1">
+            <p className="mb-6 text-sm text-muted-foreground">{t.desc}</p>
+            <ul className="mb-8 flex-1 space-y-2">
               {t.features.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <Check className="h-4 w-4 flex-shrink-0 text-success mt-0.5" />
+                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
                   {f}
                 </li>
               ))}
@@ -99,8 +95,8 @@ const PricingSection = () => (
           </motion.div>
         ))}
       </div>
-      <p className="text-center text-xs text-muted-foreground mt-8">
-        All paid plans include AI credits. Advanced users can opt into BYOK for provider flexibility and cost control.
+      <p className="mt-8 text-center text-xs text-muted-foreground">
+        Self-Hosted stays genuinely useful. Cloud monetizes convenience. Enterprise monetizes identity, governance, and support.
       </p>
     </div>
   </section>

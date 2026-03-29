@@ -18,6 +18,7 @@ import {
   Building2,
   ShieldCheck,
   KeyRound,
+  Cloud,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { APP_URL, DEMO_URL, GITHUB_URL, PLUGIN_DIRECTORY_URL, START_URL } from "@/lib/site";
@@ -200,7 +201,7 @@ const DashboardPreview = () => {
 
               <div className="rounded-lg border border-sky-500/20 bg-card p-4 shadow-[0_0_32px_-18px_rgba(56,189,248,0.45)]">
                 <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-sky-400">
-                  <Bot className="h-3.5 w-3.5" /> Argus Co-pilot
+                  <Bot className="h-3.5 w-3.5" /> Vordr Copilot
                 </div>
                 <div className="rounded-md border border-border bg-background/60 p-3 text-xs text-muted-foreground">
                   <div className="mb-2 text-[11px] text-foreground">tell me about node01</div>
@@ -235,21 +236,21 @@ const HeroSection = () => (
       <div className="mx-auto max-w-5xl space-y-6 text-center">
         <motion.div custom={0} variants={fadeUp} initial="hidden" animate="visible">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-sm">
-            <Building2 className="h-3 w-3 text-primary" /> Enterprise foundations landing: workspaces • RBAC • OIDC • audit logs
+            <Cloud className="h-3 w-3 text-primary" /> Open-source core • Managed cloud • Enterprise control
           </span>
         </motion.div>
 
         <motion.h1 custom={1} variants={fadeUp} initial="hidden" animate="visible" className="text-4xl font-display font-extrabold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-          Monitoring without <span className="text-gradient-amber">the bloat</span>, now with enterprise foundations.
+          One monitoring product. <span className="text-gradient-amber">Three ways</span> to buy it.
         </motion.h1>
 
         <motion.p custom={2} variants={fadeUp} initial="hidden" animate="visible" className="mx-auto max-w-3xl text-lg leading-relaxed text-muted-foreground">
-          Host monitoring, service discovery, alerts, dashboards, AI-assisted operations, and now an official plugin directory for collectors and UI integrations — all moving toward serious buyer readiness with workspaces, RBAC, OIDC SSO, audit logs, maintenance windows, silences, and real notification delivery.
+          Vordr gives you a real open-source self-hosted core, a managed cloud option that removes operational burden, and an enterprise path for identity, governance, support, and private deployment.
         </motion.p>
 
         <motion.div custom={3} variants={fadeUp} initial="hidden" animate="visible" className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <Button asChild variant="hero" size="lg"><a href={START_URL} target="_blank" rel="noreferrer">Start Free</a></Button>
-          <Button asChild variant="hero-outline" size="lg"><a href={DEMO_URL}>Book Demo</a></Button>
+          <Button asChild variant="hero" size="lg"><a href={START_URL} target="_blank" rel="noreferrer">Start Self-Hosted</a></Button>
+          <Button asChild variant="hero-outline" size="lg"><a href={DEMO_URL}>Book Cloud Demo</a></Button>
           <Button asChild variant="secondary" size="lg"><a href={APP_URL} target="_blank" rel="noreferrer">Open App</a></Button>
           <Button asChild variant="secondary" size="lg"><a href={PLUGIN_DIRECTORY_URL} target="_blank" rel="noreferrer">Browse Plugins</a></Button>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground">
@@ -258,10 +259,11 @@ const HeroSection = () => (
         </motion.div>
 
         <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible" className="flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><KeyRound className="h-3.5 w-3.5 text-primary" /> OIDC SSO foundation</span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Audit logs + RBAC</span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Bell className="h-3.5 w-3.5 text-primary" /> Real email / Slack / webhook delivery</span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Globe className="h-3.5 w-3.5 text-primary" /> Official plugin directory</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Server className="h-3.5 w-3.5 text-primary" /> Open-source self-hosted core</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Cloud className="h-3.5 w-3.5 text-primary" /> Managed cloud option</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><KeyRound className="h-3.5 w-3.5 text-primary" /> BYOK or included AI usage</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Enterprise identity and governance path</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1"><Building2 className="h-3.5 w-3.5 text-primary" /> Private deployment and buyer-ready support</span>
         </motion.div>
       </div>
 

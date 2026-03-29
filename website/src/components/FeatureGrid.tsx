@@ -2,28 +2,28 @@ import { motion } from "framer-motion";
 import { Cpu, Search, Bell, Bot, ShieldCheck, LayoutDashboard, FileText, Cog, Building2, KeyRound, ScrollText, CalendarClock } from "lucide-react";
 
 const features = [
-  { icon: Cpu, title: "Host Monitoring", desc: "Live CPU, memory, disk, uptime, and host health at a glance." },
-  { icon: Search, title: "Service Discovery", desc: "Automatically discover known services and start monitoring them quickly." },
-  { icon: Bell, title: "Smart Alerts", desc: "Useful default alerts for hosts and services, with real notification delivery." },
-  { icon: Bot, title: "AI Copilot", desc: "Ask infrastructure questions in plain English and get grounded answers." },
-  { icon: ShieldCheck, title: "Read-only Inspection", desc: "Safely inspect files, folders, and system state via bounded agent actions." },
-  { icon: Building2, title: "Organizations & Workspaces", desc: "Lay the groundwork for enterprise separation, ownership, and environment scoping." },
-  { icon: KeyRound, title: "OIDC + RBAC Foundations", desc: "Start moving toward SSO and role-based access control instead of one flat admin surface." },
-  { icon: ScrollText, title: "Audit Logs", desc: "Track security-sensitive and operational changes with an enterprise audit trail." },
-  { icon: CalendarClock, title: "Maintenance & Silences", desc: "Create maintenance windows and alert silences to cut noisy false positives." },
-  { icon: LayoutDashboard, title: "Dashboards", desc: "Clean, live dashboards for full infrastructure visibility." },
-  { icon: FileText, title: "Logs & Incidents", desc: "Correlate signals across hosts and investigate incidents faster." },
-  { icon: Cog, title: "Systemd-native Agents", desc: "Deploy native agents via systemd — no containers required." },
+  { icon: Cpu, title: "Host Monitoring", desc: "Live CPU, memory, disk, uptime, and host health across self-hosted, cloud, and enterprise deployments." },
+  { icon: Search, title: "Service Discovery", desc: "Discover known services quickly so the product becomes useful without hand-modeling everything first." },
+  { icon: Bell, title: "Alerts and Incidents", desc: "Operate from real alerts, acknowledgement, resolution flow, and incident context instead of dashboard theatre." },
+  { icon: Bot, title: "AI Copilot", desc: "Use AI with actual monitoring context, either via BYOK or bundled AI usage depending on the edition." },
+  { icon: ShieldCheck, title: "Read-only Inspection", desc: "Inspect system state through bounded agent actions without turning the product into a remote shell." },
+  { icon: Building2, title: "Team and Workspace Model", desc: "Move from single-operator setups toward shared ownership and environment scoping." },
+  { icon: KeyRound, title: "Identity Path", desc: "Add SSO, SAML, SCIM, and stronger role control when you need organizational maturity." },
+  { icon: ScrollText, title: "Audit Visibility", desc: "Track important operational and security-sensitive changes in environments that need more control." },
+  { icon: CalendarClock, title: "Maintenance and Silences", desc: "Reduce alert noise during planned work and keep the operational surface calmer." },
+  { icon: LayoutDashboard, title: "Dashboards", desc: "Use clear dashboards for infrastructure visibility without dragging in a bloated observability suite." },
+  { icon: FileText, title: "Logs and Transactions", desc: "Correlate logs, alerts, incidents, and synthetic runs in one product story." },
+  { icon: Cog, title: "Systemd-native Agents", desc: "Deploy agents as normal services on Linux hosts rather than hiding them in unnecessary complexity." },
 ];
 
 const FeatureGrid = () => (
   <section id="features" className="py-20 lg:py-28">
     <div className="container mx-auto px-4 lg:px-8">
-      <div className="mx-auto max-w-2xl text-center mb-14">
-        <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">Operational visibility first. Enterprise foundations next.</h2>
-        <p className="text-muted-foreground text-lg">Vordr still keeps the product lean, but it now has the beginnings of the boring adult features buyers expect.</p>
+      <div className="mx-auto mb-14 max-w-3xl text-center">
+        <h2 className="mb-4 text-3xl font-display font-bold text-foreground sm:text-4xl">A real core product, then the right layers on top.</h2>
+        <p className="text-lg text-muted-foreground">The split is not about crippling the core. It is about separating product value, hosted convenience, and enterprise control cleanly.</p>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {features.map((f, i) => (
           <motion.div
             key={f.title}
@@ -36,8 +36,8 @@ const FeatureGrid = () => (
             <div className="mb-3 inline-flex rounded-md border border-border bg-accent/60 p-2 text-primary transition-colors duration-200 group-hover:border-primary/30">
               <f.icon className="h-5 w-5" />
             </div>
-            <h3 className="font-display font-semibold text-foreground mb-1.5">{f.title}</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+            <h3 className="mb-1.5 font-display font-semibold text-foreground">{f.title}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
           </motion.div>
         ))}
       </div>

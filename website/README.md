@@ -5,8 +5,8 @@ Marketing site for **Vordr**, vendored into the main product repo under `website
 ## Purpose
 
 This directory contains the public-facing landing site for the product:
-- hosted/self-hosted positioning
-- feature overview
+- product split across Self-Hosted, Cloud, and Enterprise
+- feature overview and product positioning
 - AI copilot messaging
 - pricing and upgrade path
 - launch/demo CTA surface
@@ -42,13 +42,18 @@ cd website
 npm run build
 ```
 
+## Positioning notes
+
+The marketing site should tell one coherent story:
+
+- **Self-Hosted** gives you the product
+- **Cloud** removes the operational burden
+- **Enterprise** adds organizational control
+
+Avoid making the open-source edition feel fake or making Enterprise sound like basic security is paywalled.
+
 ## Notes
 
 - Keep branding/copy visually consistent with the product dashboard.
 - Prefer real product screenshots and docs links as they become available.
-
-## Next planned work
-
-- add documentation pages / docs integration
-- replace placeholder demo/contact links as needed
-- add deployment config for production hosting
+- Keep the product split honest and easy to explain.

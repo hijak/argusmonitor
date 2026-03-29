@@ -5,9 +5,9 @@ const columns = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "#features" },
-      { label: "AI Copilot", href: "#copilot" },
-      { label: "Pricing", href: "#pricing" },
+      { label: "Editions", href: "/#editions" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Open Source", href: "/open-source" },
     ],
   },
   {
@@ -20,10 +20,11 @@ const columns = [
     ],
   },
   {
-    title: "Legal",
+    title: "Positioning",
     links: [
-      { label: "Privacy", href: "#" },
-      { label: "Terms", href: "#" },
+      { label: "Self-Hosted", href: "/open-source" },
+      { label: "Cloud", href: "/pricing" },
+      { label: "Enterprise", href: "/pricing" },
     ],
   },
 ];
@@ -31,28 +32,28 @@ const columns = [
 const Footer = () => (
   <footer className="border-t border-border bg-card/20 py-12">
     <div className="container mx-auto px-4 lg:px-8">
-      <div className="grid sm:grid-cols-4 gap-8">
+      <div className="grid gap-8 sm:grid-cols-4">
         <div>
-          <a href="/" className="flex items-center gap-2 font-display font-bold text-foreground mb-3">
+          <a href="/" className="mb-3 flex items-center gap-2 font-display font-bold text-foreground">
             <Activity className="h-5 w-5 text-primary" /> Vordr
           </a>
-          <p className="text-sm text-muted-foreground leading-relaxed">AI-powered monitoring for modern infrastructure.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">Open-source core monitoring with a managed cloud option and an enterprise path for identity, governance, and support.</p>
         </div>
         {columns.map((col) => (
           <div key={col.title}>
-            <h4 className="font-display font-semibold text-sm text-foreground mb-3">{col.title}</h4>
+            <h4 className="mb-3 font-display text-sm font-semibold text-foreground">{col.title}</h4>
             <ul className="space-y-2">
               {col.links.map((l) => (
                 <li key={l.label}>
-                  <a href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-150">{l.label}</a>
+                  <a href={l.href} className="text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground">{l.label}</a>
                 </li>
               ))}
             </ul>
           </div>
         ))}
       </div>
-      <div className="mt-10 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Vordr. All rights reserved.
+      <div className="mt-10 border-t border-border pt-6 text-center text-xs text-muted-foreground">
+        © {new Date().getFullYear()} Vordr. One product, three ways to buy it.
       </div>
     </div>
   </footer>
