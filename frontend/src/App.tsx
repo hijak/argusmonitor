@@ -13,6 +13,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const OIDCCallbackPage = lazy(() => import("./pages/OIDCCallbackPage"));
 const SAMLCallbackPage = lazy(() => import("./pages/SAMLCallbackPage"));
 const OverviewPage = lazy(() => import("./pages/OverviewPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const InfrastructurePage = lazy(() => import("./pages/InfrastructurePage"));
 const ServicesPage = lazy(() => import("./pages/ServicesPage"));
 const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
@@ -79,6 +80,7 @@ function AuthenticatedRoutes() {
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<OverviewPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/infrastructure" element={<InfrastructurePage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />

@@ -581,6 +581,10 @@ class AlertInstance(Base):
     assigned_team_id = Column(
         UUID(as_uuid=True), ForeignKey("oncall_teams.id", ondelete="SET NULL"), index=True
     )
+    fingerprint = Column(String(255), index=True)
+    occurrence_count = Column(Integer, nullable=False, default=1)
+    first_fired_at = Column(DateTime(timezone=True), default=utcnow)
+    last_fired_at = Column(DateTime(timezone=True), default=utcnow, index=True)
     message = Column(Text, nullable=False)
     severity = Column(String(50), nullable=False)
     service = Column(String(255))
@@ -740,6 +744,10 @@ class UserPreference(Base):
     date_format = Column(String(50), default="YYYY-MM-DD")
     compact_mode = Column(Boolean, default=False)
     default_dashboard_id = Column(UUID(as_uuid=True))
+    ai_model = Column(String(255), default="default")
+    ai_response_style = Column(String(50), default="balanced")
+    ai_auto_summarize_incidents = Column(Boolean, default=True)
+    ai_include_context = Column(Boolean, default=True)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 

@@ -312,6 +312,36 @@ Vordr normalizes this into alert instance ownership fields:
 
 If no ownership payload is supplied and the alert comes from a matched rule, rule ownership is inherited automatically.
 
+Verified locally against live Vordr on 2026-03-28:
+- login with seeded admin works
+- `POST /api/alerts/ingest` returns `201`
+- ownership payload is normalized into `primary_type/ref`, `secondary_type/ref`, `escalation_policy_ref`, and `source`
+
+## Alert lifecycle and views
+
+Vordr alert ingestion now supports lifecycle-aware payloads:
+
+```json
+{
+  "message": "payments latency high",
+  "severity": "critical",
+  "status": "firing",
+  "fingerprint": "payments-latency-edge-lon-1",
+  "service": "payments-api",
+  "host": "edge-lon-1"
+}
+```
+
+- `status: "firing"` creates or updates an active alert group
+- `status: "resolved"` (also `recovered`, `recovery`, `ok`) resolves the matching active alert by fingerprint
+- repeat firings increment `occurrence_count` and refresh `last_fired_at`
+
+Alerts UI now includes:
+- bulk acknowledge
+- bulk resolve
+- Active / Resolved / All views
+- server-side `resolved=true|false` filtering
+
 ## Roadmap (v2)
 
 - [ ] Real HTTP/TCP/ping check execution in the scheduler

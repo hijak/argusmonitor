@@ -433,6 +433,8 @@ class AlertAcknowledgeRequest(BaseModel):
 class AlertIngestRequest(BaseModel):
     message: str
     severity: str = "warning"
+    status: str = "firing"
+    fingerprint: Optional[str] = None
     host: Optional[str] = None
     service: Optional[str] = None
     metadata: dict[str, Any] = {}
@@ -440,6 +442,16 @@ class AlertIngestRequest(BaseModel):
 
 
 class AlertResolveRequest(BaseModel):
+    message: str
+
+
+class BulkAlertAcknowledgeRequest(BaseModel):
+    alert_ids: list[UUID]
+    reason: Optional[str] = None
+
+
+class BulkAlertResolveRequest(BaseModel):
+    alert_ids: list[UUID]
     message: str
 
 
@@ -452,6 +464,10 @@ class AlertInstanceOut(BaseModel):
     rule_id: Optional[UUID]
     assigned_user_id: Optional[UUID] = None
     assigned_team_id: Optional[UUID] = None
+    fingerprint: Optional[str] = None
+    occurrence_count: int = 1
+    first_fired_at: Optional[datetime] = None
+    last_fired_at: Optional[datetime] = None
     message: str
     severity: str
     service: Optional[str]
@@ -463,10 +479,22 @@ class AlertInstanceOut(BaseModel):
     acknowledgment_reason: Optional[str] = None
     resolution_message: Optional[str] = None
     resolved: bool
+    resolved_at: Optional[datetime] = None
     created_at: datetime
     assigned_user: Optional[UserOut] = None
 
     model_config = {"from_attributes": True}
+
+
+class AlertSummaryOut(BaseModel):
+    active: int
+    resolved: int
+    all: int
+    critical: int
+    warning: int
+    info: int
+    acknowledged: int
+    routed: int
 
 
 # --- Incidents ---
@@ -689,6 +717,10 @@ class UserPreferenceOut(BaseModel):
     date_format: str
     compact_mode: bool
     default_dashboard_id: Optional[UUID] = None
+    ai_model: str = "default"
+    ai_response_style: str = "balanced"
+    ai_auto_summarize_incidents: bool = True
+    ai_include_context: bool = True
 
 
 class UserPreferenceUpdate(BaseModel):
@@ -697,6 +729,10 @@ class UserPreferenceUpdate(BaseModel):
     date_format: Optional[str] = None
     compact_mode: Optional[bool] = None
     default_dashboard_id: Optional[UUID] = None
+    ai_model: Optional[str] = None
+    ai_response_style: Optional[str] = None
+    ai_auto_summarize_incidents: Optional[bool] = None
+    ai_include_context: Optional[bool] = None
 
 
 class AgentOut(BaseModel):

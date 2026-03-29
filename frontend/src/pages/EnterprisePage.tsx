@@ -6,6 +6,7 @@ import { getWorkspaceId, setWorkspaceId } from "@/lib/workspace";
 import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select as UiSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
   Building2,
   Users,
@@ -23,12 +24,27 @@ import {
   Send,
 } from "lucide-react";
 
-function Section({ title, icon: Icon, children, className = "" }: { title: string; icon: any; children: React.ReactNode; className?: string }) {
+function Section({
+  title,
+  icon: Icon,
+  description,
+  children,
+  className = "",
+}: {
+  title: string;
+  icon: any;
+  description?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <section className={`rounded-xl border border-border bg-card p-5 space-y-4 ${className}`}>
-      <div className="flex items-center gap-2 text-foreground font-semibold">
-        <Icon className="h-4 w-4 text-primary" />
-        {title}
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 text-foreground font-semibold">
+          <Icon className="h-4 w-4 text-primary" />
+          {title}
+        </div>
+        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -41,6 +57,15 @@ function StatCard({ label, value, hint }: { label: string; value: string | numbe
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
       {hint ? <div className="mt-1 text-sm text-muted-foreground">{hint}</div> : null}
+    </div>
+  );
+}
+
+function PanelIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-card/60 p-4">
+      <div className="text-sm font-semibold text-foreground">{title}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{description}</div>
     </div>
   );
 }
@@ -172,6 +197,61 @@ export default function EnterprisePage() {
   const selectedWorkspace = useMemo(() => workspaces.find((w: any) => w.id === selectedWorkspaceId), [workspaces, selectedWorkspaceId]);
   const selectedOrganization = useMemo(() => organizations.find((o: any) => o.id === selectedOrgId), [organizations, selectedOrgId]);
   const availableUsers = useMemo(() => users.filter((u: any) => !workspaceMembers.some((m: any) => m.user_id === u.id)), [users, workspaceMembers]);
+
+  const primaryTabs = useMemo(
+    () => [
+      {
+        key: "overview",
+        label: "Access",
+        description: "Organizations, workspaces, and members",
+        icon: Building2,
+        count: organizations.length + workspaces.length,
+      },
+      {
+        key: "identity",
+        label: "Identity",
+        description: "SSO and provisioning",
+        icon: KeyRound,
+        count: oidcProviders.length + samlProviders.length + scimTokens.length + scimMappings.length,
+      },
+      {
+        key: "policy",
+        label: "Policy",
+        description: "Retention and escalation rules",
+        icon: TimerReset,
+        count: retentionPolicies.length + escalationPolicies.length,
+      },
+      {
+        key: "operations",
+        label: "Operations",
+        description: "Windows, silences, audit, compliance",
+        icon: ScrollText,
+        count: maintenanceWindows.length + silences.length + auditLogs.length,
+      },
+      {
+        key: "support",
+        label: "Comms",
+        description: "Support tickets and announcements",
+        icon: LifeBuoy,
+        count: supportTickets.length + announcements.length,
+      },
+    ],
+    [
+      organizations.length,
+      workspaces.length,
+      oidcProviders.length,
+      samlProviders.length,
+      scimTokens.length,
+      scimMappings.length,
+      retentionPolicies.length,
+      escalationPolicies.length,
+      maintenanceWindows.length,
+      silences.length,
+      auditLogs.length,
+      supportTickets.length,
+      announcements.length,
+    ]
+  );
 
   const createOrg = useMutation({
     mutationFn: () => api.createOrganization(orgForm),
@@ -333,7 +413,7 @@ export default function EnterprisePage() {
     <div className="p-6 space-y-6">
       <PageHeader
         title="Enterprise"
-        description="Tabbed enterprise admin for orgs, access, identity, policy, and operations without the giant wall of forms."
+        description="Enterprise admin split into clearer option areas so access, identity, policy, ops, and communications are easier to navigate."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -343,7 +423,7 @@ export default function EnterprisePage() {
         <StatCard label="Audit Events" value={auditLogs.length} hint={selectedWorkspaceId ? "Latest 50 events" : "No workspace context yet"} />
       </div>
 
-      <Section title="Current Scope" icon={Building2}>
+      <Section title="Current Scope" icon={Building2} description="Enterprise actions are workspace-scoped. Pick the right org and workspace before making changes.">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_1.2fr_0.8fr]">
           <Select
             value={selectedOrgId}
@@ -374,362 +454,531 @@ export default function EnterprisePage() {
       </Section>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-xl bg-muted/70 p-2 lg:grid-cols-5">
-          <TabsTrigger value="overview">Overview & Access</TabsTrigger>
-          <TabsTrigger value="identity">Identity & Provisioning</TabsTrigger>
-          <TabsTrigger value="policy">Policy & Lifecycle</TabsTrigger>
-          <TabsTrigger value="operations">Operations & Audit</TabsTrigger>
-          <TabsTrigger value="support">Support & Comms</TabsTrigger>
-        </TabsList>
+        <div className="rounded-xl border border-border bg-card">
+          <div className="sticky top-0 z-20 border-b border-border bg-card/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+            <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 md:grid-cols-2 xl:grid-cols-5">
+              {primaryTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.key}
+                    value={tab.key}
+                    className={cn(
+                      "h-auto min-h-[76px] items-start justify-start rounded-lg border border-transparent px-4 py-3 text-left",
+                      "data-[state=active]:border-primary/30 data-[state=active]:bg-primary/5 data-[state=active]:shadow-none"
+                    )}
+                  >
+                    <div className="flex w-full items-start gap-3">
+                      <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium text-foreground">{tab.label}</span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{tab.count}</span>
+                        </div>
+                        <div className="mt-1 line-clamp-2 whitespace-normal text-xs text-muted-foreground">{tab.description}</div>
+                      </div>
+                    </div>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
+        </div>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Section title="Organization Setup" icon={Building2}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">Create a new organization.</div>
-                  <Input placeholder="Organization name" value={orgForm.name} onChange={(e) => setOrgForm((f) => ({ ...f, name: e.target.value }))} />
-                  <Input placeholder="org-slug" value={orgForm.slug} onChange={(e) => setOrgForm((f) => ({ ...f, slug: e.target.value }))} />
-                  <Button onClick={() => createOrg.mutate()}>Create organization</Button>
-                </div>
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">Create a workspace under the selected organization.</div>
-                  <Input placeholder="Workspace name" value={workspaceForm.name} onChange={(e) => setWorkspaceForm((f) => ({ ...f, name: e.target.value }))} />
-                  <Input placeholder="workspace-slug" value={workspaceForm.slug} onChange={(e) => setWorkspaceForm((f) => ({ ...f, slug: e.target.value }))} />
-                  <Input placeholder="Timezone" value={workspaceForm.timezone} onChange={(e) => setWorkspaceForm((f) => ({ ...f, timezone: e.target.value }))} />
-                  <Button onClick={() => createWorkspace.mutate()} disabled={!(selectedOrgId || workspaceForm.organization_id)}>
-                    Create workspace
-                  </Button>
-                </div>
-              </div>
-            </Section>
+          <PanelIntro
+            title="Access setup"
+            description="Start here for tenant structure and people. Keep the org/workspace hierarchy separate from who gets access to it."
+          />
 
-            <Section title="Workspace Members" icon={Users}>
-              <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
-                <Select value={memberForm.user_id} onChange={(e) => setMemberForm((f) => ({ ...f, user_id: e.target.value }))}>
-                  <option value="">Select user</option>
-                  {availableUsers.map((u: any) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} · {u.email}
-                    </option>
-                  ))}
-                </Select>
-                <Select value={memberForm.role} onChange={(e) => setMemberForm((f) => ({ ...f, role: e.target.value }))}>
-                  <option value="viewer">viewer</option>
-                  <option value="member">member</option>
-                  <option value="admin">admin</option>
-                  <option value="owner">owner</option>
-                </Select>
-                <Button disabled={!selectedWorkspaceId || !memberForm.user_id} onClick={() => addWorkspaceMember.mutate()}>
-                  Add member
-                </Button>
-              </div>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {workspaceMembers.map((m: any) => {
-                  const user = users.find((u: any) => u.id === m.user_id);
-                  return (
-                    <div key={m.id} className="rounded-lg border border-border bg-background px-3 py-2 flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-medium text-foreground">{user?.name || m.user_id}</div>
-                        <div>{user?.email || "Unknown user"}</div>
-                      </div>
-                      <div className="rounded bg-muted px-2 py-1 text-xs uppercase tracking-wide">{m.role}</div>
+          <Tabs defaultValue="orgs" className="space-y-5">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl bg-muted/60 p-2">
+              <TabsTrigger value="orgs">Organizations & Workspaces</TabsTrigger>
+              <TabsTrigger value="members">Workspace Members</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="orgs" className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Section title="Organization Setup" icon={Building2} description="Create the company shell and then add one or more workspaces underneath it.">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground">Create a new organization.</div>
+                      <Input placeholder="Organization name" value={orgForm.name} onChange={(e) => setOrgForm((f) => ({ ...f, name: e.target.value }))} />
+                      <Input placeholder="org-slug" value={orgForm.slug} onChange={(e) => setOrgForm((f) => ({ ...f, slug: e.target.value }))} />
+                      <Button onClick={() => createOrg.mutate()}>Create organization</Button>
                     </div>
-                  );
-                })}
-                {!workspaceMembers.length && <div>No members loaded for this workspace.</div>}
-              </div>
-            </Section>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="identity" className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Section title="OIDC Provider" icon={KeyRound}>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input placeholder="Provider name" value={oidcForm.name} onChange={(e) => setOidcForm((f) => ({ ...f, name: e.target.value }))} />
-                <Input placeholder="Issuer" value={oidcForm.issuer} onChange={(e) => setOidcForm((f) => ({ ...f, issuer: e.target.value }))} />
-                <Input placeholder="Client ID" value={oidcForm.client_id} onChange={(e) => setOidcForm((f) => ({ ...f, client_id: e.target.value }))} />
-                <Input placeholder="Client Secret" value={oidcForm.client_secret} onChange={(e) => setOidcForm((f) => ({ ...f, client_secret: e.target.value }))} />
-                <Input placeholder="Authorize URL" value={oidcForm.authorize_url} onChange={(e) => setOidcForm((f) => ({ ...f, authorize_url: e.target.value }))} />
-                <Input placeholder="Token URL" value={oidcForm.token_url} onChange={(e) => setOidcForm((f) => ({ ...f, token_url: e.target.value }))} />
-              </div>
-              <Button disabled={!selectedWorkspaceId} onClick={() => createOidc.mutate()}>
-                Save OIDC provider
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {oidcProviders.map((p: any) => (
-                  <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {p.name} · {p.issuer}
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground">Create a workspace under the selected organization.</div>
+                      <Input placeholder="Workspace name" value={workspaceForm.name} onChange={(e) => setWorkspaceForm((f) => ({ ...f, name: e.target.value }))} />
+                      <Input placeholder="workspace-slug" value={workspaceForm.slug} onChange={(e) => setWorkspaceForm((f) => ({ ...f, slug: e.target.value }))} />
+                      <Input placeholder="Timezone" value={workspaceForm.timezone} onChange={(e) => setWorkspaceForm((f) => ({ ...f, timezone: e.target.value }))} />
+                      <Button onClick={() => createWorkspace.mutate()} disabled={!(selectedOrgId || workspaceForm.organization_id)}>
+                        Create workspace
+                      </Button>
+                    </div>
                   </div>
-                ))}
-                {!oidcProviders.length && <div>No OIDC providers configured.</div>}
-              </div>
-            </Section>
+                </Section>
 
-            <Section title="SAML & SCIM" icon={ShieldEllipsis}>
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">SAML provider</div>
-                  <Input placeholder="SAML provider name" value={samlForm.name} onChange={(e) => setSamlForm((f) => ({ ...f, name: e.target.value }))} />
-                  <Input placeholder="Entry point" value={samlForm.entry_point} onChange={(e) => setSamlForm((f) => ({ ...f, entry_point: e.target.value }))} />
-                  <Textarea placeholder="X509 cert" value={samlForm.x509_cert} onChange={(e) => setSamlForm((f) => ({ ...f, x509_cert: e.target.value }))} className="min-h-[80px]" />
-                  <Button disabled={!selectedWorkspaceId} onClick={() => createSaml.mutate()}>
-                    Save SAML provider
-                  </Button>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Input placeholder="SCIM token name" value={scimTokenForm.name} onChange={(e) => setScimTokenForm({ name: e.target.value })} />
-                  <Button disabled={!selectedWorkspaceId} onClick={() => createScimToken.mutate()}>
-                    Create SCIM token
-                  </Button>
-                </div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Input placeholder="External group ID" value={scimMappingForm.external_group_id} onChange={(e) => setScimMappingForm((f) => ({ ...f, external_group_id: e.target.value }))} />
-                  <Input placeholder="External group name" value={scimMappingForm.external_group_name} onChange={(e) => setScimMappingForm((f) => ({ ...f, external_group_name: e.target.value }))} />
-                  <Select value={scimMappingForm.role} onChange={(e) => setScimMappingForm((f) => ({ ...f, role: e.target.value }))}>
+                <Section title="Workspace Summary" icon={Users} description="Quick snapshot of the current enterprise scope before you start making changes.">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Organization</div>
+                      <div className="mt-2 font-semibold text-foreground">{selectedOrganization?.name || "No organization selected"}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">{selectedOrganization?.slug || "Pick an org to create or manage workspaces."}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Workspace</div>
+                      <div className="mt-2 font-semibold text-foreground">{selectedWorkspace?.name || "No workspace selected"}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">{selectedWorkspace?.slug || "Most enterprise actions stay disabled until this is set."}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Time zone</div>
+                      <div className="mt-2 font-semibold text-foreground">{selectedWorkspace?.timezone || workspaceForm.timezone}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background p-4">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Members loaded</div>
+                      <div className="mt-2 font-semibold text-foreground">{workspaceMembers.length}</div>
+                    </div>
+                  </div>
+                </Section>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="members" className="space-y-6">
+              <Section title="Workspace Members" icon={Users} description="Grant access to the active workspace without hunting through identity config first.">
+                <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                  <Select value={memberForm.user_id} onChange={(e) => setMemberForm((f) => ({ ...f, user_id: e.target.value }))}>
+                    <option value="">Select user</option>
+                    {availableUsers.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} · {u.email}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select value={memberForm.role} onChange={(e) => setMemberForm((f) => ({ ...f, role: e.target.value }))}>
                     <option value="viewer">viewer</option>
                     <option value="member">member</option>
                     <option value="admin">admin</option>
                     <option value="owner">owner</option>
                   </Select>
+                  <Button disabled={!selectedWorkspaceId || !memberForm.user_id} onClick={() => addWorkspaceMember.mutate()}>
+                    Add member
+                  </Button>
                 </div>
-                <Button disabled={!selectedWorkspaceId} onClick={() => createScimMapping.mutate()}>
-                  Save SCIM mapping
-                </Button>
                 <div className="space-y-2 text-sm text-muted-foreground">
-                  {samlProviders.map((p: any) => (
-                    <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                      SAML · {p.name}
-                    </div>
-                  ))}
-                  {scimTokens.map((t: any) => (
-                    <div key={t.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                      SCIM token · {t.name}
-                    </div>
-                  ))}
-                  {scimMappings.map((m: any) => (
-                    <div key={m.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                      {m.external_group_name} → {m.role}
-                    </div>
-                  ))}
-                  {!samlProviders.length && !scimTokens.length && !scimMappings.length && <div>No identity providers or mappings configured.</div>}
+                  {workspaceMembers.map((m: any) => {
+                    const user = users.find((u: any) => u.id === m.user_id);
+                    return (
+                      <div key={m.id} className="rounded-lg border border-border bg-background px-3 py-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-foreground">{user?.name || m.user_id}</div>
+                          <div>{user?.email || "Unknown user"}</div>
+                        </div>
+                        <div className="rounded bg-muted px-2 py-1 text-xs uppercase tracking-wide">{m.role}</div>
+                      </div>
+                    );
+                  })}
+                  {!workspaceMembers.length && <div>No members loaded for this workspace.</div>}
                 </div>
+              </Section>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="identity" className="space-y-6">
+          <PanelIntro
+            title="Identity & provisioning"
+            description="Split authentication from lifecycle sync. SSO belongs in one place, SCIM and role mapping in another."
+          />
+
+          <Tabs defaultValue="sso" className="space-y-5">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl bg-muted/60 p-2">
+              <TabsTrigger value="sso">SSO Providers</TabsTrigger>
+              <TabsTrigger value="provisioning">SCIM & Role Mapping</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="sso" className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Section title="OIDC Provider" icon={KeyRound} description="Configure interactive sign-in providers for enterprise users.">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input placeholder="Provider name" value={oidcForm.name} onChange={(e) => setOidcForm((f) => ({ ...f, name: e.target.value }))} />
+                    <Input placeholder="Issuer" value={oidcForm.issuer} onChange={(e) => setOidcForm((f) => ({ ...f, issuer: e.target.value }))} />
+                    <Input placeholder="Client ID" value={oidcForm.client_id} onChange={(e) => setOidcForm((f) => ({ ...f, client_id: e.target.value }))} />
+                    <Input placeholder="Client Secret" value={oidcForm.client_secret} onChange={(e) => setOidcForm((f) => ({ ...f, client_secret: e.target.value }))} />
+                    <Input placeholder="Authorize URL" value={oidcForm.authorize_url} onChange={(e) => setOidcForm((f) => ({ ...f, authorize_url: e.target.value }))} />
+                    <Input placeholder="Token URL" value={oidcForm.token_url} onChange={(e) => setOidcForm((f) => ({ ...f, token_url: e.target.value }))} />
+                  </div>
+                  <Button disabled={!selectedWorkspaceId} onClick={() => createOidc.mutate()}>
+                    Save OIDC provider
+                  </Button>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {oidcProviders.map((p: any) => (
+                      <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        {p.name} · {p.issuer}
+                      </div>
+                    ))}
+                    {!oidcProviders.length && <div>No OIDC providers configured.</div>}
+                  </div>
+                </Section>
+
+                <Section title="SAML Provider" icon={ShieldEllipsis} description="Configure SAML separately so SSO setup is not buried inside provisioning controls.">
+                  <div className="space-y-3">
+                    <Input placeholder="SAML provider name" value={samlForm.name} onChange={(e) => setSamlForm((f) => ({ ...f, name: e.target.value }))} />
+                    <Input placeholder="Entry point" value={samlForm.entry_point} onChange={(e) => setSamlForm((f) => ({ ...f, entry_point: e.target.value }))} />
+                    <Textarea placeholder="X509 cert" value={samlForm.x509_cert} onChange={(e) => setSamlForm((f) => ({ ...f, x509_cert: e.target.value }))} className="min-h-[120px]" />
+                    <Button disabled={!selectedWorkspaceId} onClick={() => createSaml.mutate()}>
+                      Save SAML provider
+                    </Button>
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {samlProviders.map((p: any) => (
+                      <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        {p.name}
+                      </div>
+                    ))}
+                    {!samlProviders.length && <div>No SAML providers configured.</div>}
+                  </div>
+                </Section>
               </div>
-            </Section>
-          </div>
+            </TabsContent>
+
+            <TabsContent value="provisioning" className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Section title="SCIM Tokens" icon={ShieldEllipsis} description="Issue provisioning credentials used by your identity system.">
+                  <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                    <Input placeholder="SCIM token name" value={scimTokenForm.name} onChange={(e) => setScimTokenForm({ name: e.target.value })} />
+                    <Button disabled={!selectedWorkspaceId} onClick={() => createScimToken.mutate()}>
+                      Create SCIM token
+                    </Button>
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {scimTokens.map((t: any) => (
+                      <div key={t.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        SCIM token · {t.name}
+                      </div>
+                    ))}
+                    {!scimTokens.length && <div>No SCIM tokens configured.</div>}
+                  </div>
+                </Section>
+
+                <Section title="SCIM Group Mapping" icon={Users} description="Map external groups to workspace roles without mixing it into SSO setup.">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Input placeholder="External group ID" value={scimMappingForm.external_group_id} onChange={(e) => setScimMappingForm((f) => ({ ...f, external_group_id: e.target.value }))} />
+                    <Input placeholder="External group name" value={scimMappingForm.external_group_name} onChange={(e) => setScimMappingForm((f) => ({ ...f, external_group_name: e.target.value }))} />
+                    <Select value={scimMappingForm.role} onChange={(e) => setScimMappingForm((f) => ({ ...f, role: e.target.value }))}>
+                      <option value="viewer">viewer</option>
+                      <option value="member">member</option>
+                      <option value="admin">admin</option>
+                      <option value="owner">owner</option>
+                    </Select>
+                  </div>
+                  <Button disabled={!selectedWorkspaceId} onClick={() => createScimMapping.mutate()}>
+                    Save SCIM mapping
+                  </Button>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {scimMappings.map((m: any) => (
+                      <div key={m.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        {m.external_group_name} → {m.role}
+                      </div>
+                    ))}
+                    {!scimMappings.length && <div>No SCIM role mappings configured.</div>}
+                  </div>
+                </Section>
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="policy" className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Section title="Retention Policies" icon={TimerReset}>
-              <Input placeholder="Policy name" value={retentionForm.name} onChange={(e) => setRetentionForm((f) => ({ ...f, name: e.target.value }))} />
-              <div className="grid grid-cols-2 gap-3">
-                <Input type="number" placeholder="Logs days" value={retentionForm.logs_days} onChange={(e) => setRetentionForm((f) => ({ ...f, logs_days: Number(e.target.value) }))} />
-                <Input type="number" placeholder="Metrics days" value={retentionForm.metrics_days} onChange={(e) => setRetentionForm((f) => ({ ...f, metrics_days: Number(e.target.value) }))} />
-                <Input type="number" placeholder="Alert days" value={retentionForm.alert_days} onChange={(e) => setRetentionForm((f) => ({ ...f, alert_days: Number(e.target.value) }))} />
-                <Input type="number" placeholder="Incident days" value={retentionForm.incident_days} onChange={(e) => setRetentionForm((f) => ({ ...f, incident_days: Number(e.target.value) }))} />
-              </div>
-              <Input type="number" placeholder="Run days" value={retentionForm.run_days} onChange={(e) => setRetentionForm((f) => ({ ...f, run_days: Number(e.target.value) }))} />
-              <Button disabled={!selectedWorkspaceId} onClick={() => createRetention.mutate()}>
-                Save retention policy
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {retentionPolicies.map((p: any) => (
-                  <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {p.name} · logs {p.logs_days}d · metrics {p.metrics_days}d
-                  </div>
-                ))}
-                {!retentionPolicies.length && <div>No retention policies configured.</div>}
-              </div>
-            </Section>
+          <PanelIntro
+            title="Policy & lifecycle"
+            description="Separate data retention from escalation behaviour so admins can change one without spelunking through the other."
+          />
 
-            <Section title="Escalation Policies" icon={Siren}>
-              <Input placeholder="Policy name" value={escalationForm.name} onChange={(e) => setEscalationForm((f) => ({ ...f, name: e.target.value }))} />
-              <Textarea placeholder='[{"delay_minutes":0,"channel":"slack"}]' value={escalationForm.steps} onChange={(e) => setEscalationForm((f) => ({ ...f, steps: e.target.value }))} className="min-h-[120px]" />
-              <Button disabled={!selectedWorkspaceId} onClick={() => createEscalation.mutate()}>
-                Save escalation policy
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {escalationPolicies.map((p: any) => (
-                  <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {p.name}
+          <Tabs defaultValue="retention" className="space-y-5">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl bg-muted/60 p-2">
+              <TabsTrigger value="retention">Retention</TabsTrigger>
+              <TabsTrigger value="escalation">Escalation</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="retention" className="space-y-6">
+              <Section title="Retention Policies" icon={TimerReset} description="Control how long logs, metrics, alerts, incidents, and runs are kept.">
+                <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                  <div className="space-y-3">
+                    <Input placeholder="Policy name" value={retentionForm.name} onChange={(e) => setRetentionForm((f) => ({ ...f, name: e.target.value }))} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input type="number" placeholder="Logs days" value={retentionForm.logs_days} onChange={(e) => setRetentionForm((f) => ({ ...f, logs_days: Number(e.target.value) }))} />
+                      <Input type="number" placeholder="Metrics days" value={retentionForm.metrics_days} onChange={(e) => setRetentionForm((f) => ({ ...f, metrics_days: Number(e.target.value) }))} />
+                      <Input type="number" placeholder="Alert days" value={retentionForm.alert_days} onChange={(e) => setRetentionForm((f) => ({ ...f, alert_days: Number(e.target.value) }))} />
+                      <Input type="number" placeholder="Incident days" value={retentionForm.incident_days} onChange={(e) => setRetentionForm((f) => ({ ...f, incident_days: Number(e.target.value) }))} />
+                    </div>
+                    <Input type="number" placeholder="Run days" value={retentionForm.run_days} onChange={(e) => setRetentionForm((f) => ({ ...f, run_days: Number(e.target.value) }))} />
+                    <Button disabled={!selectedWorkspaceId} onClick={() => createRetention.mutate()}>
+                      Save retention policy
+                    </Button>
                   </div>
-                ))}
-                {!escalationPolicies.length && <div>No escalation policies configured.</div>}
-              </div>
-            </Section>
-          </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {retentionPolicies.map((p: any) => (
+                      <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-3">
+                        <div className="font-medium text-foreground">{p.name}</div>
+                        <div className="mt-1">logs {p.logs_days}d · metrics {p.metrics_days}d · alerts {p.alert_days}d</div>
+                      </div>
+                    ))}
+                    {!retentionPolicies.length && <div>No retention policies configured.</div>}
+                  </div>
+                </div>
+              </Section>
+            </TabsContent>
+
+            <TabsContent value="escalation" className="space-y-6">
+              <Section title="Escalation Policies" icon={Siren} description="Define the sequence used when incidents and alerts keep burning.">
+                <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+                  <div className="space-y-3">
+                    <Input placeholder="Policy name" value={escalationForm.name} onChange={(e) => setEscalationForm((f) => ({ ...f, name: e.target.value }))} />
+                    <Textarea placeholder='[{"delay_minutes":0,"channel":"slack"}]' value={escalationForm.steps} onChange={(e) => setEscalationForm((f) => ({ ...f, steps: e.target.value }))} className="min-h-[140px]" />
+                    <Button disabled={!selectedWorkspaceId} onClick={() => createEscalation.mutate()}>
+                      Save escalation policy
+                    </Button>
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {escalationPolicies.map((p: any) => (
+                      <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-3">
+                        <div className="font-medium text-foreground">{p.name}</div>
+                        <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">Configured policy</div>
+                      </div>
+                    ))}
+                    {!escalationPolicies.length && <div>No escalation policies configured.</div>}
+                  </div>
+                </div>
+              </Section>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="operations" className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-3">
-            <Section title="Maintenance Windows" icon={CalendarClock}>
-              <Input placeholder="Name" value={maintenanceForm.name} onChange={(e) => setMaintenanceForm((f) => ({ ...f, name: e.target.value }))} />
-              <Input type="datetime-local" value={maintenanceForm.starts_at} onChange={(e) => setMaintenanceForm((f) => ({ ...f, starts_at: e.target.value }))} />
-              <Input type="datetime-local" value={maintenanceForm.ends_at} onChange={(e) => setMaintenanceForm((f) => ({ ...f, ends_at: e.target.value }))} />
-              <Input placeholder="Reason" value={maintenanceForm.reason} onChange={(e) => setMaintenanceForm((f) => ({ ...f, reason: e.target.value }))} />
-              <Button disabled={!selectedWorkspaceId} onClick={() => createMaintenance.mutate()}>
-                Create maintenance window
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {maintenanceWindows.map((w: any) => (
-                  <div key={w.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {w.name}
-                  </div>
-                ))}
-                {!maintenanceWindows.length && <div>No maintenance windows yet.</div>}
-              </div>
-            </Section>
+          <PanelIntro
+            title="Operations & audit"
+            description="This is the noisy side of enterprise admin. Scheduling, silences, audit data, compliance exports, and notification tests each get their own tab."
+          />
 
-            <Section title="Alert Silences" icon={VolumeX}>
-              <Input placeholder="Name" value={silenceForm.name} onChange={(e) => setSilenceForm((f) => ({ ...f, name: e.target.value }))} />
-              <Input type="datetime-local" value={silenceForm.starts_at} onChange={(e) => setSilenceForm((f) => ({ ...f, starts_at: e.target.value }))} />
-              <Input type="datetime-local" value={silenceForm.ends_at} onChange={(e) => setSilenceForm((f) => ({ ...f, ends_at: e.target.value }))} />
-              <Input placeholder='Matcher JSON e.g. {"severity":"info"}' value={silenceForm.matcher} onChange={(e) => setSilenceForm((f) => ({ ...f, matcher: e.target.value }))} />
-              <Button disabled={!selectedWorkspaceId} onClick={() => createSilence.mutate()}>
-                Create silence
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {silences.map((s: any) => (
-                  <div key={s.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {s.name}
-                  </div>
-                ))}
-                {!silences.length && <div>No alert silences yet.</div>}
-              </div>
-            </Section>
+          <Tabs defaultValue="scheduling" className="space-y-5">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl bg-muted/60 p-2">
+              <TabsTrigger value="scheduling">Scheduling</TabsTrigger>
+              <TabsTrigger value="audit">Audit</TabsTrigger>
+              <TabsTrigger value="compliance">Compliance & APIs</TabsTrigger>
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            </TabsList>
 
-            <Section title="Audit Log" icon={ScrollText}>
-              <div className="space-y-2 text-sm text-muted-foreground max-h-[420px] overflow-auto">
-                {auditLogs.map((log: any) => (
-                  <div key={log.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    <div className="font-medium text-foreground">{log.action}</div>
-                    <div>
-                      {log.resource_type} · {new Date(log.created_at).toLocaleString()}
+            <TabsContent value="scheduling" className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Section title="Maintenance Windows" icon={CalendarClock} description="Schedule approved downtime without hiding it under general operations.">
+                  <Input placeholder="Name" value={maintenanceForm.name} onChange={(e) => setMaintenanceForm((f) => ({ ...f, name: e.target.value }))} />
+                  <Input type="datetime-local" value={maintenanceForm.starts_at} onChange={(e) => setMaintenanceForm((f) => ({ ...f, starts_at: e.target.value }))} />
+                  <Input type="datetime-local" value={maintenanceForm.ends_at} onChange={(e) => setMaintenanceForm((f) => ({ ...f, ends_at: e.target.value }))} />
+                  <Input placeholder="Reason" value={maintenanceForm.reason} onChange={(e) => setMaintenanceForm((f) => ({ ...f, reason: e.target.value }))} />
+                  <Button disabled={!selectedWorkspaceId} onClick={() => createMaintenance.mutate()}>
+                    Create maintenance window
+                  </Button>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {maintenanceWindows.map((w: any) => (
+                      <div key={w.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        {w.name}
+                      </div>
+                    ))}
+                    {!maintenanceWindows.length && <div>No maintenance windows yet.</div>}
+                  </div>
+                </Section>
+
+                <Section title="Alert Silences" icon={VolumeX} description="Use targeted silences for known noise rather than muting the whole world.">
+                  <Input placeholder="Name" value={silenceForm.name} onChange={(e) => setSilenceForm((f) => ({ ...f, name: e.target.value }))} />
+                  <Input type="datetime-local" value={silenceForm.starts_at} onChange={(e) => setSilenceForm((f) => ({ ...f, starts_at: e.target.value }))} />
+                  <Input type="datetime-local" value={silenceForm.ends_at} onChange={(e) => setSilenceForm((f) => ({ ...f, ends_at: e.target.value }))} />
+                  <Input placeholder='Matcher JSON e.g. {"severity":"info"}' value={silenceForm.matcher} onChange={(e) => setSilenceForm((f) => ({ ...f, matcher: e.target.value }))} />
+                  <Button disabled={!selectedWorkspaceId} onClick={() => createSilence.mutate()}>
+                    Create silence
+                  </Button>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {silences.map((s: any) => (
+                      <div key={s.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        {s.name}
+                      </div>
+                    ))}
+                    {!silences.length && <div>No alert silences yet.</div>}
+                  </div>
+                </Section>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="audit" className="space-y-6">
+              <Section title="Audit Log" icon={ScrollText} description="Latest enterprise changes for the currently selected workspace.">
+                <div className="space-y-2 text-sm text-muted-foreground max-h-[520px] overflow-auto">
+                  {auditLogs.map((log: any) => (
+                    <div key={log.id} className="rounded-lg border border-border bg-background px-3 py-3">
+                      <div className="font-medium text-foreground">{log.action}</div>
+                      <div className="mt-1">
+                        {log.resource_type} · {new Date(log.created_at).toLocaleString()}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {!auditLogs.length && <div>No audit events yet.</div>}
-              </div>
-            </Section>
-          </div>
+                  ))}
+                  {!auditLogs.length && <div>No audit events yet.</div>}
+                </div>
+              </Section>
+            </TabsContent>
 
-          <div className="grid gap-6 xl:grid-cols-3">
-            <Section title="Enterprise Notification Test" icon={Send}>
-              <Select value={notificationForm.channel_id} onChange={(e) => setNotificationForm((f) => ({ ...f, channel_id: e.target.value }))}>
-                <option value="">Select channel</option>
-                {notificationChannels.map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} · {c.type}
-                  </option>
-                ))}
-              </Select>
-              <Input placeholder="Subject" value={notificationForm.subject} onChange={(e) => setNotificationForm((f) => ({ ...f, subject: e.target.value }))} />
-              <Textarea placeholder="Message" value={notificationForm.text} onChange={(e) => setNotificationForm((f) => ({ ...f, text: e.target.value }))} />
-              <Button disabled={!notificationForm.channel_id} onClick={() => deliverNotification.mutate()}>
-                Send enterprise notification
-              </Button>
-            </Section>
+            <TabsContent value="compliance" className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Section title="Compliance & Export" icon={FileSpreadsheet} description="Generate reports and data exports without mixing them into audit or notifications.">
+                  <Input placeholder="Report type" value={complianceForm.report_type} onChange={(e) => setComplianceForm((f) => ({ ...f, report_type: e.target.value }))} />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input type="datetime-local" value={complianceForm.period_start} onChange={(e) => setComplianceForm((f) => ({ ...f, period_start: e.target.value }))} />
+                    <Input type="datetime-local" value={complianceForm.period_end} onChange={(e) => setComplianceForm((f) => ({ ...f, period_end: e.target.value }))} />
+                  </div>
+                  <Button disabled={!selectedWorkspaceId} onClick={() => createComplianceReport.mutate()}>
+                    Generate report
+                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Export type" value={exportForm.export_type} onChange={(e) => setExportForm((f) => ({ ...f, export_type: e.target.value }))} />
+                    <Input placeholder="Format" value={exportForm.format} onChange={(e) => setExportForm((f) => ({ ...f, format: e.target.value }))} />
+                  </div>
+                  <Button disabled={!selectedWorkspaceId} onClick={() => createExport.mutate()}>
+                    Create export
+                  </Button>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {complianceReports.map((r: any) => (
+                      <div key={r.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        Report: {r.report_type}
+                      </div>
+                    ))}
+                    {exports.map((x: any) => (
+                      <div key={x.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        Export: {x.export_type}.{x.format}
+                      </div>
+                    ))}
+                    {!complianceReports.length && !exports.length && <div>No reports or exports yet.</div>}
+                  </div>
+                </Section>
 
-            <Section title="Compliance & Export" icon={FileSpreadsheet}>
-              <Input placeholder="Report type" value={complianceForm.report_type} onChange={(e) => setComplianceForm((f) => ({ ...f, report_type: e.target.value }))} />
-              <Input type="datetime-local" value={complianceForm.period_start} onChange={(e) => setComplianceForm((f) => ({ ...f, period_start: e.target.value }))} />
-              <Input type="datetime-local" value={complianceForm.period_end} onChange={(e) => setComplianceForm((f) => ({ ...f, period_end: e.target.value }))} />
-              <Button disabled={!selectedWorkspaceId} onClick={() => createComplianceReport.mutate()}>
-                Generate report
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Input placeholder="Export type" value={exportForm.export_type} onChange={(e) => setExportForm((f) => ({ ...f, export_type: e.target.value }))} />
-                <Input placeholder="Format" value={exportForm.format} onChange={(e) => setExportForm((f) => ({ ...f, format: e.target.value }))} />
-              </div>
-              <Button disabled={!selectedWorkspaceId} onClick={() => createExport.mutate()}>
-                Create export
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {complianceReports.map((r: any) => (
-                  <div key={r.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    Report: {r.report_type}
+                <Section title="API Versions" icon={Waypoints} description="Published API versions and any sunset timing.">
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {apiVersions.map((v: any) => (
+                      <div key={v.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                        {v.version}
+                        {v.sunset_date ? ` · sunset ${new Date(v.sunset_date).toLocaleDateString()}` : ""}
+                      </div>
+                    ))}
+                    {!apiVersions.length && <div>No API versions published yet.</div>}
                   </div>
-                ))}
-                {exports.map((x: any) => (
-                  <div key={x.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    Export: {x.export_type}.{x.format}
-                  </div>
-                ))}
-                {!complianceReports.length && !exports.length && <div>No reports or exports yet.</div>}
+                </Section>
               </div>
-            </Section>
+            </TabsContent>
 
-            <Section title="API Versions" icon={Waypoints}>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {apiVersions.map((v: any) => (
-                  <div key={v.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {v.version}
-                    {v.sunset_date ? ` · sunset ${new Date(v.sunset_date).toLocaleDateString()}` : ""}
+            <TabsContent value="notifications" className="space-y-6">
+              <Section title="Enterprise Notification Test" icon={Send} description="Validate outbound messaging against a specific channel before relying on it.">
+                <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+                  <div className="space-y-3">
+                    <Select value={notificationForm.channel_id} onChange={(e) => setNotificationForm((f) => ({ ...f, channel_id: e.target.value }))}>
+                      <option value="">Select channel</option>
+                      {notificationChannels.map((c: any) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} · {c.type}
+                        </option>
+                      ))}
+                    </Select>
+                    <Input placeholder="Subject" value={notificationForm.subject} onChange={(e) => setNotificationForm((f) => ({ ...f, subject: e.target.value }))} />
+                    <Textarea placeholder="Message" value={notificationForm.text} onChange={(e) => setNotificationForm((f) => ({ ...f, text: e.target.value }))} />
+                    <Button disabled={!notificationForm.channel_id} onClick={() => deliverNotification.mutate()}>
+                      Send enterprise notification
+                    </Button>
                   </div>
-                ))}
-                {!apiVersions.length && <div>No API versions published yet.</div>}
-              </div>
-            </Section>
-          </div>
+                  <div className="rounded-xl border border-dashed border-border bg-background/60 p-4 text-sm text-muted-foreground">
+                    Use this to test delivery paths after changing enterprise routing, not as a general-purpose broadcast tool.
+                  </div>
+                </div>
+              </Section>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="support" className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Section title="Support" icon={LifeBuoy}>
-              <Input placeholder="Subject" value={supportForm.subject} onChange={(e) => setSupportForm((f) => ({ ...f, subject: e.target.value }))} />
-              <Textarea placeholder="Describe the issue" value={supportForm.description} onChange={(e) => setSupportForm((f) => ({ ...f, description: e.target.value }))} />
-              <Select value={supportForm.priority} onChange={(e) => setSupportForm((f) => ({ ...f, priority: e.target.value }))}>
-                <option value="low">low</option>
-                <option value="normal">normal</option>
-                <option value="high">high</option>
-                <option value="urgent">urgent</option>
-              </Select>
-              <Button disabled={!selectedWorkspaceId} onClick={() => createSupportTicket.mutate()}>
-                Create ticket
-              </Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {supportTickets.map((t: any) => (
-                  <div key={t.id} className="rounded-lg border border-border bg-background px-3 py-3 space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-medium text-foreground">{t.subject}</div>
-                      <div className="text-xs uppercase tracking-wide">{t.priority}</div>
-                    </div>
-                    <div>{t.description}</div>
-                    <div className="flex items-center gap-2">
-                      <div className="rounded bg-muted px-2 py-1 text-xs uppercase tracking-wide">{t.status}</div>
-                      <button className="rounded border border-border px-2 py-1 text-xs text-foreground" onClick={() => updateSupportTicket.mutate({ id: t.id, status: "in_progress" })}>
-                        Mark in progress
-                      </button>
-                      <button className="rounded border border-border px-2 py-1 text-xs text-foreground" onClick={() => updateSupportTicket.mutate({ id: t.id, status: "resolved" })}>
-                        Resolve
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {!supportTickets.length && <div>No support tickets yet.</div>}
-              </div>
-            </Section>
+          <PanelIntro
+            title="Support & communications"
+            description="Internal assistance and outward-facing announcements are separate jobs, so they now live in separate tabs."
+          />
 
-            <Section title="Admin Announcements" icon={Megaphone}>
-              <Input placeholder="Title" value={announcementForm.title} onChange={(e) => setAnnouncementForm((f) => ({ ...f, title: e.target.value }))} />
-              <Textarea placeholder="Message" value={announcementForm.message} onChange={(e) => setAnnouncementForm((f) => ({ ...f, message: e.target.value }))} />
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input type="datetime-local" value={announcementForm.starts_at} onChange={(e) => setAnnouncementForm((f) => ({ ...f, starts_at: e.target.value }))} />
-                <Input type="datetime-local" value={announcementForm.ends_at} onChange={(e) => setAnnouncementForm((f) => ({ ...f, ends_at: e.target.value }))} />
-              </div>
-              <Button onClick={() => createAnnouncement.mutate()}>Create announcement</Button>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {announcements.map((a: any) => (
-                  <div key={a.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                    {a.title}
+          <Tabs defaultValue="tickets" className="space-y-5">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl bg-muted/60 p-2">
+              <TabsTrigger value="tickets">Support Tickets</TabsTrigger>
+              <TabsTrigger value="announcements">Announcements</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="tickets" className="space-y-6">
+              <Section title="Support" icon={LifeBuoy} description="Create and manage enterprise support issues for the active workspace.">
+                <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
+                  <div className="space-y-3">
+                    <Input placeholder="Subject" value={supportForm.subject} onChange={(e) => setSupportForm((f) => ({ ...f, subject: e.target.value }))} />
+                    <Textarea placeholder="Describe the issue" value={supportForm.description} onChange={(e) => setSupportForm((f) => ({ ...f, description: e.target.value }))} />
+                    <Select value={supportForm.priority} onChange={(e) => setSupportForm((f) => ({ ...f, priority: e.target.value }))}>
+                      <option value="low">low</option>
+                      <option value="normal">normal</option>
+                      <option value="high">high</option>
+                      <option value="urgent">urgent</option>
+                    </Select>
+                    <Button disabled={!selectedWorkspaceId} onClick={() => createSupportTicket.mutate()}>
+                      Create ticket
+                    </Button>
                   </div>
-                ))}
-                {!announcements.length && <div>No announcements yet.</div>}
-              </div>
-            </Section>
-          </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {supportTickets.map((t: any) => (
+                      <div key={t.id} className="rounded-lg border border-border bg-background px-3 py-3 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-foreground">{t.subject}</div>
+                          <div className="text-xs uppercase tracking-wide">{t.priority}</div>
+                        </div>
+                        <div>{t.description}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="rounded bg-muted px-2 py-1 text-xs uppercase tracking-wide">{t.status}</div>
+                          <button className="rounded border border-border px-2 py-1 text-xs text-foreground" onClick={() => updateSupportTicket.mutate({ id: t.id, status: "in_progress" })}>
+                            Mark in progress
+                          </button>
+                          <button className="rounded border border-border px-2 py-1 text-xs text-foreground" onClick={() => updateSupportTicket.mutate({ id: t.id, status: "resolved" })}>
+                            Resolve
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {!supportTickets.length && <div>No support tickets yet.</div>}
+                  </div>
+                </div>
+              </Section>
+            </TabsContent>
+
+            <TabsContent value="announcements" className="space-y-6">
+              <Section title="Admin Announcements" icon={Megaphone} description="Publish platform-wide admin messages without mixing them into support workflow.">
+                <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
+                  <div className="space-y-3">
+                    <Input placeholder="Title" value={announcementForm.title} onChange={(e) => setAnnouncementForm((f) => ({ ...f, title: e.target.value }))} />
+                    <Textarea placeholder="Message" value={announcementForm.message} onChange={(e) => setAnnouncementForm((f) => ({ ...f, message: e.target.value }))} />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Input type="datetime-local" value={announcementForm.starts_at} onChange={(e) => setAnnouncementForm((f) => ({ ...f, starts_at: e.target.value }))} />
+                      <Input type="datetime-local" value={announcementForm.ends_at} onChange={(e) => setAnnouncementForm((f) => ({ ...f, ends_at: e.target.value }))} />
+                    </div>
+                    <Button onClick={() => createAnnouncement.mutate()}>Create announcement</Button>
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {announcements.map((a: any) => (
+                      <div key={a.id} className="rounded-lg border border-border bg-background px-3 py-3">
+                        <div className="font-medium text-foreground">{a.title}</div>
+                        <div className="mt-1">{a.message || "No message preview"}</div>
+                      </div>
+                    ))}
+                    {!announcements.length && <div>No announcements yet.</div>}
+                  </div>
+                </div>
+              </Section>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>

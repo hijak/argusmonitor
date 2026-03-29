@@ -73,5 +73,40 @@ Recommended payload shape from operator/webhook bridge:
 
 Vordr normalizes this and stores the ownership overlay on each alert instance.
 
+## Vordr sender bridge
+
+A minimal sender CLI is included for bridging resolved ownership into Vordr's ingest endpoint.
+
+Location:
+- `cmd/vordr-alert-sender`
+
+Example:
+
+```bash
+export VORDR_BASE_URL=http://127.0.0.1:8000
+export VORDR_TOKEN=<bearer-token>
+
+go run ./cmd/vordr-alert-sender \
+  --message "payments-api error rate > 5%" \
+  --severity critical \
+  --service payments-api \
+  --host edge-lon-1 \
+  --namespace payments \
+  --alert-name HighErrorRate \
+  --primary-type team \
+  --primary-ref payments-primary \
+  --secondary-type user \
+  --secondary-ref mr-b \
+  --escalation-policy payments-critical
+```
+
+This posts directly to:
+- `POST /api/alerts/ingest`
+
+The sender is intentionally small so it can be embedded later into:
+- a controller reconcile path
+- an alert webhook receiver
+- a Prometheus/Alertmanager bridge
+
 ## Example
 See `examples/test.yaml`.

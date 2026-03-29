@@ -3,23 +3,25 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.config import get_settings
-from app.models import User, ApiKey, NotificationChannel, Integration, UserPreference, Host
+from app.models import User, ApiKey, NotificationChannel, Integration, UserPreference, Host, RetentionPolicy
 from app.schemas import (
     ProfileUpdate, PasswordChange, UserOut,
     ApiKeyCreate, ApiKeyOut, ApiKeyCreated,
     NotificationChannelCreate, NotificationChannelUpdate, NotificationChannelOut,
     IntegrationCreate, IntegrationUpdate, IntegrationOut,
     UserPreferenceOut, UserPreferenceUpdate,
-    AgentOut,
+    AgentOut, RetentionPolicyOut, RetentionPolicyUpdate,
 )
 from app.auth import get_current_user, hash_password, verify_password, hash_api_key
 from app.services.notifications import deliver_notification
 from app.services.audit import record_audit_event
+from app.services.workspace import get_current_workspace
+from app.services.rbac import ADMIN_ROLES, require_workspace_role
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -266,11 +268,32 @@ async def delete_integration(
 
 # --- Appearance / Preferences ---
 
+def _ensure_user_preferences_schema_sync(sync_session):
+    connection = sync_session.connection()
+    inspector = inspect(connection)
+    if "user_preferences" not in inspector.get_table_names():
+        return
+    columns = {c["name"] for c in inspector.get_columns("user_preferences")}
+    if "ai_model" not in columns:
+        connection.execute(text("ALTER TABLE user_preferences ADD COLUMN ai_model VARCHAR(255) DEFAULT 'default'"))
+    if "ai_response_style" not in columns:
+        connection.execute(text("ALTER TABLE user_preferences ADD COLUMN ai_response_style VARCHAR(50) DEFAULT 'balanced'"))
+    if "ai_auto_summarize_incidents" not in columns:
+        connection.execute(text("ALTER TABLE user_preferences ADD COLUMN ai_auto_summarize_incidents BOOLEAN DEFAULT TRUE"))
+    if "ai_include_context" not in columns:
+        connection.execute(text("ALTER TABLE user_preferences ADD COLUMN ai_include_context BOOLEAN DEFAULT TRUE"))
+
+
+async def _ensure_user_preferences_schema(db: AsyncSession) -> None:
+    await db.run_sync(_ensure_user_preferences_schema_sync)
+
+
 @router.get("/preferences", response_model=UserPreferenceOut)
 async def get_preferences(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await _ensure_user_preferences_schema(db)
     result = await db.execute(select(UserPreference).where(UserPreference.user_id == user.id))
     pref = result.scalar_one_or_none()
     if not pref:
@@ -284,6 +307,10 @@ async def get_preferences(
         date_format=pref.date_format,
         compact_mode=pref.compact_mode,
         default_dashboard_id=pref.default_dashboard_id,
+        ai_model=getattr(pref, 'ai_model', 'default') or 'default',
+        ai_response_style=getattr(pref, 'ai_response_style', 'balanced') or 'balanced',
+        ai_auto_summarize_incidents=bool(getattr(pref, 'ai_auto_summarize_incidents', True)),
+        ai_include_context=bool(getattr(pref, 'ai_include_context', True)),
     )
 
 
@@ -293,6 +320,7 @@ async def update_preferences(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await _ensure_user_preferences_schema(db)
     result = await db.execute(select(UserPreference).where(UserPreference.user_id == user.id))
     pref = result.scalar_one_or_none()
     if not pref:
@@ -310,7 +338,66 @@ async def update_preferences(
         date_format=pref.date_format,
         compact_mode=pref.compact_mode,
         default_dashboard_id=pref.default_dashboard_id,
+        ai_model=getattr(pref, 'ai_model', 'default') or 'default',
+        ai_response_style=getattr(pref, 'ai_response_style', 'balanced') or 'balanced',
+        ai_auto_summarize_incidents=bool(getattr(pref, 'ai_auto_summarize_incidents', True)),
+        ai_include_context=bool(getattr(pref, 'ai_include_context', True)),
     )
+
+
+def _default_retention_values() -> dict:
+    return {
+        "name": "Default retention",
+        "logs_days": 30,
+        "metrics_days": 30,
+        "alert_days": 90,
+        "incident_days": 180,
+        "run_days": 30,
+        "enabled": True,
+    }
+
+
+async def _get_or_create_workspace_retention(db: AsyncSession, workspace_id) -> RetentionPolicy:
+    result = await db.execute(
+        select(RetentionPolicy)
+        .where(RetentionPolicy.workspace_id == workspace_id)
+        .order_by(RetentionPolicy.created_at.asc())
+    )
+    policy = result.scalar_one_or_none()
+    if policy:
+        return policy
+    policy = RetentionPolicy(workspace_id=workspace_id, **_default_retention_values())
+    db.add(policy)
+    await db.flush()
+    await db.refresh(policy)
+    return policy
+
+
+# --- Retention ---
+
+@router.get("/retention", response_model=RetentionPolicyOut)
+async def get_retention_policy(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
+):
+    return await _get_or_create_workspace_retention(db, workspace.id)
+
+
+@router.put("/retention", response_model=RetentionPolicyOut)
+async def update_retention_policy(
+    req: RetentionPolicyUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
+):
+    await require_workspace_role(db, workspace_id=workspace.id, user_id=user.id, allowed_roles=ADMIN_ROLES)
+    policy = await _get_or_create_workspace_retention(db, workspace.id)
+    for k, v in req.model_dump(exclude_unset=True).items():
+        setattr(policy, k, v)
+    await db.flush()
+    await db.refresh(policy)
+    return policy
 
 
 # --- Agents ---

@@ -53,6 +53,8 @@ type ManualHostForm = {
   type: HostType;
   ip_address: string;
   os: string;
+  latitude: string;
+  longitude: string;
   tags: string;
 };
 
@@ -224,6 +226,8 @@ export default function InfrastructurePage() {
     type: "server",
     ip_address: "",
     os: "",
+    latitude: "53.2307",
+    longitude: "-0.5406",
     tags: "manual",
   });
   const [enrollmentInfo, setEnrollmentInfo] = useState<EnrollmentInfo | null>(null);
@@ -267,7 +271,7 @@ export default function InfrastructurePage() {
       queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
       setOnboardingHostId(host.id);
       setSelectedHostId(host.id);
-      setManualHostForm({ name: "", type: "server", ip_address: "", os: "", tags: "manual" });
+      setManualHostForm({ name: "", type: "server", ip_address: "", os: "", latitude: "53.2307", longitude: "-0.5406", tags: "manual" });
       const tokenInfo = await api.rotateHostEnrollmentToken(host.id);
       setEnrollmentInfo(tokenInfo);
     },
@@ -325,6 +329,16 @@ export default function InfrastructurePage() {
     onError: (error: Error) => toast.error(error.message || "Failed to delete host"),
   });
 
+  const setLincolnMutation = useMutation({
+    mutationFn: (hostId: string) => api.updateHost(hostId, { latitude: 53.2307, longitude: -0.5406 }),
+    onSuccess: () => {
+      toast.success("Host geolocation set to Lincoln, UK");
+      queryClient.invalidateQueries({ queryKey: ["hosts"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-alert-board"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to update host location"),
+  });
+
   const counts = useMemo(
     () => ({
       all: hostCounts?.all ?? totalHosts,
@@ -361,6 +375,8 @@ export default function InfrastructurePage() {
       type: manualHostForm.type,
       ip_address: manualHostForm.ip_address.trim() || null,
       os: manualHostForm.os.trim() || null,
+      latitude: manualHostForm.latitude.trim() ? Number(manualHostForm.latitude) : null,
+      longitude: manualHostForm.longitude.trim() ? Number(manualHostForm.longitude) : null,
       tags: manualHostForm.tags.split(",").map((t) => t.trim()).filter(Boolean),
     });
   };
@@ -562,7 +578,10 @@ export default function InfrastructurePage() {
                       </span>
                     ))}
                   </div>
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setLincolnMutation.mutate(host.id)} className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground">
+                      Lincoln
+                    </button>
                     <DeleteHostButton host={host} onDelete={setHostToDelete} />
                   </div>
                 </DenseListRow>
@@ -764,6 +783,28 @@ export default function InfrastructurePage() {
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
                     placeholder="Ubuntu 24.04"
                   />
+                </div>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <label className="block text-xs font-medium text-muted-foreground">Geolocation</label>
+                    <button type="button" onClick={() => setManualHostForm((f) => ({ ...f, latitude: "53.2307", longitude: "-0.5406" }))} className="text-[11px] font-medium text-primary hover:underline">
+                      Use Lincoln, UK
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={manualHostForm.latitude}
+                      onChange={(e) => setManualHostForm((f) => ({ ...f, latitude: e.target.value }))}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
+                      placeholder="53.2307"
+                    />
+                    <input
+                      value={manualHostForm.longitude}
+                      onChange={(e) => setManualHostForm((f) => ({ ...f, longitude: e.target.value }))}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
+                      placeholder="-0.5406"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Tags</label>

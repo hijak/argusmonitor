@@ -138,14 +138,16 @@ export const api = {
     request<any[]>(`/transactions/${id}/runs?limit=${limit}`),
 
   // Alerts
-  listAlerts: (params?: { severity?: string; acknowledged?: boolean }) => {
+  listAlerts: (params?: { severity?: string; acknowledged?: boolean; resolved?: boolean }) => {
     const qs = new URLSearchParams();
     if (params?.severity && params.severity !== "all") qs.set("severity", params.severity);
     if (params?.acknowledged !== undefined) qs.set("acknowledged", String(params.acknowledged));
+    if (params?.resolved !== undefined) qs.set("resolved", String(params.resolved));
     const q = qs.toString();
     return request<any[]>(`/alerts${q ? `?${q}` : ""}`);
   },
   listAlertPresets: () => request<any[]>("/alerts/presets"),
+  alertSummary: () => request<any>("/alerts/summary"),
   listAlertRules: () => request<any[]>("/alerts/rules"),
   createAlertRule: (data: any) =>
     request<any>("/alerts/rules", { method: "POST", body: JSON.stringify(data) }),
@@ -155,10 +157,16 @@ export const api = {
     request<void>(`/alerts/rules/${ruleId}?delete_history=${deleteHistory ? "true" : "false"}`, { method: "DELETE" }),
   acknowledgeAlert: (id: string, reason?: string | null) =>
     request<any>(`/alerts/${id}/acknowledge`, { method: "POST", body: JSON.stringify({ reason: reason?.trim() || null }) }),
+  bulkAcknowledgeAlerts: (alertIds: string[], reason?: string | null) =>
+    request<any[]>(`/alerts/acknowledge/bulk`, { method: "POST", body: JSON.stringify({ alert_ids: alertIds, reason: reason?.trim() || null }) }),
+  ingestAlert: (data: any) =>
+    request<any>("/alerts/ingest", { method: "POST", body: JSON.stringify(data) }),
   updateAlertSeverity: (id: string, severity: string) =>
     request<any>(`/alerts/${id}/severity`, { method: "POST", body: JSON.stringify({ severity }) }),
   resolveAlert: (id: string, message: string) =>
     request<any>(`/alerts/${id}/resolve`, { method: "POST", body: JSON.stringify({ message }) }),
+  bulkResolveAlerts: (alertIds: string[], message: string) =>
+    request<any[]>(`/alerts/bulk/resolve`, { method: "POST", body: JSON.stringify({ alert_ids: alertIds, message }) }),
 
   // Incidents
   listIncidents: () => request<any[]>("/incidents"),

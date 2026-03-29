@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { getWorkspaceId } from "@/lib/workspace";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { WorldMap, type WorldPing } from "@/components/WorldMap";
@@ -50,6 +51,10 @@ function relativeTime(value?: string | null) {
   const hours = Math.round(diffMins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+function totalExtraOccurrences(alerts: any[]) {
+  return alerts.reduce((sum, alert) => sum + Math.max(0, Number(alert.occurrence_count || 1) - 1), 0);
 }
 
 function alertGroup(alert: any) {
@@ -225,7 +230,9 @@ function AlertWall({ alerts, selectedSeverity, setSelectedSeverity, groupMode, s
                             </div>
                             <div className="mt-2 text-[15px] font-semibold leading-6 text-white">{alert.message || 'Untitled alert'}</div>
                             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-white/70">
-                              <span>{relativeTime(alert.created_at)}</span>
+                              <span>Opened {relativeTime(alert.first_fired_at || alert.created_at)}</span>
+                              <span>Last seen {relativeTime(alert.last_fired_at || alert.created_at)}</span>
+                              {Number(alert.occurrence_count || 1) > 1 && <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] text-white/90">{alert.occurrence_count}x fired</span>}
                               {alert.acknowledged_by && <span>Ack by {alert.acknowledged_by}</span>}
                               {alert.acknowledgment_reason && <span className="text-white/85">Reason: {alert.acknowledgment_reason}</span>}
                             </div>
@@ -268,7 +275,7 @@ export default function OverviewPage() {
 
   const { data: alerts = [], isLoading } = useQuery({
     queryKey: ['overview-alert-board'],
-    queryFn: () => api.listAlerts({ acknowledged: false }),
+    queryFn: () => api.listAlerts({ resolved: false }),
     refetchInterval: 10000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -302,6 +309,8 @@ export default function OverviewPage() {
     }
   });
   const resolveMutation = useMutation({ mutationFn: ({ id, message }: { id: string; message: string }) => api.resolveAlert(id, message), onSuccess: (_data, variables) => { qc.invalidateQueries({ queryKey: ['overview-alert-board'] }); setResolveDrafts((current) => { const next = { ...current }; delete next[variables.id]; return next; }); setActionAlert(null); toast.success('Alert resolved'); } });
+  const bulkAckMutation = useMutation({ mutationFn: () => api.bulkAcknowledgeAlerts(selectedAlertIds, bulkAckReason), onSuccess: () => { qc.invalidateQueries({ queryKey: ['overview-alert-board'] }); setSelectedAlertIds([]); setBulkAckReason(''); toast.success('Selected alerts acknowledged'); } });
+  const bulkResolveMutation = useMutation({ mutationFn: () => api.bulkResolveAlerts(selectedAlertIds, bulkResolveMessage), onSuccess: () => { qc.invalidateQueries({ queryKey: ['overview-alert-board'] }); setSelectedAlertIds([]); setBulkResolveMessage(''); toast.success('Selected alerts resolved'); } });
   const silenceMutation = useMutation({
     mutationFn: ({ alert, minutes }: { alert: any; minutes: number }) => api.createSilence({
       workspace_id: workspaceId,
@@ -326,6 +335,7 @@ export default function OverviewPage() {
     warning: alerts.filter((a: any) => (a.severity || '').toLowerCase() === 'warning'),
     info: alerts.filter((a: any) => (a.severity || '').toLowerCase() === 'info'),
   }), [alerts]);
+  const repeatBursts = useMemo(() => totalExtraOccurrences(alerts), [alerts]);
 
   const hosts = useMemo(() => ((hostsResponse?.items || []) as any[]), [hostsResponse]);
   const hostsByName = useMemo(() => Object.fromEntries(hosts.map((host: any) => [String(host.name || '').toLowerCase(), host])), [hosts]);
@@ -337,11 +347,12 @@ export default function OverviewPage() {
         <PageHeader title="Overview" description="Alert wall with map context, fast actions, and big-screen modes" />
       </motion.div>
 
-      <motion.div variants={item} className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <motion.div variants={item} className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <SummaryCard label="Critical" value={grouped.critical.length} tone="critical" />
         <SummaryCard label="Warning" value={grouped.warning.length} tone="warning" />
         <SummaryCard label="Info" value={grouped.info.length} tone="info" />
-        <SummaryCard label="Unacked total" value={alerts.length} tone="neutral" />
+        <SummaryCard label="Active groups" value={alerts.length} tone="neutral" />
+        <SummaryCard label="Repeat firings" value={repeatBursts} tone="neutral" />
       </motion.div>
 
       {incidents.length > 0 && (

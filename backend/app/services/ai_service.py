@@ -119,7 +119,7 @@ class AIService:
             response = await client.chat.completions.create(
                 model=self.settings.openai_model,
                 messages=prompt_messages,
-                max_tokens=1024,
+                max_tokens=2048,
                 temperature=0.4,
             )
             return self._extract_text_content(response.choices[0].message.content)

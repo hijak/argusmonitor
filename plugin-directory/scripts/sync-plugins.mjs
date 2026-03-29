@@ -21,7 +21,23 @@ const manifests = fs.readdirSync(manifestsDir)
     return JSON.parse(fs.readFileSync(fullPath, 'utf8'));
   });
 
-const normalized = manifests.map((plugin) => ({
+function sanitize(value) {
+  if (typeof value === 'string') {
+    return value
+      .replaceAll('Argus Core', 'Vordr Core')
+      .replaceAll('mysql://argus:arguspass', 'mysql://vordr:changeme')
+      .replaceAll('postgresql://argus:arguspass', 'postgresql://vordr:changeme')
+      .replaceAll('"arguspass"', '"changeme"')
+      .replaceAll('"argus"', '"vordr"');
+  }
+  if (Array.isArray(value)) return value.map(sanitize);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, sanitize(v)]));
+  }
+  return value;
+}
+
+const normalized = manifests.map((plugin) => sanitize({
   downloads: 0,
   rating: 5,
   repoUrl: 'https://github.com/hijak/vordr-plugins',

@@ -93,6 +93,11 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
   const [hostId, setHostId] = useState("all");
   const [teamId, setTeamId] = useState("none");
   const [policyId, setPolicyId] = useState("none");
+  const [primaryOwnerType, setPrimaryOwnerType] = useState("none");
+  const [primaryOwnerRef, setPrimaryOwnerRef] = useState("");
+  const [secondaryOwnerType, setSecondaryOwnerType] = useState("none");
+  const [secondaryOwnerRef, setSecondaryOwnerRef] = useState("");
+  const [ownershipPolicyRef, setOwnershipPolicyRef] = useState("");
 
   const uniquePluginIds = useMemo(() => Array.from(new Set((services || []).map((s: any) => s.plugin_id).filter(Boolean))).sort(), [services]);
   const uniqueServiceTypes = useMemo(() => Array.from(new Set((services || []).map((s: any) => s.service_type).filter(Boolean))).sort(), [services]);
@@ -136,6 +141,11 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
       setHostId(initialRule.scope?.host_id || (initialRule.target_type === "host" && initialRule.target_id ? String(initialRule.target_id) : "all"));
       setTeamId(initialRule.oncall_team_id || "none");
       setPolicyId(initialRule.escalation_policy_id || "none");
+      setPrimaryOwnerType(initialRule.ownership?.primary_type || "none");
+      setPrimaryOwnerRef(initialRule.ownership?.primary_ref || "");
+      setSecondaryOwnerType(initialRule.ownership?.secondary_type || "none");
+      setSecondaryOwnerRef(initialRule.ownership?.secondary_ref || "");
+      setOwnershipPolicyRef(initialRule.ownership?.escalation_policy_ref || "");
       return;
     }
 
@@ -152,6 +162,11 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
     setHostId("all");
     setTeamId("none");
     setPolicyId("none");
+    setPrimaryOwnerType("none");
+    setPrimaryOwnerRef("");
+    setSecondaryOwnerType("none");
+    setSecondaryOwnerRef("");
+    setOwnershipPolicyRef("");
   }, [open, initialRule]);
 
   useEffect(() => {
@@ -204,6 +219,13 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
         value: Number(threshold),
       },
       scope,
+      ownership: {
+        primary_type: primaryOwnerType === "none" ? null : primaryOwnerType,
+        primary_ref: primaryOwnerRef.trim() || null,
+        secondary_type: secondaryOwnerType === "none" ? null : secondaryOwnerType,
+        secondary_ref: secondaryOwnerRef.trim() || null,
+        escalation_policy_ref: ownershipPolicyRef.trim() || null,
+      },
       oncall_team_id: teamId === "none" ? null : teamId,
       escalation_policy_id: policyId === "none" ? null : policyId,
       cooldown_seconds: Number(cooldownSeconds || 300),
@@ -394,6 +416,48 @@ function RuleDialog({ open, onOpenChange, onSubmit, pending, teams, policies, se
               </Select>
             </div>
           </div>
+
+          <div className="rounded-lg border border-border/70 bg-muted/30 p-4">
+            <div className="mb-3 text-sm font-semibold text-foreground">Ownership routing overlay</div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Primary owner type</Label>
+                <Select value={primaryOwnerType} onValueChange={setPrimaryOwnerType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="team">Team</SelectItem>
+                    <SelectItem value="policy">Policy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primary owner ref</Label>
+                <Input value={primaryOwnerRef} onChange={(e) => setPrimaryOwnerRef(e.target.value)} placeholder="mr-a / payments-primary" />
+              </div>
+              <div className="space-y-2">
+                <Label>Secondary owner type</Label>
+                <Select value={secondaryOwnerType} onValueChange={setSecondaryOwnerType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="team">Team</SelectItem>
+                    <SelectItem value="policy">Policy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Secondary owner ref</Label>
+                <Input value={secondaryOwnerRef} onChange={(e) => setSecondaryOwnerRef(e.target.value)} placeholder="mr-b / ops-backup" />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Ownership escalation policy ref</Label>
+                <Input value={ownershipPolicyRef} onChange={(e) => setOwnershipPolicyRef(e.target.value)} placeholder="payments-critical" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <DialogFooter>
@@ -565,6 +629,7 @@ function MaintenanceDialog({ open, onOpenChange, onSubmit, pending, workspaceId,
 
 export default function AlertsPage() {
   const [filter, setFilter] = useState<"all" | "critical" | "warning" | "info">("all");
+  const [alertView, setAlertView] = useState<"active" | "resolved" | "all">("active");
   const [showAcked, setShowAcked] = useState(true);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<any | null>(null);
@@ -572,11 +637,20 @@ export default function AlertsPage() {
   const [maintenanceAlert, setMaintenanceAlert] = useState<any | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<any | null>(null);
   const [deleteRuleHistoryToo, setDeleteRuleHistoryToo] = useState(false);
+  const [selectedAlertIds, setSelectedAlertIds] = useState<string[]>([]);
+  const [bulkAckReason, setBulkAckReason] = useState("");
+  const [bulkResolveMessage, setBulkResolveMessage] = useState("");
   const queryClient = useQueryClient();
 
+  const { data: alertSummary } = useQuery({ queryKey: ["alert-summary"], queryFn: api.alertSummary, refetchInterval: 15000 });
+
   const { data: alerts = [] } = useQuery({
-    queryKey: ["alerts", filter, showAcked],
-    queryFn: () => api.listAlerts({ severity: filter === "all" ? undefined : filter, acknowledged: showAcked ? undefined : false }),
+    queryKey: ["alerts", filter, showAcked, alertView],
+    queryFn: () => api.listAlerts({
+      severity: filter === "all" ? undefined : filter,
+      acknowledged: alertView === "resolved" ? undefined : showAcked ? undefined : false,
+      resolved: alertView === "active" ? false : alertView === "resolved" ? true : undefined,
+    }),
     refetchInterval: 15000,
   });
   const { data: rules = [] } = useQuery({ queryKey: ["alert-rules"], queryFn: api.listAlertRules });
@@ -606,6 +680,28 @@ export default function AlertsPage() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to resolve alert"),
+  });
+
+  const bulkAckMutation = useMutation({
+    mutationFn: () => api.bulkAcknowledgeAlerts(selectedAlertIds, bulkAckReason),
+    onSuccess: () => {
+      toast.success(`Acknowledged ${selectedAlertIds.length} alerts`);
+      setSelectedAlertIds([]);
+      setBulkAckReason("");
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to acknowledge selected alerts"),
+  });
+
+  const bulkResolveMutation = useMutation({
+    mutationFn: () => api.bulkResolveAlerts(selectedAlertIds, bulkResolveMessage),
+    onSuccess: () => {
+      toast.success(`Resolved ${selectedAlertIds.length} alerts`);
+      setSelectedAlertIds([]);
+      setBulkResolveMessage("");
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to resolve selected alerts"),
   });
 
   const createRuleMutation = useMutation({
@@ -677,6 +773,8 @@ export default function AlertsPage() {
   ];
 
   const ruleById = useMemo(() => new Map(rules.map((rule: any) => [rule.id, rule])), [rules]);
+  const selectableAlerts = useMemo(() => alertView === "active" ? alerts.filter((alert: any) => !alert.resolved) : [], [alerts, alertView]);
+  const allVisibleSelected = selectableAlerts.length > 0 && selectableAlerts.every((alert: any) => selectedAlertIds.includes(alert.id));
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -711,36 +809,88 @@ export default function AlertsPage() {
 
       <motion.div variants={item}>
         <SectionCard
-          title="Filter live alerts"
-          description="Focus the feed by severity and acknowledgement state."
+          title="Alert views"
+          description="Switch between active, resolved, and full alert history, then narrow by severity."
           icon={<Bell className="h-4 w-4" />}
           actions={
-            <button
-              onClick={() => setShowAcked((v) => !v)}
-              className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${showAcked ? "border-border text-muted-foreground hover:bg-surface-hover" : "border-primary/30 bg-primary/5 text-primary"}`}
-            >
-              {showAcked ? "Hide acknowledged" : "Show acknowledged"}
-            </button>
+            alertView !== "resolved" ? (
+              <button
+                onClick={() => setShowAcked((v) => !v)}
+                className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${showAcked ? "border-border text-muted-foreground hover:bg-surface-hover" : "border-primary/30 bg-primary/5 text-primary"}`}
+              >
+                {showAcked ? "Hide acknowledged" : "Show acknowledged"}
+              </button>
+            ) : null
           }
           contentClassName="p-4 sm:p-5"
         >
-          <div className="flex flex-wrap items-center gap-2">
-            {(["all", "critical", "warning", "info"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${pillClasses(filter === value)}`}
-              >
-                {value === "all" ? "All alerts" : value.charAt(0).toUpperCase() + value.slice(1)}
-                <span className="ml-2 rounded bg-black/10 px-1.5 py-0.5 text-[11px] leading-none text-current/90">
-                  {counts[value]}
-                </span>
-              </button>
-            ))}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { value: "active", label: "Active", count: counts.active },
+                { value: "resolved", label: "Resolved", count: counts.resolved },
+                { value: "all", label: "All", count: counts.all },
+              ] as const).map((view) => (
+                <button
+                  key={view.value}
+                  type="button"
+                  onClick={() => {
+                    setAlertView(view.value);
+                    setSelectedAlertIds([]);
+                  }}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${pillClasses(alertView === view.value)}`}
+                >
+                  {view.label}
+                  <span className="ml-2 rounded bg-black/10 px-1.5 py-0.5 text-[11px] leading-none text-current/90">{view.count}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(["all", "critical", "warning", "info"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setFilter(value)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${pillClasses(filter === value)}`}
+                >
+                  {value === "all" ? "All severities" : value.charAt(0).toUpperCase() + value.slice(1)}
+                  <span className="ml-2 rounded bg-black/10 px-1.5 py-0.5 text-[11px] leading-none text-current/90">
+                    {counts[value]}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </SectionCard>
       </motion.div>
+
+      {alertView === "active" && selectedAlertIds.length > 0 && (
+        <motion.div variants={item} className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-medium text-foreground">{selectedAlertIds.length} alerts selected</div>
+              <div className="text-xs text-muted-foreground">Bulk acknowledge or resolve the currently visible selection.</div>
+            </div>
+            <button onClick={() => setSelectedAlertIds([])} className="text-xs text-muted-foreground hover:text-foreground">Clear selection</button>
+          </div>
+          <div className="grid gap-3 xl:grid-cols-2">
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Bulk ack reason</label>
+              <input value={bulkAckReason} onChange={(e) => setBulkAckReason(e.target.value)} placeholder="Optional acknowledgement reason" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm" />
+              <button onClick={() => bulkAckMutation.mutate()} disabled={bulkAckMutation.isPending} className="min-h-10 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-hover disabled:opacity-50">
+                {bulkAckMutation.isPending ? "Acknowledging..." : "Acknowledge selected"}
+              </button>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Bulk resolution message</label>
+              <input value={bulkResolveMessage} onChange={(e) => setBulkResolveMessage(e.target.value)} placeholder="Required resolution message" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm" />
+              <button onClick={() => bulkResolveMutation.mutate()} disabled={bulkResolveMutation.isPending || !bulkResolveMessage.trim()} className="min-h-10 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {bulkResolveMutation.isPending ? "Resolving..." : "Resolve selected"}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       <motion.div variants={item} className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_380px]">
         <SectionCard
@@ -749,8 +899,24 @@ export default function AlertsPage() {
           icon={<ShieldAlert className="h-4 w-4" />}
           contentClassName="p-0"
         >
+          {alertView === "active" ? (
+            <div className="border-b border-border/80 px-4 py-3 sm:px-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  onCheckedChange={(checked) => setSelectedAlertIds(checked ? selectableAlerts.map((alert: any) => alert.id) : [])}
+                />
+                <div className="text-sm text-muted-foreground">Select all visible active alerts</div>
+                <div className="text-xs text-muted-foreground">{selectableAlerts.length} selectable</div>
+              </div>
+            </div>
+          ) : (
+            <div className="border-b border-border/80 px-4 py-3 sm:px-5 text-sm text-muted-foreground">
+              {alertView === "resolved" ? "Showing resolved alert history." : "Showing all alerts across active and resolved states."}
+            </div>
+          )}
           <div className="divide-y divide-border/80">
-            {alerts.map((alert: any) => {
+            {visibleAlerts.map((alert: any) => {
               const linkedRule = alert.rule_id ? ruleById.get(alert.rule_id) : null;
               return (
                 <motion.div
@@ -761,6 +927,13 @@ export default function AlertsPage() {
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start gap-3">
+                        {alertView === "active" && !alert.resolved && (
+                          <Checkbox
+                            checked={selectedAlertIds.includes(alert.id)}
+                            onCheckedChange={(checked) => setSelectedAlertIds((current) => checked ? [...new Set([...current, alert.id])] : current.filter((id) => id !== alert.id))}
+                            className="mt-1"
+                          />
+                        )}
                         <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${alert.severity === "critical" ? "bg-critical pulse-live" : alert.severity === "warning" ? "bg-warning" : "bg-primary"}`} />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

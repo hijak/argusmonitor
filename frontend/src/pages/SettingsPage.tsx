@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   User, Bell, Shield, Plug, Palette, Globe, ChevronLeft, LogOut,
   Plus, Trash2, Send, Key, Mail, MessageSquare, Webhook, Phone,
-  Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor,
+  Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor, Bot,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "agents";
+type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "ai" | "retention" | "agents";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -35,6 +35,8 @@ const sections = [
   { key: "security" as Section, label: "Security", description: "API keys and access control", icon: Shield },
   { key: "integrations" as Section, label: "Integrations", description: "Connect Slack, PagerDuty, webhooks", icon: Plug },
   { key: "appearance" as Section, label: "Appearance", description: "Theme and display preferences", icon: Palette },
+  { key: "ai" as Section, label: "AI Assistant", description: "Model, response style, and assistant defaults", icon: Bot },
+  { key: "retention" as Section, label: "Retention", description: "Control pruning windows for logs, metrics, alerts, and runs", icon: Shield },
   { key: "agents" as Section, label: "Agents", description: "Manage monitoring agents and endpoints", icon: Globe },
 ];
 
@@ -68,6 +70,8 @@ export default function SettingsPage() {
         {active === "security" && <SecuritySection />}
         {active === "integrations" && <IntegrationsSection />}
         {active === "appearance" && <AppearanceSection />}
+        {active === "ai" && <AISettingsSection />}
+        {active === "retention" && <RetentionSection />}
         {active === "agents" && <AgentsSection />}
       </div>
     );
@@ -640,6 +644,88 @@ function IntegrationsSection() {
   );
 }
 
+
+function AISettingsSection() {
+  const qc = useQueryClient();
+  const { data: prefs, isLoading } = useQuery({ queryKey: ["preferences"], queryFn: api.getPreferences });
+
+  const updateMut = useMutation({
+    mutationFn: (data: any) => api.updatePreferences(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["preferences"] });
+      toast.success("AI assistant settings saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update AI assistant settings"),
+  });
+
+  if (isLoading || !prefs) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>;
+
+  return (
+    <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
+      <motion.div variants={item}><PageHeader title="AI Assistant" description="Tune how Vordr Co-pilot responds and what context it should lean on" /></motion.div>
+
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-5">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Model preference</label>
+          <Select value={prefs.ai_model || "default"} onValueChange={(value) => updateMut.mutate({ ai_model: value })}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Select model" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default routing</SelectItem>
+              <SelectItem value="fast">Fast / lighter</SelectItem>
+              <SelectItem value="balanced">Balanced</SelectItem>
+              <SelectItem value="deep">Deeper reasoning</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Response style</label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { value: "concise", label: "Concise", hint: "Short operational answers" },
+              { value: "balanced", label: "Balanced", hint: "Default mix of detail and speed" },
+              { value: "detailed", label: "Detailed", hint: "More explanation and context" },
+            ].map((style) => (
+              <button
+                key={style.value}
+                onClick={() => updateMut.mutate({ ai_response_style: style.value })}
+                className={`rounded-lg border px-4 py-3 text-left transition-colors ${prefs.ai_response_style === style.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-surface-hover"}`}
+              >
+                <div className="text-sm font-medium">{style.label}</div>
+                <div className="mt-1 text-xs">{style.hint}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Auto-summarize incidents</p>
+              <p className="text-xs text-muted-foreground">Bias the assistant toward summarising alert storms and incident context.</p>
+            </div>
+            <button onClick={() => updateMut.mutate({ ai_auto_summarize_incidents: !prefs.ai_auto_summarize_incidents })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${prefs.ai_auto_summarize_incidents ? "bg-primary" : "bg-muted"}`}>
+              <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" style={{ transform: `translateX(${prefs.ai_auto_summarize_incidents ? "22px" : "2px"})` }} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Include monitoring context by default</p>
+              <p className="text-xs text-muted-foreground">Prefer grounding assistant replies in current alerts, hosts, and incident data.</p>
+            </div>
+            <button onClick={() => updateMut.mutate({ ai_include_context: !prefs.ai_include_context })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${prefs.ai_include_context ? "bg-primary" : "bg-muted"}`}>
+              <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" style={{ transform: `translateX(${prefs.ai_include_context ? "22px" : "2px"})` }} />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ===================== APPEARANCE =====================
 function AppearanceSection() {
   const qc = useQueryClient();
@@ -714,6 +800,95 @@ function AppearanceSection() {
 
       {updateMut.isSuccess && <p className="text-xs text-success">Preferences saved.</p>}
     </motion.div>
+  );
+}
+
+// ===================== RETENTION =====================
+function RetentionSection() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["settings-retention"], queryFn: api.getRetentionPolicy });
+  const [form, setForm] = useState({ name: "Default retention", logs_days: 30, metrics_days: 30, alert_days: 90, incident_days: 180, run_days: 30, enabled: true });
+
+  useEffect(() => {
+    if (data) {
+      setForm({
+        name: data.name ?? "Default retention",
+        logs_days: Number(data.logs_days ?? 30),
+        metrics_days: Number(data.metrics_days ?? 30),
+        alert_days: Number(data.alert_days ?? 90),
+        incident_days: Number(data.incident_days ?? 180),
+        run_days: Number(data.run_days ?? 30),
+        enabled: Boolean(data.enabled),
+      });
+    }
+  }, [data]);
+
+  const updateMut = useMutation({
+    mutationFn: () => api.updateRetentionPolicy(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings-retention"] });
+      toast.success("Retention policy updated");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update retention policy"),
+  });
+
+  return (
+    <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
+      <motion.div variants={item}><PageHeader title="Retention" description="Control how long Vordr keeps operational history in this workspace" /></motion.div>
+
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-medium">Workspace retention policy</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Old data is pruned by the worker. There is no cold archive tier yet, so these windows are your size-control lever.</p>
+          </div>
+          <button onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.enabled ? "bg-primary" : "bg-muted"}`}>
+            <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: `translateX(${form.enabled ? "22px" : "2px"})` }} />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">Loading retention policy…</div>
+        ) : (
+          <>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Policy name</label>
+              <input value={form.name} onChange={e => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25" />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <NumberField label="Logs days" value={form.logs_days} onChange={(value) => setForm((f) => ({ ...f, logs_days: value }))} />
+              <NumberField label="Metrics days" value={form.metrics_days} onChange={(value) => setForm((f) => ({ ...f, metrics_days: value }))} />
+              <NumberField label="Alert days" value={form.alert_days} onChange={(value) => setForm((f) => ({ ...f, alert_days: value }))} />
+              <NumberField label="Incident days" value={form.incident_days} onChange={(value) => setForm((f) => ({ ...f, incident_days: value }))} />
+              <NumberField label="Run days" value={form.run_days} onChange={(value) => setForm((f) => ({ ...f, run_days: value }))} />
+            </div>
+
+            <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Current default: logs 30d, metrics 30d, alerts 90d, incidents 180d, runs 30d.
+            </div>
+
+            <div className="flex justify-end">
+              <button onClick={() => updateMut.mutate()} disabled={updateMut.isPending || !form.name.trim()}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {updateMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Save Retention Policy
+              </button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
+      <input type="number" min={1} value={value} onChange={e => onChange(Number(e.target.value) || 1)}
+        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25" />
+    </div>
   );
 }
 

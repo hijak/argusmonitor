@@ -6,9 +6,13 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { FilterDropdown } from "@/components/ui/filter-dropdown";
 import {
   AlertCircle,
+  ArrowUpDown,
   Box,
   CheckCircle,
+  ChevronDown,
+  ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock,
   Container,
   Cpu,
@@ -117,6 +121,9 @@ export default function KubernetesPage() {
   const [statusFilter, setStatusFilter] = useState<string>(() => localStorage.getItem("k8s.statusFilter") || "");
   const [search, setSearch] = useState<string>(() => localStorage.getItem("k8s.search") || "");
   const [groupByNamespace, setGroupByNamespace] = useState<boolean>(() => localStorage.getItem("k8s.groupByNamespace") === "1");
+  const [sortKey, setSortKey] = useState<string>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(0);
   const [showAddCluster, setShowAddCluster] = useState(false);
   const [newName, setNewName] = useState("");
   const [newKubeconfig, setNewKubeconfig] = useState("");
@@ -252,20 +259,73 @@ export default function KubernetesPage() {
     });
   }, [rawItems, search]);
 
+  const sortedItems = useMemo(() => {
+    const compareText = (left: any, right: any) => String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
+    const compareNumber = (left: any, right: any) => Number(left || 0) - Number(right || 0);
+    const sorted = [...filteredItems].sort((a: any, b: any) => {
+      let result = 0;
+      switch (sortKey) {
+        case "namespace": result = compareText(a.namespace, b.namespace); break;
+        case "status": result = compareText(a.status || a.type, b.status || b.type); break;
+        case "node": result = compareText(a.node_name, b.node_name); break;
+        case "ready": result = compareNumber((a.ready_containers ?? a.ready_replicas ?? a.number_ready ?? a.succeeded ?? 0), (b.ready_containers ?? b.ready_replicas ?? b.number_ready ?? b.succeeded ?? 0)); break;
+        case "restarts": result = compareNumber(a.restart_count, b.restart_count); break;
+        case "age": result = compareText(a.started_at || a.created_at || a.event_time || a.last_seen, b.started_at || b.created_at || b.event_time || b.last_seen); break;
+        case "type": result = compareText(a.service_type || a.kind || a.type, b.service_type || b.kind || b.type); break;
+        case "external": result = compareText(a.external_ip, b.external_ip); break;
+        case "ports": result = compareText((a.ports || []).map((p: any) => p.port).join(","), (b.ports || []).map((p: any) => p.port).join(",")); break;
+        case "role": result = compareText(a.role, b.role); break;
+        case "version": result = compareText(a.kubelet_version, b.kubelet_version); break;
+        case "cpu": result = compareNumber(a.cpu_usage_percent, b.cpu_usage_percent); break;
+        case "memory": result = compareNumber(a.memory_usage_percent, b.memory_usage_percent); break;
+        case "reason": result = compareText(a.reason, b.reason); break;
+        case "object": result = compareText(`${a.involved_kind || ""} ${a.involved_name || ""}`, `${b.involved_kind || ""} ${b.involved_name || ""}`); break;
+        case "name":
+        default:
+          result = compareText(a.name || a.involved_name, b.name || b.involved_name);
+      }
+      if (result === 0) result = compareText(a.name || a.involved_name, b.name || b.involved_name);
+      return sortDirection === "asc" ? result : -result;
+    });
+    return sorted;
+  }, [filteredItems, sortDirection, sortKey]);
+
   const groupedItems = useMemo(() => {
     if (!groupByNamespace || activeTab === "nodes" || activeTab === "overview") return null;
     const groups = new Map<string, any[]>();
-    filteredItems.forEach((item: any) => {
+    sortedItems.forEach((item: any) => {
       const key = item.namespace || "cluster";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(item);
     });
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredItems, groupByNamespace, activeTab]);
+  }, [sortedItems, groupByNamespace, activeTab]);
+
+  const pageSize = 25;
+  const pagedItems = useMemo(() => sortedItems.slice(page * pageSize, page * pageSize + pageSize), [sortedItems, page]);
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
 
   useEffect(() => {
     setSelectedResource(null);
   }, [activeTab, selectedCluster, namespaceFilter, search]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [activeTab, namespaceFilter, statusFilter, search, selectedCluster]);
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection((current) => current === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortKey(key);
+    setSortDirection(key === "age" ? "desc" : "asc");
+  };
+
+  const renderSortIcon = (key: string) => {
+    if (sortKey !== key) return <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />;
+    return sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />;
+  };
 
   const renderRows = (items: any[]) => {
     if (activeTab === "pods") {
@@ -372,21 +432,79 @@ export default function KubernetesPage() {
   const tableHead = () => {
     switch (activeTab) {
       case "pods":
-        return ["Name", "Namespace", "Status", "Ready", "Restarts", "Node", "Age"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "namespace", label: "Namespace" },
+          { key: "status", label: "Status" },
+          { key: "ready", label: "Ready" },
+          { key: "restarts", label: "Restarts" },
+          { key: "node", label: "Node" },
+          { key: "age", label: "Age" },
+        ];
       case "deployments":
-        return ["Name", "Namespace", "Status", "Ready", "Updated", "Available", "Age"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "namespace", label: "Namespace" },
+          { key: "status", label: "Status" },
+          { key: "ready", label: "Ready" },
+          { key: "updated", label: "Updated" },
+          { key: "available", label: "Available" },
+          { key: "age", label: "Age" },
+        ];
       case "statefulsets":
-        return ["Name", "Namespace", "Status", "Ready", "Service", "Age"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "namespace", label: "Namespace" },
+          { key: "status", label: "Status" },
+          { key: "ready", label: "Ready" },
+          { key: "service", label: "Service" },
+          { key: "age", label: "Age" },
+        ];
       case "daemonsets":
-        return ["Name", "Namespace", "Status", "Ready", "Updated", "Age"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "namespace", label: "Namespace" },
+          { key: "status", label: "Status" },
+          { key: "ready", label: "Ready" },
+          { key: "updated", label: "Updated" },
+          { key: "age", label: "Age" },
+        ];
       case "jobs":
-        return ["Name", "Namespace", "Kind", "Status", "Done", "Schedule", "Age"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "namespace", label: "Namespace" },
+          { key: "type", label: "Kind" },
+          { key: "status", label: "Status" },
+          { key: "ready", label: "Done" },
+          { key: "schedule", label: "Schedule" },
+          { key: "age", label: "Age" },
+        ];
       case "services":
-        return ["Name", "Namespace", "Type", "Cluster IP", "External", "Ports"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "namespace", label: "Namespace" },
+          { key: "type", label: "Type" },
+          { key: "cluster_ip", label: "Cluster IP" },
+          { key: "external", label: "External" },
+          { key: "ports", label: "Ports" },
+        ];
       case "nodes":
-        return ["Name", "Status", "Role", "Version", "CPU", "Memory"];
+        return [
+          { key: "name", label: "Name" },
+          { key: "status", label: "Status" },
+          { key: "role", label: "Role" },
+          { key: "version", label: "Version" },
+          { key: "cpu", label: "CPU" },
+          { key: "memory", label: "Memory" },
+        ];
       case "events":
-        return ["Type", "Reason", "Object", "Namespace", "Age"];
+        return [
+          { key: "status", label: "Type" },
+          { key: "reason", label: "Reason" },
+          { key: "object", label: "Object" },
+          { key: "namespace", label: "Namespace" },
+          { key: "age", label: "Age" },
+        ];
       default:
         return [];
     }
@@ -401,17 +519,17 @@ export default function KubernetesPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex h-[calc(100vh-5.5rem)] flex-col gap-4 overflow-hidden p-4 xl:h-[calc(100vh-6rem)]">
       <PageHeader title="Kubernetes" description="Lens-style read-only cluster views with compact operational focus">
         <button onClick={() => setShowAddCluster(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
           <Plus className="h-4 w-4" /> Add Cluster
         </button>
       </PageHeader>
 
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.45fr)_420px] xl:grid-cols-[minmax(0,1.25fr)_380px]">
-        <div className="space-y-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden 2xl:grid-cols-[minmax(0,1.45fr)_420px] xl:grid-cols-[minmax(0,1.25fr)_380px]">
+        <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
           {selectedClusterData && (
-            <div className="rounded-xl border border-border bg-card p-3 sm:p-4 lg:p-5">
+            <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2"><h2 className="text-lg font-semibold">{selectedClusterData.name}</h2><StatusBadge variant={selectedClusterData.status}>{selectedClusterData.status}</StatusBadge></div>
@@ -432,14 +550,15 @@ export default function KubernetesPage() {
                 <div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Jobs</div><div className="mt-1 text-xl font-semibold">{counts.jobs}</div></div>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 2xl:grid-cols-2 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 2xl:grid-cols-3 md:grid-cols-3">
                 <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><Cpu className="mr-1 inline h-3 w-3" />CPU</span><span className="font-mono">{selectedClusterData.cpu_usage_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(selectedClusterData.cpu_usage_percent, 100)}%` }} /></div></div>
                 <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><HardDrive className="mr-1 inline h-3 w-3" />Memory</span><span className="font-mono">{selectedClusterData.memory_usage_percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-warning" style={{ width: `${Math.min(selectedClusterData.memory_usage_percent, 100)}%` }} /></div></div>
+                <div className="rounded-lg border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="text-muted-foreground"><Container className="mr-1 inline h-3 w-3" />Max pods</span><span className="font-mono">{Math.min(100, Math.round(((selectedClusterData.pod_count || 0) / Math.max((selectedClusterData.node_count || 1) * 110, 1)) * 100))}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-success" style={{ width: `${Math.min(100, Math.round(((selectedClusterData.pod_count || 0) / Math.max((selectedClusterData.node_count || 1) * 110, 1)) * 100))}%` }} /></div><div className="mt-2 text-[11px] text-muted-foreground">{selectedClusterData.pod_count || 0} / {Math.max((selectedClusterData.node_count || 1) * 110, 1)} estimated pod slots</div></div>
               </div>
             </div>
           )}
 
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card overflow-hidden">
             <div className="sticky top-0 z-20 border-b border-border bg-card px-3 py-3 sm:px-4">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {resourceTabs.map((tab) => {
@@ -459,35 +578,46 @@ export default function KubernetesPage() {
               )}
             </div>
 
-            <div className="max-h-[72vh] min-h-[420px] overflow-auto xl:max-h-[76vh]">
+            <div className="min-h-0 flex-1 overflow-auto">
               {activeTab === "overview" && (
-                <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
-                  <div className="rounded-lg border border-border p-4"><h3 className="mb-3 text-sm font-semibold">Hotspots</h3><div className="space-y-2">{(stats?.top_restarting_pods || []).map((pod: any) => <button key={pod.id} onClick={() => { setActiveTab("pods"); setSelectedResource(pod); }} className="flex w-full items-center justify-between rounded-md bg-surface px-3 py-2 text-left text-sm hover:bg-surface/80"><div><div className="font-mono text-xs">{pod.name}</div><div className="text-xs text-muted-foreground">{pod.namespace}</div></div><div className="text-xs font-mono text-warning">{pod.restart_count} restarts</div></button>)}{(!stats?.top_restarting_pods || stats.top_restarting_pods.length === 0) && <p className="text-sm text-muted-foreground">No restart hotspots. Lovely.</p>}</div></div>
-                  <div className="rounded-lg border border-border p-4"><h3 className="mb-3 text-sm font-semibold">Current shape</h3><div className="space-y-3 text-sm"><div className="flex items-center justify-between"><span className="text-muted-foreground">Pod states</span><span className="font-mono text-xs">{JSON.stringify(stats?.pods_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Node states</span><span className="font-mono text-xs">{JSON.stringify(stats?.nodes_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Deployment health</span><span className="font-mono text-xs">{JSON.stringify(stats?.deployments_by_status || {})}</span></div></div></div>
-                  <div className="rounded-lg border border-border p-4 xl:col-span-2"><h3 className="mb-3 text-sm font-semibold">Recent warning events</h3><div className="space-y-2">{events.filter((evt: any) => evt.type === "Warning").slice(0, 8).map((evt: any) => <button key={evt.id} onClick={() => { setActiveTab("events"); setSelectedResource(evt); }} className="flex w-full items-start justify-between rounded-md bg-surface px-3 py-2 text-left hover:bg-surface/80"><div><div className="text-sm font-medium">{evt.reason || "Warning"}</div><div className="text-xs text-muted-foreground">{evt.namespace || "cluster"} · {evt.involved_kind || "Object"} / {evt.involved_name || "-"}</div></div><div className="text-xs text-muted-foreground">{fmtAge(evt.event_time || evt.last_seen)}</div></button>)}{events.filter((evt: any) => evt.type === "Warning").length === 0 && <p className="text-sm text-muted-foreground">No recent warning events.</p>}</div></div>
+                <div className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-2">
+                  <div className="rounded-lg border border-border p-3"><h3 className="mb-2 text-sm font-semibold">Hotspots</h3><div className="space-y-1.5">{(stats?.top_restarting_pods || []).map((pod: any) => <button key={pod.id} onClick={() => { setActiveTab("pods"); setSelectedResource(pod); }} className="flex w-full items-center justify-between rounded-md bg-surface px-3 py-2 text-left text-sm hover:bg-surface/80"><div><div className="font-mono text-xs">{pod.name}</div><div className="text-xs text-muted-foreground">{pod.namespace}</div></div><div className="text-xs font-mono text-warning">{pod.restart_count} restarts</div></button>)}{(!stats?.top_restarting_pods || stats.top_restarting_pods.length === 0) && <p className="text-sm text-muted-foreground">No restart hotspots. Lovely.</p>}</div></div>
+                  <div className="rounded-lg border border-border p-3"><h3 className="mb-2 text-sm font-semibold">Current shape</h3><div className="space-y-2 text-sm"><div className="flex items-center justify-between"><span className="text-muted-foreground">Pod states</span><span className="font-mono text-xs">{JSON.stringify(stats?.pods_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Node states</span><span className="font-mono text-xs">{JSON.stringify(stats?.nodes_by_status || {})}</span></div><div className="flex items-center justify-between"><span className="text-muted-foreground">Deployment health</span><span className="font-mono text-xs">{JSON.stringify(stats?.deployments_by_status || {})}</span></div></div></div>
+                  <div className="rounded-lg border border-border p-3 xl:col-span-2"><h3 className="mb-2 text-sm font-semibold">Recent warning events</h3><div className="space-y-1.5">{events.filter((evt: any) => evt.type === "Warning").slice(0, 8).map((evt: any) => <button key={evt.id} onClick={() => { setActiveTab("events"); setSelectedResource(evt); }} className="flex w-full items-start justify-between rounded-md bg-surface px-3 py-2 text-left hover:bg-surface/80"><div><div className="text-sm font-medium">{evt.reason || "Warning"}</div><div className="text-xs text-muted-foreground">{evt.namespace || "cluster"} · {evt.involved_kind || "Object"} / {evt.involved_name || "-"}</div></div><div className="text-xs text-muted-foreground">{fmtAge(evt.event_time || evt.last_seen)}</div></button>)}{events.filter((evt: any) => evt.type === "Warning").length === 0 && <p className="text-sm text-muted-foreground">No recent warning events.</p>}</div></div>
 
-                  <div className="rounded-lg border border-border p-4 xl:col-span-2"><h3 className="mb-3 text-sm font-semibold">Namespace dashboards</h3><div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3 xl:grid-cols-2">{namespaceDashboards.slice(0, 9).map((ns: any) => <button key={ns.name} onClick={() => { setNamespaceFilter(ns.name); setActiveTab("overview"); }} className="rounded-lg border border-border bg-surface/60 p-3 text-left hover:border-primary/30 hover:bg-surface"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold">{ns.name}</div><div className="mt-1 text-xs text-muted-foreground">{ns.podCount} pods · {ns.deploymentCount} deployments · {ns.serviceCount} services</div></div><div className="text-right text-xs"><div className={`${ns.warningCount > 0 ? "text-warning" : "text-muted-foreground"}`}>{ns.warningCount} warn</div><div className={`${ns.restartTotal > 0 ? "text-primary" : "text-muted-foreground"}`}>{ns.restartTotal} restarts</div></div></div>{ns.unhealthyDeployments.length > 0 && <div className="mt-3 text-xs text-warning">Unhealthy: {ns.unhealthyDeployments.slice(0, 2).map((d: any) => d.name).join(", ")}</div>}{ns.exposedServices.length > 0 && <div className="mt-2 text-xs text-muted-foreground">Exposed: {ns.exposedServices.slice(0, 2).map((s: any) => s.name).join(", ")}</div>}</button>)}</div></div>
+                  <div className="rounded-lg border border-border p-3 xl:col-span-2"><h3 className="mb-2 text-sm font-semibold">Namespace dashboards</h3><div className="grid grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-3 xl:grid-cols-2">{namespaceDashboards.slice(0, 9).map((ns: any) => <div key={ns.name} className="rounded-lg border border-border bg-surface/60 p-3 text-left"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold">{ns.name}</div><div className="mt-1 text-xs text-muted-foreground">{ns.podCount} pods · {ns.deploymentCount} deployments · {ns.serviceCount} services</div></div><div className="text-right text-xs"><div className={`${ns.warningCount > 0 ? "text-warning" : "text-muted-foreground"}`}>{ns.warningCount} warn</div><div className={`${ns.restartTotal > 0 ? "text-primary" : "text-muted-foreground"}`}>{ns.restartTotal} restarts</div></div></div>{ns.unhealthyDeployments.length > 0 && <div className="mt-3 text-xs text-warning">Unhealthy: {ns.unhealthyDeployments.slice(0, 2).map((d: any) => d.name).join(", ")}</div>}{ns.exposedServices.length > 0 && <div className="mt-2 text-xs text-muted-foreground">Exposed: {ns.exposedServices.slice(0, 2).map((s: any) => s.name).join(", ")}</div>}</div>)}</div></div>
                 </div>
               )}
 
               {activeTab !== "overview" && (
-                <table className="w-full min-w-[820px] text-sm xl:min-w-full">
-                  <thead className="sticky top-0 bg-card z-10">
-                    <tr className="border-b border-border text-left text-xs text-muted-foreground">{tableHead().map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {groupedItems ? groupedItems.flatMap(([group, items]) => [
-                      <GroupHeaderRow key={`group-${group}`} title={group} count={items.length} colSpan={tableHead().length} />,
-                      ...renderRows(items),
-                    ]) : renderRows(filteredItems)}
-                  </tbody>
-                </table>
+                <>
+                  <table className="w-full min-w-[820px] text-sm xl:min-w-full">
+                    <thead className="sticky top-0 bg-card z-10">
+                      <tr className="border-b border-border text-left text-xs text-muted-foreground">{tableHead().map((h: any) => <th key={h.key} className="px-4 py-3"><button type="button" onClick={() => toggleSort(h.key)} className="flex items-center gap-1 text-left">{h.label}{renderSortIcon(h.key)}</button></th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {groupedItems ? groupedItems.flatMap(([group, items]) => [
+                        <GroupHeaderRow key={`group-${group}`} title={group} count={items.length} colSpan={tableHead().length} />,
+                        ...renderRows(items),
+                      ]) : renderRows(pagedItems)}
+                    </tbody>
+                  </table>
+                  {!groupedItems && sortedItems.length > pageSize && (
+                    <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                      <span>Page {page + 1} of {totalPages} · {sortedItems.length} items</span>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 disabled:opacity-40"><ChevronLeft className="h-3.5 w-3.5" />Prev</button>
+                        <button type="button" onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))} disabled={page >= totalPages - 1} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 disabled:opacity-40">Next<ChevronRight className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <div className="min-h-0 space-y-4 overflow-auto xl:sticky xl:top-4 xl:self-start xl:max-h-[calc(100vh-6rem)]">
           <div className="rounded-xl border border-border bg-card p-3">
             <div className="mb-3 flex items-center justify-between px-1"><h3 className="text-sm font-semibold">Clusters</h3><span className="text-xs text-muted-foreground">{clusters.length}</span></div>
             <div className="space-y-2">

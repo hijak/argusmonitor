@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AlertInstance, HostMetric, Incident, LogEntry, RetentionPolicy, ServiceMetric, TransactionRun
+from app.models import AlertInstance, Host, HostMetric, Incident, LogEntry, RetentionPolicy, ServiceMetric, TransactionRun
 
 
 async def apply_retention(db: AsyncSession) -> dict[str, int]:
@@ -27,7 +27,10 @@ async def apply_retention(db: AsyncSession) -> dict[str, int]:
             )
         )
         metric_result = await db.execute(
-            delete(HostMetric).where(HostMetric.recorded_at < thresholds["metrics"])
+            delete(HostMetric).where(
+                HostMetric.recorded_at < thresholds["metrics"],
+                HostMetric.host_id.in_(select(Host.id).where(Host.workspace_id == policy.workspace_id)),
+            )
         )
         service_metric_result = await db.execute(
             delete(ServiceMetric).where(

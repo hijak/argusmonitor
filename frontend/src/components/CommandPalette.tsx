@@ -14,7 +14,8 @@ interface CommandPaletteProps {
 }
 
 const pageCommands = [
-  { label: "Overview", icon: Activity, url: "/" },
+  { label: "Overview", icon: Bell, url: "/" },
+  { label: "Dashboard", icon: Activity, url: "/dashboard" },
   { label: "Infrastructure", icon: Server, url: "/infrastructure" },
   { label: "Services", icon: Globe, url: "/services" },
   { label: "Transactions", icon: Zap, url: "/transactions" },
@@ -32,6 +33,7 @@ const settingsItems = [
   { label: "Security", description: "API keys and access control", icon: Shield, url: "/settings", section: "security" },
   { label: "Integrations", description: "Slack, PagerDuty, webhooks", icon: Plug, url: "/settings", section: "integrations" },
   { label: "Appearance", description: "Theme, timezone, date format", icon: Palette, url: "/settings", section: "appearance" },
+  { label: "AI Assistant", description: "Model, response style, and assistant defaults", icon: Bot, url: "/settings", section: "ai" },
   { label: "Agents", description: "Monitoring agents and endpoints", icon: Monitor, url: "/settings", section: "agents" },
 ];
 

@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, hash_api_key
@@ -11,6 +12,7 @@ from app.database import get_db
 from app.models import (
     APIVersion,
     AdminAnnouncement,
+    AlertInstance,
     AlertSilence,
     AuditLog,
     ComplianceReport,
@@ -22,6 +24,7 @@ from app.models import (
     Organization,
     RetentionPolicy,
     SAMLProvider,
+    Service,
     SCIMGroupMapping,
     SCIMToken,
     SupportTicket,
@@ -138,6 +141,16 @@ async def create_workspace(
     db.add(workspace)
     await db.flush()
     db.add(WorkspaceMembership(workspace_id=workspace.id, user_id=current_user.id, role="owner"))
+    db.add(RetentionPolicy(
+        workspace_id=workspace.id,
+        name="Default retention",
+        logs_days=30,
+        metrics_days=30,
+        alert_days=90,
+        incident_days=180,
+        run_days=30,
+        enabled=True,
+    ))
     await db.flush()
     await record_audit_event(
         db,
@@ -557,19 +570,55 @@ async def create_compliance_report(
     current_user: User = Depends(get_current_user),
 ):
     await require_workspace_role(db, workspace_id=req.workspace_id, user_id=current_user.id, allowed_roles=ADMIN_ROLES)
+    audit_events = (
+        await db.execute(
+            select(func.count(AuditLog.id)).where(
+                AuditLog.workspace_id == req.workspace_id,
+                AuditLog.created_at >= req.period_start,
+                AuditLog.created_at <= req.period_end,
+            )
+        )
+    ).scalar_one()
+    alerts = (
+        await db.execute(
+            select(func.count(AlertInstance.id)).where(
+                AlertInstance.workspace_id == req.workspace_id,
+                AlertInstance.created_at >= req.period_start,
+                AlertInstance.created_at <= req.period_end,
+            )
+        )
+    ).scalar_one()
+    services_total = (
+        await db.execute(select(func.count(Service.id)).where(Service.workspace_id == req.workspace_id))
+    ).scalar_one()
+    services_down = (
+        await db.execute(
+            select(func.count(Service.id)).where(
+                Service.workspace_id == req.workspace_id,
+                Service.status.in_(["down", "degraded"]),
+            )
+        )
+    ).scalar_one()
     report = ComplianceReport(
         workspace_id=req.workspace_id,
         report_type=req.report_type,
         period_start=req.period_start,
         period_end=req.period_end,
         status="completed",
-        summary={"audit_events": 0, "alerts": 0, "incidents": 0},
-        download_url=f"/api/enterprise/compliance-reports/{uuid4()}.json",
+        summary={
+            "audit_events": audit_events,
+            "alerts": alerts,
+            "services_total": services_total,
+            "services_down_or_degraded": services_down,
+            "window_days": max(1, (req.period_end - req.period_start).days),
+        },
+        download_url="",
         generated_at=datetime.now(timezone.utc),
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
     )
     db.add(report)
     await db.flush()
+    report.download_url = f"/api/enterprise/compliance-reports/{report.id}/download"
     await record_audit_event(
         db,
         action="compliance_report.create",
@@ -608,13 +657,14 @@ async def create_data_export(
         format=req.format,
         filters=req.filters,
         status="completed",
-        download_url=f"/api/enterprise/exports/{uuid4()}.{req.format}",
+        download_url="",
         generated_at=datetime.now(timezone.utc),
         expires_at=datetime.now(timezone.utc) + timedelta(days=7),
         created_by_user_id=current_user.id,
     )
     db.add(export)
     await db.flush()
+    export.download_url = f"/api/enterprise/exports/{export.id}/download"
     await record_audit_event(
         db,
         action="data_export.create",
@@ -637,6 +687,59 @@ async def list_data_exports(
 ):
     result = await db.execute(select(DataExport).where(DataExport.workspace_id == workspace_id).order_by(DataExport.created_at.desc()))
     return result.scalars().all()
+
+
+@router.get("/compliance-reports/{report_id}/download")
+async def download_compliance_report(
+    report_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    report = await db.get(ComplianceReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    await require_workspace_role(db, workspace_id=report.workspace_id, user_id=current_user.id, allowed_roles={"owner", "admin", "member", "viewer"})
+    payload = {
+        "id": str(report.id),
+        "workspace_id": str(report.workspace_id),
+        "report_type": report.report_type,
+        "status": report.status,
+        "period_start": report.period_start.isoformat(),
+        "period_end": report.period_end.isoformat(),
+        "generated_at": report.generated_at.isoformat() if report.generated_at else None,
+        "expires_at": report.expires_at.isoformat() if report.expires_at else None,
+        "summary": report.summary or {},
+    }
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": f'attachment; filename="compliance-report-{report.report_type}-{report.id}.json"'},
+    )
+
+
+@router.get("/exports/{export_id}/download")
+async def download_data_export(
+    export_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    export = await db.get(DataExport, export_id)
+    if not export:
+        raise HTTPException(status_code=404, detail="Export not found")
+    await require_workspace_role(db, workspace_id=export.workspace_id, user_id=current_user.id, allowed_roles={"owner", "admin", "member", "viewer"})
+    payload = {
+        "id": str(export.id),
+        "workspace_id": str(export.workspace_id),
+        "export_type": export.export_type,
+        "format": export.format,
+        "status": export.status,
+        "filters": export.filters or {},
+        "generated_at": export.generated_at.isoformat() if export.generated_at else None,
+        "expires_at": export.expires_at.isoformat() if export.expires_at else None,
+    }
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": f'attachment; filename="data-export-{export.export_type}-{export.id}.{export.format or "json"}"'},
+    )
 
 
 @router.post("/support/tickets", response_model=SupportTicketOut, status_code=201)

@@ -147,13 +147,29 @@ async def list_nodes(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     await _get_cluster(db, cluster_id, workspace.id)
-    return (
+    rows = (
         await db.execute(
             select(ProxmoxNode)
             .where(ProxmoxNode.cluster_id == cluster_id)
             .order_by(ProxmoxNode.node)
         )
     ).scalars().all()
+
+    deduped: dict[str, ProxmoxNode] = {}
+    for row in rows:
+        key = row.node or ""
+        current = deduped.get(key)
+        if current is None:
+            deduped[key] = row
+            continue
+        current_score = int(bool(current.ip_address)) + int((current.memory_total_bytes or 0) > 0) + int((current.max_cpu or 0) > 0)
+        row_score = int(bool(row.ip_address)) + int((row.memory_total_bytes or 0) > 0) + int((row.max_cpu or 0) > 0)
+        if row_score > current_score:
+            deduped[key] = row
+        elif row_score == current_score and (row.last_seen or 0) > (current.last_seen or 0):
+            deduped[key] = row
+
+    return sorted(deduped.values(), key=lambda row: row.node or "")
 
 
 @router.get("/clusters/{cluster_id}/vms", response_model=list[ProxmoxVMOut])
@@ -269,13 +285,30 @@ async def cluster_stats(
             .group_by(ProxmoxContainer.status)
         )
     ).all()
-    node_states = (
+    node_rows = (
         await db.execute(
-            select(ProxmoxNode.status, func.count(ProxmoxNode.id))
+            select(ProxmoxNode)
             .where(ProxmoxNode.cluster_id == cluster_id)
-            .group_by(ProxmoxNode.status)
+            .order_by(ProxmoxNode.node)
         )
-    ).all()
+    ).scalars().all()
+    deduped_nodes: dict[str, ProxmoxNode] = {}
+    for row in node_rows:
+        key = row.node or ""
+        current = deduped_nodes.get(key)
+        if current is None:
+            deduped_nodes[key] = row
+            continue
+        current_score = int(bool(current.ip_address)) + int((current.memory_total_bytes or 0) > 0) + int((current.max_cpu or 0) > 0)
+        row_score = int(bool(row.ip_address)) + int((row.memory_total_bytes or 0) > 0) + int((row.max_cpu or 0) > 0)
+        if row_score > current_score:
+            deduped_nodes[key] = row
+        elif row_score == current_score and (row.last_seen or 0) > (current.last_seen or 0):
+            deduped_nodes[key] = row
+    node_states: dict[str, int] = {}
+    for row in deduped_nodes.values():
+        status = row.status or "unknown"
+        node_states[status] = node_states.get(status, 0) + 1
     recent_failed = (
         await db.execute(
             select(ProxmoxTask)
@@ -288,8 +321,8 @@ async def cluster_stats(
         "cluster": ProxmoxClusterOut.model_validate(cluster),
         "vms_by_status": {row[0] or "unknown": row[1] for row in vm_states},
         "containers_by_status": {row[0] or "unknown": row[1] for row in ct_states},
-        "nodes_by_status": {row[0] or "unknown": row[1] for row in node_states},
-        "node_count": (await db.execute(select(func.count(ProxmoxNode.id)).where(ProxmoxNode.cluster_id == cluster_id))).scalar_one(),
+        "nodes_by_status": node_states,
+        "node_count": len(deduped_nodes),
         "vm_count": (await db.execute(select(func.count(ProxmoxVM.id)).where(ProxmoxVM.cluster_id == cluster_id))).scalar_one(),
         "container_count": (await db.execute(select(func.count(ProxmoxContainer.id)).where(ProxmoxContainer.cluster_id == cluster_id))).scalar_one(),
         "storage_count": (await db.execute(select(func.count(ProxmoxStorage.id)).where(ProxmoxStorage.cluster_id == cluster_id))).scalar_one(),

@@ -206,30 +206,31 @@ async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) ->
     now = datetime.now(timezone.utc)
     cluster_name = None
     quorum = None
+    nodes_by_name: dict[str, dict[str, Any]] = {}
 
     for item in cluster_status or []:
         if item.get("type") == "cluster":
             cluster_name = item.get("name") or cluster_name
             quorum = item.get("quorate")
         elif item.get("type") == "node":
-            db.add(
-                ProxmoxNode(
-                    cluster_id=cluster.id,
-                    node=item.get("name") or item.get("node"),
-                    status=item.get("online") and "online" or "offline",
-                    level=item.get("level"),
-                    ip_address=item.get("ip"),
-                    cpu_percent=0,
-                    memory_used_bytes=0,
-                    memory_total_bytes=0,
-                    rootfs_used_bytes=0,
-                    rootfs_total_bytes=0,
-                    uptime_seconds=0,
-                    max_cpu=0,
-                    ssl_fingerprint=None,
-                    last_seen=now,
-                )
-            )
+            node_name = str(item.get("name") or item.get("node") or "").strip()
+            if not node_name:
+                continue
+            nodes_by_name[node_name] = {
+                "node": node_name,
+                "status": item.get("online") and "online" or "offline",
+                "level": item.get("level"),
+                "ip_address": item.get("ip"),
+                "cpu_percent": 0,
+                "memory_used_bytes": 0,
+                "memory_total_bytes": 0,
+                "rootfs_used_bytes": 0,
+                "rootfs_total_bytes": 0,
+                "uptime_seconds": 0,
+                "max_cpu": 0,
+                "ssl_fingerprint": None,
+                "last_seen": now,
+            }
 
     node_seen: set[str] = set()
     vm_count = 0
@@ -239,26 +240,40 @@ async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) ->
     for resource in resources or []:
         rtype = resource.get("type")
         if rtype == "node":
-            node_name = resource.get("node") or resource.get("name")
-            node_seen.add(str(node_name))
-            db.add(
-                ProxmoxNode(
-                    cluster_id=cluster.id,
-                    node=node_name,
-                    status=resource.get("status") or (resource.get("online") and "online" or "unknown"),
-                    level=resource.get("level"),
-                    ip_address=resource.get("ip"),
-                    cpu_percent=float(resource.get("cpu") or 0) * 100,
-                    memory_used_bytes=int(resource.get("mem") or 0),
-                    memory_total_bytes=int(resource.get("maxmem") or 0),
-                    rootfs_used_bytes=int(resource.get("disk") or 0),
-                    rootfs_total_bytes=int(resource.get("maxdisk") or 0),
-                    uptime_seconds=int(resource.get("uptime") or 0),
-                    max_cpu=int(resource.get("maxcpu") or 0),
-                    ssl_fingerprint=resource.get("ssl_fingerprint"),
-                    last_seen=now,
-                )
-            )
+            node_name = str(resource.get("node") or resource.get("name") or "").strip()
+            if not node_name:
+                continue
+            node_seen.add(node_name)
+            current = nodes_by_name.get(node_name, {
+                "node": node_name,
+                "status": "unknown",
+                "level": None,
+                "ip_address": None,
+                "cpu_percent": 0,
+                "memory_used_bytes": 0,
+                "memory_total_bytes": 0,
+                "rootfs_used_bytes": 0,
+                "rootfs_total_bytes": 0,
+                "uptime_seconds": 0,
+                "max_cpu": 0,
+                "ssl_fingerprint": None,
+                "last_seen": now,
+            })
+            current.update({
+                "status": resource.get("status") or current.get("status") or (resource.get("online") and "online" or "unknown"),
+                "level": resource.get("level") or current.get("level"),
+                "ip_address": resource.get("ip") or current.get("ip_address"),
+                "cpu_percent": float(resource.get("cpu") or 0) * 100,
+                "memory_used_bytes": int(resource.get("mem") or 0),
+                "memory_total_bytes": int(resource.get("maxmem") or 0),
+                "rootfs_used_bytes": int(resource.get("disk") or 0),
+                "rootfs_total_bytes": int(resource.get("maxdisk") or 0),
+                "uptime_seconds": int(resource.get("uptime") or 0),
+                "max_cpu": int(resource.get("maxcpu") or 0),
+                "ssl_fingerprint": resource.get("ssl_fingerprint") or current.get("ssl_fingerprint"),
+                "last_seen": now,
+            })
+            nodes_by_name[node_name] = current
         elif rtype == "qemu":
             vm_count += 1
             vmid = int(resource.get("vmid") or 0)
@@ -339,6 +354,9 @@ async def discover_proxmox_cluster(db: AsyncSession, cluster: ProxmoxCluster) ->
                     last_seen=now,
                 )
             )
+
+    for node_payload in nodes_by_name.values():
+        db.add(ProxmoxNode(cluster_id=cluster.id, **node_payload))
 
     for task in tasks or []:
         start = datetime.fromtimestamp(task.get("starttime"), tz=timezone.utc) if task.get("starttime") else None

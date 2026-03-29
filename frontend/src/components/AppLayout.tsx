@@ -28,7 +28,8 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { useAppMeta } from "@/contexts/AppMetaContext";
 
 const navItems = [
-  { label: "Overview", icon: Activity, path: "/" },
+  { label: "Overview", icon: Bell, path: "/" },
+  { label: "Dashboard", icon: Activity, path: "/dashboard" },
   { label: "Infrastructure", icon: Server, path: "/infrastructure" },
   { label: "Services", icon: Globe, path: "/services" },
   { label: "Transactions", icon: Zap, path: "/transactions" },

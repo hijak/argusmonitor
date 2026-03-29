@@ -1,14 +1,14 @@
 from uuid import UUID
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import inspect, select, text, update
+from sqlalchemy import inspect, select, text, update, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import AlertRule, AlertInstance, EscalationPolicy, OnCallTeam, User, Workspace
-from app.schemas import AlertRuleCreate, AlertRuleOut, AlertPresetOut, AlertAcknowledgeRequest, AlertIngestRequest, AlertResolveRequest, AlertSeverityUpdateRequest, AlertInstanceOut
+from app.schemas import AlertRuleCreate, AlertRuleOut, AlertPresetOut, AlertAcknowledgeRequest, AlertIngestRequest, AlertResolveRequest, BulkAlertAcknowledgeRequest, BulkAlertResolveRequest, AlertSeverityUpdateRequest, AlertInstanceOut, AlertSummaryOut
 from app.services.alert_presets import ALERT_PRESETS
-from app.services.alerts import emit_alert
+from app.services.alerts import emit_alert, build_alert_fingerprint, resolve_alert_by_fingerprint
 from app.auth import get_current_user
 from app.services.workspace import get_current_workspace
 
@@ -55,6 +55,23 @@ async def _ensure_alert_schema(db: AsyncSession) -> None:
                 connection.execute(text("ALTER TABLE alert_instances ADD COLUMN resolution_message TEXT"))
             if "ownership" not in instance_columns:
                 connection.execute(text("ALTER TABLE alert_instances ADD COLUMN ownership JSON DEFAULT '{}'::json"))
+            if "fingerprint" not in instance_columns:
+                connection.execute(text("ALTER TABLE alert_instances ADD COLUMN fingerprint VARCHAR(255)"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_instances_fingerprint ON alert_instances(fingerprint)"))
+            if "occurrence_count" not in instance_columns:
+                connection.execute(text("ALTER TABLE alert_instances ADD COLUMN occurrence_count INTEGER NOT NULL DEFAULT 1"))
+            if "first_fired_at" not in instance_columns:
+                connection.execute(text("ALTER TABLE alert_instances ADD COLUMN first_fired_at TIMESTAMPTZ"))
+            if "last_fired_at" not in instance_columns:
+                connection.execute(text("ALTER TABLE alert_instances ADD COLUMN last_fired_at TIMESTAMPTZ"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_alert_instances_last_fired_at ON alert_instances(last_fired_at)"))
+            connection.execute(text("""
+                UPDATE alert_instances
+                SET occurrence_count = COALESCE(occurrence_count, 1),
+                    first_fired_at = COALESCE(first_fired_at, created_at),
+                    last_fired_at = COALESCE(last_fired_at, created_at),
+                    fingerprint = COALESCE(fingerprint, md5(concat_ws('|', COALESCE(workspace_id::text, ''), COALESCE(rule_id::text, ''), COALESCE(host, ''), COALESCE(service, ''), COALESCE(message, ''))))
+            """))
 
         if "alert_rules" in tables:
             rule_columns = {c["name"] for c in inspector.get_columns("alert_rules")}
@@ -80,39 +97,40 @@ async def ingest_alert(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     await _ensure_alert_schema(db)
-    alert, suppression = await emit_alert(
-        db,
+    status_value = (req.status or "firing").strip().lower()
+    fingerprint = build_alert_fingerprint(
         workspace_id=workspace.id,
         message=req.message,
-        severity=req.severity,
         host=req.host,
         service=req.service,
-        metadata={**(req.metadata or {}), "ownership": req.ownership or {}},
+        rule=None,
+        fingerprint=req.fingerprint,
     )
-    if not alert and suppression:
-        raise HTTPException(status_code=409, detail={"suppressed": True, **suppression})
-    assigned_user = None
-    if alert.assigned_user_id:
-        assigned_user = await db.get(User, alert.assigned_user_id)
-    return AlertInstanceOut(
-        id=alert.id,
-        rule_id=alert.rule_id,
-        assigned_user_id=alert.assigned_user_id,
-        assigned_team_id=alert.assigned_team_id,
-        message=alert.message,
-        severity=alert.severity,
-        service=alert.service,
-        host=alert.host,
-        ownership=alert.ownership or {},
-        acknowledged=alert.acknowledged,
-        acknowledged_by=alert.acknowledged_by,
-        acknowledged_at=alert.acknowledged_at,
-        acknowledgment_reason=alert.acknowledgment_reason,
-        resolution_message=alert.resolution_message,
-        resolved=alert.resolved,
-        created_at=alert.created_at,
-        assigned_user=assigned_user,
-    )
+
+    if status_value in {"resolved", "recovered", "recovery", "ok"}:
+        alert = await resolve_alert_by_fingerprint(
+            db,
+            workspace_id=workspace.id,
+            fingerprint=fingerprint,
+            resolution_message=req.message,
+        )
+        if not alert:
+            raise HTTPException(status_code=404, detail="Active alert not found for recovery fingerprint")
+    else:
+        alert, suppression = await emit_alert(
+            db,
+            workspace_id=workspace.id,
+            message=req.message,
+            severity=req.severity,
+            host=req.host,
+            service=req.service,
+            metadata={**(req.metadata or {}), "ownership": req.ownership or {}, "status": status_value},
+            fingerprint=fingerprint,
+        )
+        if not alert and suppression:
+            raise HTTPException(status_code=409, detail={"suppressed": True, **suppression})
+
+    return await _serialize_alert(db, alert)
 
 
 @router.get("/rules", response_model=list[AlertRuleOut])
@@ -136,6 +154,36 @@ async def _validate_rule_links(db: AsyncSession, workspace: Workspace, req: Aler
         policy = await db.get(EscalationPolicy, req.escalation_policy_id)
         if not policy or str(policy.workspace_id) != str(workspace.id):
             raise HTTPException(status_code=404, detail="Escalation policy not found")
+
+
+async def _serialize_alert(db: AsyncSession, alert: AlertInstance) -> AlertInstanceOut:
+    assigned_user = None
+    if alert.assigned_user_id:
+        assigned_user = await db.get(User, alert.assigned_user_id)
+    return AlertInstanceOut(
+        id=alert.id,
+        rule_id=alert.rule_id,
+        assigned_user_id=alert.assigned_user_id,
+        assigned_team_id=alert.assigned_team_id,
+        fingerprint=alert.fingerprint,
+        occurrence_count=alert.occurrence_count or 1,
+        first_fired_at=alert.first_fired_at,
+        last_fired_at=alert.last_fired_at,
+        message=alert.message,
+        severity=alert.severity,
+        service=alert.service,
+        host=alert.host,
+        ownership=alert.ownership or {},
+        acknowledged=alert.acknowledged,
+        acknowledged_by=alert.acknowledged_by,
+        acknowledged_at=alert.acknowledged_at,
+        acknowledgment_reason=alert.acknowledgment_reason,
+        resolution_message=alert.resolution_message,
+        resolved=alert.resolved,
+        resolved_at=alert.resolved_at,
+        created_at=alert.created_at,
+        assigned_user=assigned_user,
+    )
 
 
 @router.post("/rules", response_model=AlertRuleOut, status_code=201)
@@ -213,6 +261,7 @@ async def delete_rule(
 async def list_alerts(
     severity: str | None = None,
     acknowledged: bool | None = None,
+    resolved: bool | None = None,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -224,6 +273,8 @@ async def list_alerts(
         q = q.where(AlertInstance.severity == severity)
     if acknowledged is not None:
         q = q.where(AlertInstance.acknowledged == acknowledged)
+    if resolved is not None:
+        q = q.where(AlertInstance.resolved == resolved)
     result = await db.execute(q)
     alerts = result.scalars().all()
 
@@ -239,6 +290,10 @@ async def list_alerts(
             rule_id=alert.rule_id,
             assigned_user_id=alert.assigned_user_id,
             assigned_team_id=alert.assigned_team_id,
+            fingerprint=alert.fingerprint,
+            occurrence_count=alert.occurrence_count or 1,
+            first_fired_at=alert.first_fired_at,
+            last_fired_at=alert.last_fired_at,
             message=alert.message,
             severity=alert.severity,
             service=alert.service,
@@ -255,6 +310,36 @@ async def list_alerts(
         )
         for alert in alerts
     ]
+
+
+@router.get("/summary", response_model=AlertSummaryOut)
+async def alert_summary(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    await _ensure_alert_schema(db)
+    stmt = select(
+        func.count(AlertInstance.id).label("all"),
+        func.sum(case((AlertInstance.resolved.is_(False), 1), else_=0)).label("active"),
+        func.sum(case((AlertInstance.resolved.is_(True), 1), else_=0)).label("resolved"),
+        func.sum(case((AlertInstance.severity == "critical", 1), else_=0)).label("critical"),
+        func.sum(case((AlertInstance.severity == "warning", 1), else_=0)).label("warning"),
+        func.sum(case((AlertInstance.severity == "info", 1), else_=0)).label("info"),
+        func.sum(case((AlertInstance.acknowledged.is_(True), 1), else_=0)).label("acknowledged"),
+        func.sum(case((((AlertInstance.assigned_user_id.is_not(None)) | (AlertInstance.assigned_team_id.is_not(None))), 1), else_=0)).label("routed"),
+    ).where(AlertInstance.workspace_id == workspace.id)
+    row = (await db.execute(stmt)).one()
+    return AlertSummaryOut(
+        active=int(row.active or 0),
+        resolved=int(row.resolved or 0),
+        all=int(row.all or 0),
+        critical=int(row.critical or 0),
+        warning=int(row.warning or 0),
+        info=int(row.info or 0),
+        acknowledged=int(row.acknowledged or 0),
+        routed=int(row.routed or 0),
+    )
 
 
 @router.post("/{alert_id}/acknowledge", response_model=AlertInstanceOut)
@@ -277,27 +362,75 @@ async def acknowledge_alert(
     alert.acknowledgment_reason = (req.reason.strip() if req and req.reason else None)
     await db.flush()
     await db.refresh(alert)
-    assigned_user = None
-    if alert.assigned_user_id:
-        assigned_user = await db.get(User, alert.assigned_user_id)
-    return AlertInstanceOut(
-        id=alert.id,
-        rule_id=alert.rule_id,
-        assigned_user_id=alert.assigned_user_id,
-        assigned_team_id=alert.assigned_team_id,
-        message=alert.message,
-        severity=alert.severity,
-        service=alert.service,
-        host=alert.host,
-        ownership=alert.ownership or {},
-        acknowledged=alert.acknowledged,
-        acknowledged_by=alert.acknowledged_by,
-        acknowledged_at=alert.acknowledged_at,
-        acknowledgment_reason=alert.acknowledgment_reason,
-        resolved=alert.resolved,
-        created_at=alert.created_at,
-        assigned_user=assigned_user,
+    return await _serialize_alert(db, alert)
+
+
+@router.post("/acknowledge/bulk", response_model=list[AlertInstanceOut])
+async def bulk_acknowledge_alerts(
+    req: BulkAlertAcknowledgeRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    await _ensure_alert_schema(db)
+    alert_ids = list(dict.fromkeys(req.alert_ids or []))
+    if not alert_ids:
+        raise HTTPException(status_code=400, detail="No alerts selected")
+
+    result = await db.execute(
+        select(AlertInstance)
+        .where(AlertInstance.workspace_id == workspace.id, AlertInstance.id.in_(alert_ids))
+        .order_by(AlertInstance.created_at.desc())
     )
+    alerts = result.scalars().all()
+    if not alerts:
+        raise HTTPException(status_code=404, detail="Alerts not found")
+
+    now = datetime.now(timezone.utc)
+    reason = (req.reason or "").strip() or None
+    for alert in alerts:
+        if alert.resolved:
+            continue
+        alert.acknowledged = True
+        alert.acknowledged_by = user.name
+        alert.acknowledged_at = now
+        alert.acknowledgment_reason = reason
+    await db.flush()
+    return [await _serialize_alert(db, alert) for alert in alerts]
+
+
+@router.post("/bulk/resolve", response_model=list[AlertInstanceOut])
+async def bulk_resolve_alerts(
+    req: BulkAlertResolveRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    await _ensure_alert_schema(db)
+    alert_ids = list(dict.fromkeys(req.alert_ids or []))
+    if not alert_ids:
+        raise HTTPException(status_code=400, detail="No alerts selected")
+
+    message = (req.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Resolution message is required")
+
+    result = await db.execute(
+        select(AlertInstance)
+        .where(AlertInstance.workspace_id == workspace.id, AlertInstance.id.in_(alert_ids))
+        .order_by(AlertInstance.created_at.desc())
+    )
+    alerts = result.scalars().all()
+    if not alerts:
+        raise HTTPException(status_code=404, detail="Alerts not found")
+
+    now = datetime.now(timezone.utc)
+    for alert in alerts:
+        alert.resolved = True
+        alert.resolved_at = now
+        alert.resolution_message = message
+    await db.flush()
+    return [await _serialize_alert(db, alert) for alert in alerts]
 
 
 @router.post("/{alert_id}/severity", response_model=AlertInstanceOut)
@@ -321,28 +454,7 @@ async def update_alert_severity(
     alert.severity = severity
     await db.flush()
     await db.refresh(alert)
-    assigned_user = None
-    if alert.assigned_user_id:
-        assigned_user = await db.get(User, alert.assigned_user_id)
-    return AlertInstanceOut(
-        id=alert.id,
-        rule_id=alert.rule_id,
-        assigned_user_id=alert.assigned_user_id,
-        assigned_team_id=alert.assigned_team_id,
-        message=alert.message,
-        severity=alert.severity,
-        service=alert.service,
-        host=alert.host,
-        ownership=alert.ownership or {},
-        acknowledged=alert.acknowledged,
-        acknowledged_by=alert.acknowledged_by,
-        acknowledged_at=alert.acknowledged_at,
-        acknowledgment_reason=alert.acknowledgment_reason,
-        resolution_message=alert.resolution_message,
-        resolved=alert.resolved,
-        created_at=alert.created_at,
-        assigned_user=assigned_user,
-    )
+    return await _serialize_alert(db, alert)
 
 
 @router.post("/{alert_id}/resolve", response_model=AlertInstanceOut)
@@ -368,25 +480,4 @@ async def resolve_alert(
     alert.resolution_message = message
     await db.flush()
     await db.refresh(alert)
-    assigned_user = None
-    if alert.assigned_user_id:
-        assigned_user = await db.get(User, alert.assigned_user_id)
-    return AlertInstanceOut(
-        id=alert.id,
-        rule_id=alert.rule_id,
-        assigned_user_id=alert.assigned_user_id,
-        assigned_team_id=alert.assigned_team_id,
-        message=alert.message,
-        severity=alert.severity,
-        service=alert.service,
-        host=alert.host,
-        ownership=alert.ownership or {},
-        acknowledged=alert.acknowledged,
-        acknowledged_by=alert.acknowledged_by,
-        acknowledged_at=alert.acknowledged_at,
-        acknowledgment_reason=alert.acknowledgment_reason,
-        resolution_message=alert.resolution_message,
-        resolved=alert.resolved,
-        created_at=alert.created_at,
-        assigned_user=assigned_user,
-    )
+    return await _serialize_alert(db, alert)

@@ -31,6 +31,9 @@ import {
 } from "@/components/ui/select";
 import {
   Activity,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
   Database,
   Globe,
   HardDrive,
@@ -132,7 +135,9 @@ export default function ServicesPage() {
   const [classificationFilter, setClassificationFilter] = useState<"all" | "verified" | "suspected" | "generic">("all");
   const [familyFilter, setFamilyFilter] = useState("all");
   const [profileHintFilter, setProfileHintFilter] = useState("all");
-  const [viewMode, setViewMode] = useState<"cards" | "compact">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "compact">("compact");
+  const [sortKey, setSortKey] = useState<"service" | "status" | "host" | "latency" | "traffic" | "ports" | "uptime" | "type" | "plugin">("status");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
 
   const { data: serviceResponse, isLoading } = useQuery({
@@ -186,6 +191,34 @@ export default function ServicesPage() {
     };
   };
 
+  const familyForService = (svc: any) => {
+    const type = String(svc.service_type || "").toLowerCase();
+    const plugin = String(svc.plugin_id || svc.suspected_plugin_id || "").toLowerCase();
+    if (["postgresql", "mysql", "redis", "mongodb", "elasticsearch"].includes(type) || ["postgres", "mysql", "redis", "mongodb", "elasticsearch"].includes(plugin)) return "data";
+    if (["docker-container", "kubernetes"].includes(type) || ["docker-local", "kubernetes"].includes(plugin)) return "containers";
+    if (["rabbitmq", "kafka", "nats"].includes(type) || ["rabbitmq", "kafka", "nats"].includes(plugin)) return "messaging";
+    if (["prometheus", "prometheus-exporter"].includes(type) || plugin === "prometheus") return "observability";
+    if (["http", "https"].includes(type) || plugin === "nginx") return "web";
+    return "other";
+  };
+
+  const availableProfileHints = Array.from(new Set(services.flatMap((svc: any) => Array.isArray(svc.suggested_profile_ids) ? svc.suggested_profile_ids : []))).sort();
+  const availableFamilies = Array.from(new Set(services.map((svc: any) => familyForService(svc)))).sort();
+
+  const filteredServices = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return services.filter((svc: any) => {
+      const matchesSearch = !q || [svc.name, svc.service_type, svc.plugin_id, svc.suspected_plugin_id, svc.endpoint, svc.host_name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q));
+      const matchesStatus = statusFilter === "all" || normalizeStatus(svc.status) === statusFilter;
+      const matchesClassification = classificationFilter === "all" || (svc.classification_state || "generic") === classificationFilter;
+      const matchesFamily = familyFilter === "all" || familyForService(svc) === familyFilter;
+      const matchesProfile = profileHintFilter === "all" || (Array.isArray(svc.suggested_profile_ids) && svc.suggested_profile_ids.includes(profileHintFilter));
+      return matchesSearch && matchesStatus && matchesClassification && matchesFamily && matchesProfile;
+    });
+  }, [services, search, statusFilter, classificationFilter, familyFilter, profileHintFilter]);
+
   const grouped = useMemo(() => {
     const groups = new Map<string, { key: string; host: any | null; services: any[]; bucket: string; bucketLabel: string }>();
 
@@ -237,20 +270,79 @@ export default function ServicesPage() {
       });
   }, [services]);
 
+  const sortedCompactServices = useMemo(() => {
+    const severityRank = { critical: 0, warning: 1, healthy: 2, unknown: 3, info: 4 } as Record<string, number>;
+    const sorted = [...filteredServices].sort((a: any, b: any) => {
+      const compareText = (left: any, right: any) => String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
+      const compareNumber = (left: any, right: any) => Number(left || 0) - Number(right || 0);
+
+      let result = 0;
+      switch (sortKey) {
+        case "service":
+          result = compareText(getPluginDisplayTitle(a), getPluginDisplayTitle(b));
+          break;
+        case "status":
+          result = (severityRank[normalizeStatus(a.status)] ?? 99) - (severityRank[normalizeStatus(b.status)] ?? 99);
+          break;
+        case "host":
+          result = compareText(a.host_name || "Unassigned", b.host_name || "Unassigned");
+          break;
+        case "latency":
+          result = compareNumber(a.latency_ms, b.latency_ms);
+          break;
+        case "traffic":
+          result = compareNumber(a.requests_per_min, b.requests_per_min);
+          break;
+        case "ports":
+          result = compareText(formatPortsSummary(a).full, formatPortsSummary(b).full);
+          break;
+        case "uptime":
+          result = compareNumber(a.uptime_percent, b.uptime_percent);
+          break;
+        case "type":
+          result = compareText(humanizeServiceType(a.service_type || ""), humanizeServiceType(b.service_type || ""));
+          break;
+        case "plugin":
+          result = compareText(formatPluginBadge(a.plugin_id || a.suspected_plugin_id || ""), formatPluginBadge(b.plugin_id || b.suspected_plugin_id || ""));
+          break;
+      }
+
+      if (result === 0) {
+        result = compareText(getPluginDisplayTitle(a), getPluginDisplayTitle(b));
+      }
+      return sortDirection === "asc" ? result : -result;
+    });
+    return sorted;
+  }, [filteredServices, sortDirection, sortKey]);
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => current === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortKey(key);
+    setSortDirection(key === "status" ? "asc" : "desc");
+  };
+
+  const renderSortIcon = (key: typeof sortKey) => {
+    if (sortKey !== key) return <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />;
+    return sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />;
+  };
+
   const totals = useMemo(() => {
-    const critical = services.filter((svc: any) => normalizeStatus(svc.status) === "critical").length;
-    const warning = services.filter((svc: any) => normalizeStatus(svc.status) === "warning").length;
-    const healthy = services.filter((svc: any) => normalizeStatus(svc.status) === "healthy").length;
-    const attachedNodes = new Set(services.map((svc: any) => svc.host_id).filter(Boolean)).size;
+    const critical = filteredServices.filter((svc: any) => normalizeStatus(svc.status) === "critical").length;
+    const warning = filteredServices.filter((svc: any) => normalizeStatus(svc.status) === "warning").length;
+    const healthy = filteredServices.filter((svc: any) => normalizeStatus(svc.status) === "healthy").length;
+    const attachedNodes = new Set(filteredServices.map((svc: any) => svc.host_id).filter(Boolean)).size;
 
     return {
       critical,
       warning,
       healthy,
-      total: services.length,
+      total: filteredServices.length,
       attachedNodes,
     };
-  }, [services]);
+  }, [filteredServices]);
 
   const summaryCards = [
     summaryMetric("Visible services", totals.total, <Globe className="h-4 w-4 text-primary" />),
@@ -314,6 +406,39 @@ export default function ServicesPage() {
               <SelectItem value="unknown">Unknown</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={classificationFilter} onValueChange={(value: any) => { setClassificationFilter(value); setPage(0); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="All classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All classes</SelectItem>
+              <SelectItem value="verified">Verified</SelectItem>
+              <SelectItem value="suspected">Suspected</SelectItem>
+              <SelectItem value="generic">Generic</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={familyFilter} onValueChange={(value) => { setFamilyFilter(value); setPage(0); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="All families" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All families</SelectItem>
+              {availableFamilies.map((family) => (
+                <SelectItem key={family} value={family}>{family}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={profileHintFilter} onValueChange={(value) => { setProfileHintFilter(value); setPage(0); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="All profile hints" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All profile hints</SelectItem>
+              {availableProfileHints.map((hint) => (
+                <SelectItem key={hint} value={hint}>{hint}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex min-h-10 items-center gap-1 rounded-lg border border-border bg-background p-1">
             <button
               type="button"
@@ -343,19 +468,19 @@ export default function ServicesPage() {
               <Table className="table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[28%] min-w-[240px]">Service</TableHead>
-                    <TableHead className="w-[110px]">Status</TableHead>
-                    <TableHead className="w-[20%] min-w-[160px]">Host</TableHead>
-                    <TableHead className="w-[90px]">Latency</TableHead>
-                    <TableHead className="w-[90px] hidden xl:table-cell">Traffic</TableHead>
-                    <TableHead className="w-[110px]">Ports</TableHead>
-                    <TableHead className="w-[90px] hidden lg:table-cell">Uptime</TableHead>
-                    <TableHead className="w-[90px] hidden 2xl:table-cell">Type</TableHead>
-                    <TableHead className="w-[110px] hidden 2xl:table-cell">Plugin</TableHead>
+                    <TableHead className="w-[28%] min-w-[240px]"><button type="button" onClick={() => toggleSort("service")} className="flex items-center gap-1 text-left">Service {renderSortIcon("service")}</button></TableHead>
+                    <TableHead className="w-[110px]"><button type="button" onClick={() => toggleSort("status")} className="flex items-center gap-1 text-left">Status {renderSortIcon("status")}</button></TableHead>
+                    <TableHead className="w-[20%] min-w-[160px]"><button type="button" onClick={() => toggleSort("host")} className="flex items-center gap-1 text-left">Host {renderSortIcon("host")}</button></TableHead>
+                    <TableHead className="w-[90px]"><button type="button" onClick={() => toggleSort("latency")} className="flex items-center gap-1 text-left">Latency {renderSortIcon("latency")}</button></TableHead>
+                    <TableHead className="w-[90px] hidden xl:table-cell"><button type="button" onClick={() => toggleSort("traffic")} className="flex items-center gap-1 text-left">Traffic {renderSortIcon("traffic")}</button></TableHead>
+                    <TableHead className="w-[110px]"><button type="button" onClick={() => toggleSort("ports")} className="flex items-center gap-1 text-left">Ports {renderSortIcon("ports")}</button></TableHead>
+                    <TableHead className="w-[90px] hidden lg:table-cell"><button type="button" onClick={() => toggleSort("uptime")} className="flex items-center gap-1 text-left">Uptime {renderSortIcon("uptime")}</button></TableHead>
+                    <TableHead className="w-[90px] hidden 2xl:table-cell"><button type="button" onClick={() => toggleSort("type")} className="flex items-center gap-1 text-left">Type {renderSortIcon("type")}</button></TableHead>
+                    <TableHead className="w-[110px] hidden 2xl:table-cell"><button type="button" onClick={() => toggleSort("plugin")} className="flex items-center gap-1 text-left">Plugin {renderSortIcon("plugin")}</button></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {services.map((svc: any) => {
+                  {sortedCompactServices.map((svc: any) => {
                     const status = normalizeStatus(svc.status);
                     const ports = formatPortsSummary(svc);
                     const displayTitle = getPluginDisplayTitle(svc);

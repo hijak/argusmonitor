@@ -79,6 +79,7 @@ export default function AIAssistantPage() {
     queryKey: ["ai-sessions"],
     queryFn: api.aiSessions,
   });
+  const { data: preferences } = useQuery({ queryKey: ["preferences"], queryFn: api.getPreferences });
 
   useEffect(() => {
     if (!selectedSessionId && sessions.length > 0) {
@@ -135,6 +136,8 @@ export default function AIAssistantPage() {
 
   const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const selectedSession = useMemo(() => sessions.find((s: any) => s.id === selectedSessionId), [sessions, selectedSessionId]);
+  const responseStyle = preferences?.ai_response_style || 'balanced';
+  const placeholder = responseStyle === 'concise' ? 'Ask briefly: explain this alert, check this host, summarise this incident…' : responseStyle === 'detailed' ? 'Ask for deeper analysis, root-cause hints, dashboard ideas, or incident summaries…' : 'Ask Vordr anything…';
 
   return (
     <motion.div className="flex h-full min-w-0 overflow-x-hidden" variants={container} initial="hidden" animate="show">
@@ -223,7 +226,7 @@ export default function AIAssistantPage() {
               <div className="flex min-h-[50vh] flex-col items-center justify-center px-2 text-center sm:min-h-full">
                 <Bot className="mb-4 h-12 w-12 text-muted-foreground/20" />
                 <p className="text-lg font-medium">How can I help?</p>
-                <p className="mt-1 max-w-md text-sm text-muted-foreground">Ask about alerts, create monitors, or analyze incidents.</p>
+                <p className="mt-1 max-w-md text-sm text-muted-foreground">{preferences?.ai_include_context ? 'Ask about alerts, create monitors, or analyze incidents with current workspace context.' : 'Ask about alerts, create monitors, or analyze incidents.'}</p>
               </div>
             )}
 
@@ -235,7 +238,7 @@ export default function AIAssistantPage() {
                   </div>
                 )}
                 <div
-                  className={`min-w-0 max-w-[calc(100vw-3.75rem)] overflow-hidden rounded-2xl text-sm shadow-sm sm:max-w-[85%] ${
+                  className={`min-w-0 max-w-[calc(100vw-3.75rem)] overflow-visible rounded-2xl text-sm shadow-sm sm:max-w-[85%] ${
                     msg.role === "user" ? "bg-primary text-primary-foreground" : "border border-border bg-card/95"
                   }`}
                 >
@@ -302,7 +305,7 @@ export default function AIAssistantPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder="Ask Vordr anything..."
+                  placeholder={placeholder}
                   className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground sm:text-sm"
                 />
                 <button
