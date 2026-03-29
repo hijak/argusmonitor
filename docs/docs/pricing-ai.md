@@ -1,67 +1,86 @@
 ---
-sidebar_position: 4
+sidebar_position: 7
 ---
 
 # Pricing, AI Credits, and BYOK
 
-Vordr’s commercial direction is:
+This page describes the product packaging direction for Vordr in plain terms.
 
-> **lean operations platform first, paid intelligence and team features where useful**
+## Product tiers at a glance
 
-## Community
+Vordr is being shaped around three broad usage patterns:
 
-The community/self-hosted tier is intended to cover:
+- **self-hosted / community evaluation**
+- **hosted starter usage**
+- **team and enterprise-oriented deployments**
 
-- core host monitoring
+The goal is to keep the core monitoring platform credible and useful on its own, while packaging AI usage and higher-order team features in a way that makes operational sense.
+
+## Self-hosted and community use
+
+The self-hosted path is the natural fit for:
+
+- internal evaluation
+- homelab use
+- buyer demos you want to control directly
+- teams that prefer to run the control plane themselves
+
+The expected core includes:
+
+- host monitoring
 - service discovery
-- basic alerts
+- alerts
 - dashboards and logs
-- limited nodes
+- agent-based visibility
 
-## Hosted Starter
+## Hosted starter shape
 
-Starter is intended for:
+A hosted starter tier makes sense when users want:
 
-- small projects
-- solo operators
-- first paid hosted users
+- the fastest onboarding path
+- less deployment overhead
+- a managed control plane
+- bundled AI usage with a simpler pricing story
 
-Typical shape:
+Typical characteristics:
 
 - hosted control plane
-- limited node count
-- AI copilot included with monthly credits
-- read-only host inspections
-- straightforward onboarding
+- limited monitored footprint
+- AI assistant access with included usage or credits
+- straightforward onboarding for operators and small teams
 
-## Business / Enterprise Foundations
+## Team and enterprise-oriented usage
 
-This layer is for teams that need the early buyer checklist, not a thousand-seat mega-suite.
-
-Current direction includes:
+For larger or more formal buyers, the important value is usually not “more graphs.” It is the surrounding operational control:
 
 - organizations and workspaces
-- RBAC foundation
-- OIDC / SSO groundwork
-- audit logs
-- maintenance windows and alert silences
-- real notification delivery
+- role-aware access
+- identity integration
+- audit visibility
+- notification delivery
+- suppression controls such as maintenance windows and silences
 
-This should be presented honestly as **enterprise foundations landing**, not as a fully mature enterprise program yet.
+These are the foundations that make the platform easier to present in a serious operational environment.
 
 ## AI consumption models
 
-### Included AI credits
+### Included AI usage
 
-Paid plans include monthly AI usage credits.
+Hosted plans can include bundled AI usage or credits for common workflows.
+
+That keeps the default experience simple for teams that do not want to manage model-provider billing separately.
 
 ### Bring Your Own Key (BYOK)
 
-Advanced users can optionally provide their own model provider key.
+Advanced users may prefer to supply their own model-provider credentials.
 
-BYOK is useful when users want:
+BYOK is useful when you want:
 
-- provider choice
+- direct provider choice
 - direct cost control
-- custom internal AI policies
-- higher-volume usage without relying on bundled credits alone
+- internal policy alignment
+- higher-volume usage outside bundled plan limits
+
+## Practical note
+
+The exact commercial packaging can evolve, but the docs should stay clear on one point: Vordr is not trying to hide the core product behind AI-only packaging. The monitoring platform needs to stand on its own.

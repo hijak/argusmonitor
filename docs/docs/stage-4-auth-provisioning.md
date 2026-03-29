@@ -1,49 +1,35 @@
 ---
-sidebar_position: 23
+sidebar_position: 27
 ---
 
-# Stage 4 Auth and Provisioning
+# Auth and Provisioning Flows
 
-This slice moves Vordr beyond enterprise admin configuration and into live identity/provisioning flows.
+This page covers the live identity and provisioning flows that extend Vordr beyond basic local authentication.
 
-## Landed
+## Covered areas
 
-### OIDC
-- `/api/auth/oidc/start`
-- `/api/auth/oidc/callback`
-- token exchange against configured provider
-- userinfo fetch
-- user auto-link / auto-provision
-- workspace membership creation on first sign-in
-- frontend OIDC sign-in path
+The current scope includes work across:
 
-### SCIM
-- `/api/scim/v2/ServiceProviderConfig`
-- `/api/scim/v2/Users`
-- `/api/scim/v2/Groups`
-- bearer-token auth using stored SCIM tokens
-- user create/read/update/patch
-- group create/read/update/patch
-- group mapping to workspace role application
+- OIDC sign-in flows
+- SCIM provisioning endpoints
+- SAML sign-in flow foundations
+- user auto-linking and auto-provisioning paths
 
-### SAML
-- `/api/auth/saml/start`
-- `/api/auth/saml/acs`
-- base64 XML response parsing scaffold
-- user auto-link / auto-provision
-- workspace membership creation on first sign-in
-- frontend SAML start/callback path
+## Why this matters
 
-### Packaging and migrations
-- backend Dockerfile now includes Playwright runtime dependencies and Chromium install
-- follow-on Alembic migration added for Stage 2/3 model drift
+Identity and provisioning are often the difference between a promising internal tool and something a formal team can realistically pilot.
 
 ## Honest status
 
-This is the first real Stage 4 auth/provisioning slice, not final protocol perfection.
+This is a meaningful step toward production-grade identity support, but it should still be presented honestly.
 
-Still missing for full maturity:
-- strict SAML signature/assertion validation
-- full SCIM spec coverage (delete/filter breadth/pagination nuance)
-- richer OIDC claim mapping and role mapping
-- automated protocol integration tests
+It is not yet the same thing as claiming perfect protocol coverage or exhaustive compliance in every edge case.
+
+## What to verify in a demo environment
+
+If you plan to show these capabilities publicly, validate:
+
+- sign-in flow starts and callbacks complete cleanly
+- workspace membership is assigned as expected
+- default-role behaviour is sensible
+- provisioning changes are visible and auditable

@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Vordr Docs',
-  tagline: 'AI-powered infrastructure and service monitoring.',
+  tagline: 'Monitoring, alerts, agents, and AI-assisted operations.',
   favicon: 'img/favicon.ico',
   future: {
     v4: true,
@@ -52,7 +52,17 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'docsSidebar',
           position: 'left',
-          label: 'Docs',
+          label: 'Documentation',
+        },
+        {
+          to: '/docs/quickstart',
+          label: 'Quickstart',
+          position: 'left',
+        },
+        {
+          to: '/docs/architecture',
+          label: 'Architecture',
+          position: 'left',
         },
         {
           href: 'https://github.com/hijak/vordr',
@@ -70,27 +80,27 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Get started',
           items: [
             {label: 'Introduction', to: '/docs/intro'},
             {label: 'Quickstart', to: '/docs/quickstart'},
-            {label: 'Alerts + Monitoring', to: '/docs/monitoring/alerts'},
+            {label: 'Architecture', to: '/docs/architecture'},
           ],
         },
         {
-          title: 'Platform',
+          title: 'Operate',
           items: [
-            {label: 'Monitoring + AI', to: '/docs/pricing-ai'},
+            {label: 'Alerts', to: '/docs/monitoring/alerts'},
+            {label: 'AI Copilot', to: '/docs/monitoring/copilot'},
+            {label: 'Production Operations', to: '/docs/production-operations'},
+          ],
+        },
+        {
+          title: 'Project',
+          items: [
             {label: 'Hosted vs Self-Hosted', to: '/docs/hosted-vs-self-hosted'},
+            {label: 'Security and Data', to: '/docs/security-and-data'},
             {label: 'GitHub', href: 'https://github.com/hijak/vordr'},
-          ],
-        },
-        {
-          title: 'Build',
-          items: [
-            {label: 'Frontend', href: 'https://github.com/hijak/vordr/tree/main/frontend'},
-            {label: 'Backend', href: 'https://github.com/hijak/vordr/tree/main/backend'},
-            {label: 'Book Demo', href: 'mailto:plutus.ghost@gmail.com?subject=Vordr%20Demo'},
           ],
         },
       ],

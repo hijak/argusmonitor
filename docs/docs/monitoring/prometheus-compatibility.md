@@ -1,50 +1,51 @@
 # Prometheus Compatibility
 
-Vordr can discover and ingest **Prometheus-compatible metrics endpoints** that you operate or are authorized to monitor.
+Vordr can discover and ingest Prometheus-compatible metrics endpoints that you operate or are authorised to monitor.
 
 ## What this means
 
-Vordr is not trying to replace the entire Prometheus ecosystem overnight.
+This compatibility layer is about coexistence and migration, not pretending Vordr is a full Prometheus replacement.
 
-The current compatibility layer is aimed at migration and coexistence:
+It is useful when you want to:
 
-- detect likely `/metrics` endpoints during service discovery
-- create Prometheus-style monitors automatically for discovered endpoints
+- detect likely `/metrics` endpoints during discovery
 - scrape Prometheus text exposition format
-- map a useful subset of metrics into Vordr host/service state
+- map a practical subset of metrics into Vordr health, service, and alert views
 
-## Current metric mapping
+## Practical use cases
 
-Vordr currently looks for a practical subset of metrics, including patterns like:
+This is most useful for:
+
+- environments already exporting Prometheus-format metrics
+- teams migrating gradually rather than replacing everything in one move
+- pulling basic operational signals into Vordr without rebuilding the entire monitoring estate first
+
+## Typical mapped signals
+
+Vordr focuses on practical signals such as:
 
 - CPU utilisation
 - memory utilisation
 - disk utilisation
-- network bytes
+- network throughput
 - request rate
 - latency
 - `up`
 
-## Intended use
-
-This is for:
-
-- customer migration from Prometheus/exporter-based setups
-- coexistence with existing exporters
-- pulling basic operational signals into Vordr dashboards/alerts
-
 ## Honest limits
 
-Current support is **compatibility-focused**, not full PromQL/Prometheus parity.
+The current support is compatibility-focused.
 
-It does not yet include:
+It does **not** aim to provide:
 
-- PromQL query engine
-- full label-cardinality handling
+- a PromQL query engine
+- full label-cardinality behaviour
 - full TSDB semantics
-- Alertmanager replacement
-- full scrape target management like Prometheus proper
+- Alertmanager parity
+- full scrape-target management equivalent to Prometheus itself
 
-## Licensing and usage
+## Why this still matters
 
-Scraping Prometheus-format metrics endpoints is normal and legitimate when the endpoints are yours or you are authorized to monitor them.
+Compatibility work is valuable because it lowers the migration barrier.
+
+A monitoring product does not need to replace every surrounding system immediately to be useful. It needs to make the current estate easier to understand and operate.

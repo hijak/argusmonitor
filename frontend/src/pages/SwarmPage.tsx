@@ -1,3 +1,4 @@
+import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
@@ -41,9 +42,12 @@ function DetailRow({ label, value }: { label: string; value: any }) {
 }
 
 export default function SwarmPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const initialTabFromUrl = (searchParams.get("tab") as TabKey | null) || "overview";
+  const initialClusterFromUrl = searchParams.get("cluster");
+  const [selectedCluster, setSelectedCluster] = useState<string | null>(initialClusterFromUrl);
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTabFromUrl);
   const [selectedResource, setSelectedResource] = useState<any | null>(null);
   const [stackFilter, setStackFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -156,7 +160,33 @@ export default function SwarmPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader title="Docker Swarm" description="Lens-style read-only Swarm views for nodes, services, tasks, stacks, networks, volumes, and events.">
-        <button onClick={() => setShowAddCluster(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />Add Swarm</button>
+        <button onClick={() => setShowAddCluster(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />
+
+      <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
+          </div>
+          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
+          </div>
+          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
+            <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
+          <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
+          <Link to={`/swarm?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
+          <Link to={`/swarm?tab=services${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Services</Link>
+          <Link to={`/swarm?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
+          <Link to={`/swarm?tab=tasks${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Tasks</Link>
+          <Link to="/kubernetes?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Kubernetes</Link>
+          <Link to="/proxmox?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Proxmox</Link>
+        </div>
+      </div>Add Swarm</button>
       </PageHeader>
 
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.4fr)_400px] xl:grid-cols-[minmax(0,1.2fr)_360px]">

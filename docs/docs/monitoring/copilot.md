@@ -1,21 +1,50 @@
 # AI Copilot
 
-Vordr’s AI copilot is intended to be grounded in live monitoring context rather than acting like a generic chatbot.
+Vordr’s AI copilot is intended to work as an operations assistant, not a generic chatbot.
 
-## What it should know
+Its value comes from being grounded in the monitoring context Vordr already has.
 
-The copilot should be able to reason over:
+## What it can work from
+
+Depending on what is available in the environment, the AI assistant can reason over:
 
 - monitored hosts
-- services
+- discovered services
 - active alerts
 - active incidents
-- inspection results returned by agents
+- transaction runs and failures
+- agent inspection results
+- Kubernetes context when cluster data is present
+
+## What that means in practice
+
+The assistant is most useful for tasks such as:
+
+- explaining an alert in operational terms
+- summarising current incidents
+- identifying likely hotspots or degraded services
+- turning a natural-language workflow into a transaction definition
+- helping operators inspect the current state without jumping through several pages manually
 
 ## Example prompts
 
-- Tell me about node01
-- Which services are unhealthy right now?
 - Explain this alert
-- Build a dashboard for infrastructure health
-- What are the largest files under /var on node01?
+- Which services are currently unhealthy?
+- Summarise the incidents affecting this workspace
+- What changed in this cluster?
+- Build a transaction for our login flow
+- Show me the likely issue on node01
+
+## Grounding and limitations
+
+The copilot is only as good as the context it receives.
+
+That means:
+
+- it should answer from real monitoring data when that data is available
+- it should say so clearly when the requested resource is not present in context
+- it should not pretend it queried systems that were never supplied to it
+
+## Deployment note
+
+In the current product path, AI provider configuration is handled server-side rather than in the browser. That keeps provider secrets out of the frontend and lets the backend enrich requests with monitoring context.

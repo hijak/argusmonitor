@@ -1,18 +1,18 @@
 ---
-sidebar_position: 11
+sidebar_position: 21
 ---
 
 # Backup and Restore
 
-If Vordr is running in production, backups are not optional.
+If Vordr matters operationally, backups are not optional.
 
-## Back up
+## What to back up
 
 At minimum, back up:
 
-- PostgreSQL database
-- uploaded/generated artifacts if added later
-- environment/configuration needed to restore connectivity and secrets references
+- the PostgreSQL database
+- any generated artifacts or persistent transaction data you care about
+- the configuration needed to restore connectivity and secrets references
 
 ## PostgreSQL example
 
@@ -20,35 +20,35 @@ At minimum, back up:
 pg_dump "$DATABASE_URL" > vordr-backup.sql
 ```
 
-For larger installs, use compressed/custom dumps or physical backups.
+For larger environments, use compressed or custom-format dumps and keep an off-host copy.
 
-## Restore
+## Restore example
 
 ```bash
 psql "$DATABASE_URL" < vordr-backup.sql
 ```
 
-Then run:
+Then apply the current schema migrations:
 
 ```bash
 alembic upgrade head
 ```
 
-## Verify restore
+## Restore validation
 
-After restore, verify:
+After a restore, confirm:
 
-- organizations/workspaces exist
 - users can authenticate
-- dashboards load
-- alerts/incidents are visible
-- worker jobs can execute
+- dashboards and monitoring pages load
+- alerts and incidents are present
+- transaction and job execution still work
+- administrative configuration is intact
 
-## Backup policy
+## Recommended policy
 
-Recommended minimum:
+A reasonable minimum policy is:
 
 - daily backups
-- off-host copy
-- periodic restore test
-- retention policy for backups themselves
+- off-host retention
+- periodic restore testing
+- written ownership for who verifies restore quality

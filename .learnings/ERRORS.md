@@ -506,3 +506,35 @@ Use `agent/.build-venv/bin/python` with `PYTHONPATH=backend` when running repo m
 - **Notes**: Re-ran using the correct build venv path and backend PYTHONPATH.
 
 ---
+## [ERR-20260329-001] alerts-page-stale-bundle-fallback
+
+**Logged**: 2026-03-29T02:04:30Z
+**Priority**: high
+**Status**: pending
+**Area**: frontend
+
+### Summary
+Alerts page stayed broken after a frontend fix because the browser held an old hashed JS bundle, and nginx returned index.html with HTTP 200 for missing /assets/* paths instead of 404.
+
+### Error
+```
+ReferenceError: visibleAlerts is not defined
+from old bundle hash AlertsPage-DCho3UO6.js
+```
+
+### Context
+- Frontend code was fixed and rebuilt to a new hashed asset.
+- Live root HTML pointed at the new bundle.
+- Old bundle URL still returned HTML due to SPA catch-all config.
+- That made stale cached asset requests fail confusingly and look like the new deploy hadn't landed.
+
+### Suggested Fix
+- Keep /assets/* on try_files $uri =404 instead of SPA fallback.
+- Only app routes should fall back to /index.html.
+- When user reports the same frontend error after deploy, verify live bundle hash in root HTML versus error stack asset hash before assuming code fix failed.
+
+### Metadata
+- Reproducible: yes
+- Related Files: frontend/nginx.conf, frontend/src/pages/AlertsPage.tsx
+
+---

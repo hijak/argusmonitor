@@ -1,46 +1,67 @@
 # Alerts
 
-Vordr should ship with useful default alert packs instead of making users start from a blank page.
+Alerts are where a monitoring product either becomes useful or becomes noise.
 
-## Sensible defaults
+Vordr’s alerting model is aimed at practical operational response rather than endless red dots.
 
-Good default alerts include:
+## Core alert workflow
+
+The platform supports:
+
+- alert rules
+- severity levels
+- acknowledgement
+- resolution
+- alert history
+- notification delivery foundations
+- maintenance windows and silences
+
+## What good alerting looks like
+
+In practice, a usable alerting system needs more than threshold checks.
+
+It also needs:
+
+- clear ownership
+- a way to acknowledge work in progress
+- a way to resolve or close the loop
+- suppression controls for planned work and known noise
+- enough auditability to explain why routing or behaviour changed
+
+## Default alerts
+
+Vordr should ship with sensible defaults so users do not start from a blank page.
+
+Typical examples include:
 
 - host CPU above threshold
 - host memory above threshold
 - host disk above threshold
 - service latency above threshold
-- service uptime below threshold
-
-Defaults should be useful enough to create value immediately, then editable later.
-
-## Serious buyer foundations
-
-Alerts only become enterprise-usable when they stop behaving like a panic machine.
-
-That means the platform needs:
-
-- **real delivery paths** so alerts can actually reach humans
-- **on-call ownership** so alerts have a likely responder
-- **maintenance windows** so planned work does not generate chaos
-- **alert silences** for controlled suppression during noisy periods
-- **audit logs** so alert-routing and configuration changes are traceable
-- **workspace boundaries** so one team’s alerts do not leak into another team’s world
+- service availability below threshold
 
 ## Notification delivery
 
-Phase 1 introduces real notification delivery foundations for:
+The platform includes the foundations for real delivery rather than placeholder-only testing.
 
-- email via SMTP
-- Slack webhooks
-- generic webhooks
+That matters because a monitoring product is only credible when alerts can reach an actual human through a real path.
 
-That is a meaningful step up from “test succeeded” placeholders because it lets the product demonstrate an actual response path.
+## Suppression controls
 
-## Next step
+Maintenance windows and alert silences exist to keep planned work and known-noisy conditions from turning into chaos.
 
-The next logical step after the current foundation is **suppression enforcement**:
+A serious deployment should be able to demonstrate:
 
-- do not create or route alerts when a matching maintenance window is active
-- do not notify when a matching silence is active
-- surface why an alert was suppressed in the UI and audit trail
+- a maintenance window being created
+- a silence being created
+- alert handling during those states
+
+## Public-demo guidance
+
+For a buyer-facing or public review environment, make sure you can show the full loop:
+
+1. an alert appears
+2. it is acknowledged
+3. it can be resolved
+4. a notification path exists
+5. suppression controls are documented and visible

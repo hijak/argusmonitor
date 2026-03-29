@@ -3,59 +3,76 @@ sidebar_position: 1
 slug: /intro
 ---
 
-# Vordr Docs
+# Vordr
 
-Vordr is an AI-powered monitoring platform for homelabs, startups, and increasingly, teams that need serious operational foundations without swallowing a bloated enterprise suite whole.
+Vordr is a monitoring and operations platform for teams that want clear infrastructure visibility, practical alerting, and AI-assisted investigation without deploying a sprawling observability suite.
 
 It combines:
 
 - host monitoring
 - service discovery
-- alerts and incidents
+- alerts and incident workflows
 - dashboards and logs
-- AI copilot workflows
-- safe read-only host inspections through agents
-- enterprise foundation work including organizations, workspaces, RBAC, OIDC groundwork, audit logs, maintenance windows, alert silences, and real notification delivery
+- AI-assisted investigation and transaction generation
+- lightweight host agents for safe data collection and read-only inspections
 
-## What makes it different
+## Who it is for
 
-Vordr is built around a simple idea:
+Vordr fits best when you want:
 
-> **operational clarity first, enterprise foundations where they matter**
+- a smaller operational footprint than a full enterprise monitoring stack
+- a cleaner path from self-hosted evaluation to buyer-facing demos
+- practical monitoring for hosts, services, and transactions
+- AI assistance grounded in live monitoring context rather than generic chat output
 
-The goal is not to become an overbuilt monitoring monster. The goal is to keep the product lean while adding the adult features buyers actually ask for.
+It is a good fit for homelabs, internal platforms, startups, and teams building toward more formal operational maturity.
+
+## What Vordr does well
+
+### Clear operational surface
+Vordr is designed to make the current state of your estate visible quickly: what is down, what is noisy, what changed, and what needs attention now.
+
+### Practical alerting foundations
+The platform includes alert rules, acknowledgements, resolution flow, notification delivery foundations, maintenance windows, and silences.
+
+### Agent-based host visibility
+The Vordr agent reports host health and metrics while also enabling bounded read-only inspection workflows for common operator questions.
+
+### AI that uses monitoring context
+The AI assistant is designed to answer against the monitoring data Vordr already has: hosts, services, alerts, incidents, transactions, and, when present, Kubernetes context.
+
+## Product shape
+
+Vordr supports two deployment models:
+
+- **Hosted control plane** — Vordr runs the control plane and you deploy agents to your infrastructure.
+- **Self-hosted** — you run the control plane yourself and deploy the same lightweight agents to monitored nodes.
+
+For a quick comparison, see [Hosted vs Self-Hosted](./hosted-vs-self-hosted).
 
 ## Core capabilities
 
-### Host monitoring
-Track CPU, memory, disk, uptime, connectivity, and live health for monitored nodes.
+- **Hosts** — CPU, memory, disk, uptime, last-seen, and health visibility
+- **Services** — service inventory, discovery, and health checks
+- **Alerts** — rule-driven alerting with acknowledgement and resolution workflows
+- **Incidents** — incident tracking with timeline updates and status management
+- **Transactions** — multi-step synthetic workflows and run history
+- **Dashboards** — operational views for infrastructure and service state
+- **AI assistant** — investigation help, alert explanation, and workflow generation
 
-### Service discovery
-Discover known services and surface them in the control plane without hand-entering everything.
+## Honest boundaries
 
-### Smart alerts
-Use sensible default alert packs for hosts and services, then refine as needed.
+Vordr is intentionally focused.
 
-### AI copilot
-Ask infrastructure questions in plain English against live monitoring context.
+It is not trying to replace every part of a large observability estate on day one, and the docs should not pretend otherwise. The goal is to provide a credible monitoring control plane with a strong operator experience, practical automation, and a clear path toward broader team and enterprise readiness.
 
-### Read-only host inspections
-Queue bounded, safe inspections through the host agent for workflows like:
+## Start here
 
-- largest files under `/var`
-- biggest folders on a node
-- future safe diagnostics such as failed units or top processes
+If you are evaluating the product, this is the shortest useful path:
 
-## Enterprise foundations now landing
-
-Phase 1 of enterprise readiness focuses on the basics buyers actually care about:
-
-- **proper migrations** via Alembic-first startup
-- **organizations and workspaces** for future tenant separation
-- **workspace RBAC foundations**
-- **OIDC / SSO groundwork**
-- **audit logs** for important actions
-- **real notification delivery** for email, Slack, and webhooks
-- **maintenance windows and alert silences**
-
-This is the foundation layer, not the final finished enterprise platform. But it means the product is moving from “cool prototype” toward “serious buyer demo.”
+1. Read [Quickstart](./quickstart)
+2. Read [Architecture](./architecture)
+3. Read [Hosted vs Self-Hosted](./hosted-vs-self-hosted)
+4. Read [Agent Overview](./agents/overview)
+5. Read [Alerts](./monitoring/alerts)
+6. Read [AI Copilot](./monitoring/copilot)

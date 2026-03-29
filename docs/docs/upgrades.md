@@ -1,49 +1,48 @@
 ---
-sidebar_position: 12
+sidebar_position: 22
 ---
 
 # Upgrades
 
-Vordr upgrades should be migration-first and reversible where possible.
+Vordr upgrades should be migration-first and operationally reversible where possible.
 
-## Upgrade flow
+## Recommended upgrade flow
 
 1. back up the database
-2. deploy new application image/code
-3. run migrations
-4. restart API/workers
-5. verify health, auth, dashboards, and checks
+2. deploy the new application version
+3. run schema migrations
+4. restart API and background execution paths
+5. verify key product flows
 
 ## Example
 
 ```bash
-git pull
-cd backend
 alembic upgrade head
 ```
 
-Then restart the services that run the API and workers.
+Then restart the services that run the API and background jobs.
 
-## Verify after upgrade
+## Post-upgrade verification
 
-Check:
+Check at least:
 
-- login still works
-- workspace-scoped data still loads correctly
-- monitors execute
-- transactions run
+- login works
+- overview and core monitoring pages load
+- workspace-scoped data still appears correctly
+- monitors and transactions execute
 - notifications still deliver
-- audit logs continue recording
+- audit and administrative flows still behave as expected
 
 ## Rollback posture
 
-Rollback is easier when:
+Rollback is much easier when:
 
-- migrations are additive
-- backups were taken immediately before deploy
-- old app image/build is still available
+- migrations are additive or carefully planned
+- backups were taken immediately before deployment
+- the previous application image or build is still available
 
 ## Rule
 
-Do not rely on runtime `create_all()`-style schema mutation in production.
+Do not rely on ad-hoc runtime schema mutation in production.
+
 Migrations are the source of truth.

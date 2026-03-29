@@ -142,29 +142,29 @@ export default function OverviewPage() {
             <div className="grid gap-3 md:grid-cols-3">
               {kubernetesConfigured && (
                 <CompactInfraButton
-                  to="/kubernetes"
+                  to="/kubernetes?tab=workloads"
                   title="Kubernetes"
                   icon={<Boxes className="h-4 w-4" />}
                   status={kubeNodeCount > 0 ? "healthy" : "warning"}
-                  summary={`${k8sClusters.length} cluster${k8sClusters.length === 1 ? "" : "s"} · ${kubeNodeCount} nodes · ${kubeWorkloadCount} workloads`}
+                  summary={`${k8sClusters.length} cluster${k8sClusters.length === 1 ? "" : "s"} · ${kubeNodeCount} nodes total · ${kubeWorkloadCount} workloads total`}
                 />
               )}
               {swarmConfigured && (
                 <CompactInfraButton
-                  to="/swarm"
+                  to="/swarm?tab=services"
                   title="Docker Swarm"
                   icon={<Container className="h-4 w-4" />}
                   status={swarmNodeCount > 0 ? "healthy" : "warning"}
-                  summary={`${swarmClusters.length} cluster${swarmClusters.length === 1 ? "" : "s"} · ${swarmNodeCount} nodes · ${swarmTaskCount} tasks`}
+                  summary={`${swarmClusters.length} cluster${swarmClusters.length === 1 ? "" : "s"} · ${swarmNodeCount} nodes total · ${swarmTaskCount} tasks total`}
                 />
               )}
               {proxmoxConfigured && (
                 <CompactInfraButton
-                  to="/proxmox"
+                  to="/proxmox?tab=guests"
                   title="Proxmox"
                   icon={<Server className="h-4 w-4" />}
                   status={proxmoxNodeCount > 0 ? "healthy" : "warning"}
-                  summary={`${proxmoxClusters.length} cluster${proxmoxClusters.length === 1 ? "" : "s"} · ${proxmoxNodeCount} nodes · ${proxmoxVmCount} VMs`}
+                  summary={`${proxmoxClusters.length} cluster${proxmoxClusters.length === 1 ? "" : "s"} · ${proxmoxNodeCount} nodes total · ${proxmoxVmCount} VMs total`}
                 />
               )}
             </div>

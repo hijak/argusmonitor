@@ -761,9 +761,12 @@ export default function AlertsPage() {
     warning: alerts.filter((a: any) => a.severity === "warning").length,
     info: alerts.filter((a: any) => a.severity === "info").length,
     active: alerts.filter((a: any) => !a.resolved).length,
+    resolved: alerts.filter((a: any) => a.resolved).length,
     acknowledged: alerts.filter((a: any) => a.acknowledged).length,
     routed: alerts.filter((a: any) => a.assigned_user || a.assigned_team_id).length,
   }), [alerts]);
+
+  const visibleAlerts = alerts;
 
   const summaryCards = [
     { label: "Active alerts", value: counts.active, icon: <Bell className="h-4 w-4 text-primary" /> },

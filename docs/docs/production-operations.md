@@ -1,32 +1,45 @@
 ---
-sidebar_position: 10
+sidebar_position: 20
 ---
 
 # Production Operations
 
-Phase 2 moves Vordr toward a production-worthy deployment model.
+This page covers the operational posture expected from a more serious Vordr deployment.
 
-## What changed
+## Recommended runtime shape
 
-- stronger tenant isolation via workspace-aware resources
-- worker-job execution instead of pretending everything happens inline
-- real monitor execution for HTTP and TCP checks
-- executable transaction runs for API-style steps
-- retention policy support
+For production, think in terms of these components:
+
+- frontend
+- backend API
+- PostgreSQL
+- Redis
+- background execution or worker paths
+- optional agents on monitored hosts
+
+## Operational expectations
+
+A production-worthy deployment should have:
+
+- documented startup and restart procedures
+- database backups
+- a clear upgrade path
+- tested notification delivery
+- visibility into failed jobs, checks, and transaction runs
 
 ## Worker model
 
-Vordr now separates:
+Vordr is moving toward cleaner separation between:
 
-- **job scheduling**
-- **job execution**
-- **retention cleanup**
+- scheduling
+- execution
+- retention cleanup
 
-That gives you a clearer path to dedicated workers later instead of keeping everything trapped in request handlers.
+That matters because it reduces the chance that important operational work stays trapped in request-time code paths.
 
 ## Retention
 
-Retention policies should control at minimum:
+Retention should be planned explicitly for at least:
 
 - logs
 - host metrics
@@ -34,18 +47,13 @@ Retention policies should control at minimum:
 - incidents
 - transaction runs
 
-## Recommended deployment shape
+## Public-review checklist
 
-For production, run:
+Before calling a deployment production-ready enough for a public or buyer-facing environment, confirm:
 
-- API service
-- database
-- redis or queue backend if/when worker execution is externalized further
-- one or more worker processes
-
-## Next hardening steps
-
-- split workers into their own service/container
-- make retention policies configurable from UI
-- add backup verification checks
-- add upgrade rollback notes
+- authentication works cleanly
+- migrations run predictably
+- monitoring pages load without render or API regressions
+- alerts can be acknowledged and resolved
+- notifications can be tested successfully
+- backup and restore steps are written down and believable

@@ -1,3 +1,4 @@
+import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
@@ -192,8 +193,11 @@ function DetailRow({ label, value, mono = false }: { label: string; value: any; 
 
 export default function ProxmoxPage() {
   const queryClient = useQueryClient();
-  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTabFromUrl = (searchParams.get("tab") as TabKey | null) || "overview";
+  const initialClusterFromUrl = searchParams.get("cluster");
+  const [selectedCluster, setSelectedCluster] = useState<string | null>(initialClusterFromUrl);
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTabFromUrl);
   const [selectedResource, setSelectedResource] = useState<any | null>(null);
   const [search, setSearch] = useState("");
   const [showAddCluster, setShowAddCluster] = useState(false);
@@ -208,6 +212,16 @@ export default function ProxmoxPage() {
   useEffect(() => {
     if (!selectedCluster && clusters.length) setSelectedCluster(clusters[0].id);
   }, [clusters, selectedCluster]);
+
+  useEffect(() => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("tab", activeTab);
+      if (selectedCluster) next.set("cluster", selectedCluster);
+      else next.delete("cluster");
+      return next;
+    }, { replace: true });
+  }, [activeTab, selectedCluster, setSearchParams]);
 
   useEffect(() => {
     setSelectedResource(null);
@@ -547,6 +561,32 @@ export default function ProxmoxPage() {
           className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
+
+      <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
+          </div>
+          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
+          </div>
+          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
+            <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
+          <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
+          <Link to={`/proxmox?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
+          <Link to={`/proxmox?tab=guests${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Guests</Link>
+          <Link to={`/proxmox?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
+          <Link to={`/proxmox?tab=tasks${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Tasks</Link>
+          <Link to="/kubernetes?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Kubernetes</Link>
+          <Link to="/swarm?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Swarm</Link>
+        </div>
+      </div>
           Add Proxmox
         </button>
       </PageHeader>

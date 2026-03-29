@@ -4,7 +4,9 @@ const sidebars: SidebarsConfig = {
   docsSidebar: [
     'intro',
     'quickstart',
+    'architecture',
     'hosted-vs-self-hosted',
+    'security-and-data',
     'pricing-ai',
     {
       type: 'category',
@@ -26,6 +28,26 @@ const sidebars: SidebarsConfig = {
         'monitoring/read-only-inspections',
       ],
     },
+    {
+      type: 'category',
+      label: 'Operations',
+      items: [
+        'production-operations',
+        'backup-restore',
+        'upgrades',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Enterprise Foundations',
+      items: [
+        'api-versioning',
+        'scim-saml',
+        'enterprise-stage-3',
+        'stage-4-auth-provisioning',
+      ],
+    },
+    'faq',
   ],
 };
 

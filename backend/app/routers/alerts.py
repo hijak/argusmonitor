@@ -312,7 +312,7 @@ async def list_alerts(
     ]
 
 
-@router.get("/summary", response_model=AlertSummaryOut)
+@router.get("/stats/summary", response_model=AlertSummaryOut)
 async def alert_summary(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
