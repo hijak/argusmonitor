@@ -66,6 +66,50 @@ type EnrollmentInfo = {
   command: string;
 };
 
+type GeoSearchResult = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  name?: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    county?: string;
+    state?: string;
+    country?: string;
+  };
+};
+
+function formatGeoResultLabel(result: GeoSearchResult) {
+  const primary = result.name || result.address?.city || result.address?.town || result.address?.village || result.display_name.split(",")[0];
+  const secondary = [result.address?.state || result.address?.county, result.address?.country].filter(Boolean).join(", ");
+  return secondary ? `${primary} — ${secondary}` : primary;
+}
+
+async function searchCities(query: string) {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("addressdetails", "1");
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "Accept-Language": "en",
+    },
+  });
+  if (!response.ok) {
+    throw new Error("City lookup failed");
+  }
+  const results = (await response.json()) as GeoSearchResult[];
+  return results.filter((result) => {
+    const type = (result as { addresstype?: string; type?: string }).addresstype || (result as { addresstype?: string; type?: string }).type;
+    return ["city", "town", "village", "municipality", "hamlet", "administrative", "county", "state"].includes(type || "");
+  });
+}
+
 const typeIcons: Record<HostType, typeof Server> = {
   server: Server,
   database: Database,
@@ -226,10 +270,14 @@ export default function InfrastructurePage() {
     type: "server",
     ip_address: "",
     os: "",
-    latitude: "53.2307",
-    longitude: "-0.5406",
+    latitude: "",
+    longitude: "",
     tags: "manual",
   });
+  const [cityQuery, setCityQuery] = useState("");
+  const [geoResults, setGeoResults] = useState<GeoSearchResult[]>([]);
+  const [geoSearching, setGeoSearching] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
   const [enrollmentInfo, setEnrollmentInfo] = useState<EnrollmentInfo | null>(null);
 
   const { sortKey, sortDirection, toggleSort } = usePersistentHostSort({
@@ -271,7 +319,10 @@ export default function InfrastructurePage() {
       queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
       setOnboardingHostId(host.id);
       setSelectedHostId(host.id);
-      setManualHostForm({ name: "", type: "server", ip_address: "", os: "", latitude: "53.2307", longitude: "-0.5406", tags: "manual" });
+      setManualHostForm({ name: "", type: "server", ip_address: "", os: "", latitude: "", longitude: "", tags: "manual" });
+      setCityQuery("");
+      setGeoResults([]);
+      setGeoError(null);
       const tokenInfo = await api.rotateHostEnrollmentToken(host.id);
       setEnrollmentInfo(tokenInfo);
     },
@@ -329,16 +380,6 @@ export default function InfrastructurePage() {
     onError: (error: Error) => toast.error(error.message || "Failed to delete host"),
   });
 
-  const setLincolnMutation = useMutation({
-    mutationFn: (hostId: string) => api.updateHost(hostId, { latitude: 53.2307, longitude: -0.5406 }),
-    onSuccess: () => {
-      toast.success("Host geolocation set to Lincoln, UK");
-      queryClient.invalidateQueries({ queryKey: ["hosts"] });
-      queryClient.invalidateQueries({ queryKey: ["overview-alert-board"] });
-    },
-    onError: (error: Error) => toast.error(error.message || "Failed to update host location"),
-  });
-
   const counts = useMemo(
     () => ({
       all: hostCounts?.all ?? totalHosts,
@@ -362,8 +403,37 @@ export default function InfrastructurePage() {
     if (!onboardingOpen) {
       setEnrollmentInfo(null);
       setOnboardingHostId(null);
+      setCityQuery("");
+      setGeoResults([]);
+      setGeoError(null);
     }
   }, [onboardingOpen]);
+
+  useEffect(() => {
+    const query = cityQuery.trim();
+    if (query.length < 2) {
+      setGeoResults([]);
+      setGeoError(null);
+      setGeoSearching(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setGeoSearching(true);
+      setGeoError(null);
+      try {
+        const results = await searchCities(query);
+        setGeoResults(results);
+      } catch (error) {
+        setGeoResults([]);
+        setGeoError(error instanceof Error ? error.message : "City lookup failed");
+      } finally {
+        setGeoSearching(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [cityQuery]);
 
   const submitManualHost = () => {
     if (!manualHostForm.name.trim()) {
@@ -392,6 +462,18 @@ export default function InfrastructurePage() {
       return;
     }
     rotateEnrollmentMutation.mutate(onboardingHostId);
+  };
+
+  const applyGeoResult = (result: GeoSearchResult) => {
+    setCityQuery(formatGeoResultLabel(result));
+    setGeoResults([]);
+    setGeoError(null);
+    setManualHostForm((form) => ({
+      ...form,
+      latitude: result.lat,
+      longitude: result.lon,
+    }));
+    toast.success(`Location set to ${formatGeoResultLabel(result)}`);
   };
 
   return (
@@ -579,9 +661,6 @@ export default function InfrastructurePage() {
                     ))}
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setLincolnMutation.mutate(host.id)} className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground">
-                      Lincoln
-                    </button>
                     <DeleteHostButton host={host} onDelete={setHostToDelete} />
                   </div>
                 </DenseListRow>
@@ -624,15 +703,16 @@ export default function InfrastructurePage() {
       </motion.div>
 
       <Dialog open={onboardingOpen} onOpenChange={setOnboardingOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="grid h-[92vh] w-[96vw] max-w-[96vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:h-[90vh] sm:w-[94vw] sm:max-w-[94vw] xl:w-[90vw] xl:max-w-[90vw]">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Add host</DialogTitle>
             <DialogDescription>
               Create a host entry, then generate a same-origin install command with a dynamic per-host enrollment token.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="min-h-0 overflow-y-auto px-6">
+            <div className="grid gap-4 pb-6 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="space-y-4 rounded-2xl border border-border/80 bg-card/95 p-4 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <TerminalSquare className="h-4 w-4 text-primary" /> Agent onboarding
@@ -787,23 +867,44 @@ export default function InfrastructurePage() {
                 <div>
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <label className="block text-xs font-medium text-muted-foreground">Geolocation</label>
-                    <button type="button" onClick={() => setManualHostForm((f) => ({ ...f, latitude: "53.2307", longitude: "-0.5406" }))} className="text-[11px] font-medium text-primary hover:underline">
-                      Use Lincoln, UK
-                    </button>
+                    {!!manualHostForm.latitude && !!manualHostForm.longitude && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {manualHostForm.latitude}, {manualHostForm.longitude}
+                      </span>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     <input
-                      value={manualHostForm.latitude}
-                      onChange={(e) => setManualHostForm((f) => ({ ...f, latitude: e.target.value }))}
+                      value={cityQuery}
+                      onChange={(e) => setCityQuery(e.target.value)}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
-                      placeholder="53.2307"
+                      placeholder="Search for a city or area"
                     />
-                    <input
-                      value={manualHostForm.longitude}
-                      onChange={(e) => setManualHostForm((f) => ({ ...f, longitude: e.target.value }))}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25"
-                      placeholder="-0.5406"
-                    />
+                    <div className="h-64 overflow-y-auto rounded-lg border border-border bg-background/60 p-2 text-xs text-muted-foreground">
+                      {geoSearching ? (
+                        <span>Looking up cities…</span>
+                      ) : geoError ? (
+                        <span className="text-critical">{geoError}</span>
+                      ) : geoResults.length > 0 ? (
+                        <div className="space-y-1">
+                          {geoResults.map((result) => (
+                            <button
+                              key={result.place_id}
+                              type="button"
+                              onClick={() => applyGeoResult(result)}
+                              className="block w-full rounded-md px-2 py-2 text-left text-xs text-foreground hover:bg-surface-hover"
+                            >
+                              <div className="font-medium break-words">{formatGeoResultLabel(result)}</div>
+                              <div className="mt-0.5 truncate text-muted-foreground">{result.display_name}</div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : cityQuery.trim().length >= 2 ? (
+                        <span>No matching city found yet.</span>
+                      ) : (
+                        <span>Type a city name, then pick a result to fill coordinates.</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -818,8 +919,9 @@ export default function InfrastructurePage() {
               </div>
             </div>
           </div>
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t border-border px-6 py-4">
             <button onClick={() => setOnboardingOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface-hover">
               Close
             </button>

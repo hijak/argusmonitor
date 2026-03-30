@@ -2,7 +2,11 @@ import json
 import logging
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import get_settings
+from app.models import Integration
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +43,18 @@ Each step must have:
 Return ONLY valid JSON. No explanations."""
 
 
+AI_PROVIDER_INTEGRATION_TYPE = "ai_provider"
+
+
 class AIService:
-    def __init__(self):
+    def __init__(self, db: AsyncSession | None = None, workspace_id=None):
         self.settings = get_settings()
+        self.db = db
+        self.workspace_id = workspace_id
         self._client = None
+        self._resolved_api_key: str | None = None
+        self._resolved_base_url: str | None = None
+        self._resolved_model: str | None = None
 
     def _default_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
@@ -52,14 +64,44 @@ class AIService:
             headers["HTTP-Referer"] = self.settings.openai_site_url
         return headers
 
-    def _get_client(self):
-        if not self.settings.openai_api_key:
+    async def _resolve_provider_config(self) -> tuple[str, str, str]:
+        if self._resolved_api_key is not None and self._resolved_base_url is not None and self._resolved_model is not None:
+            return self._resolved_api_key, self._resolved_base_url, self._resolved_model
+
+        api_key = (self.settings.openai_api_key or "").strip()
+        base_url = (self.settings.openai_base_url or "").strip() or "https://api.openai.com/v1"
+        model = (self.settings.openai_model or "").strip() or "gpt-4o-mini"
+
+        if self.db is not None and self.workspace_id is not None:
+            result = await self.db.execute(
+                select(Integration).where(
+                    Integration.workspace_id == self.workspace_id,
+                    Integration.type == AI_PROVIDER_INTEGRATION_TYPE,
+                )
+            )
+            integration = result.scalar_one_or_none()
+            config = integration.config if integration and isinstance(integration.config, dict) else {}
+            if config.get("api_key"):
+                api_key = str(config.get("api_key")).strip()
+            if config.get("endpoint"):
+                base_url = str(config.get("endpoint")).strip().rstrip("/")
+            if config.get("model"):
+                model = str(config.get("model")).strip()
+
+        self._resolved_api_key = api_key
+        self._resolved_base_url = base_url
+        self._resolved_model = model
+        return api_key, base_url, model
+
+    async def _get_client(self):
+        api_key, base_url, _model = await self._resolve_provider_config()
+        if not api_key:
             return None
         if self._client is None:
             from openai import AsyncOpenAI
             self._client = AsyncOpenAI(
-                api_key=self.settings.openai_api_key,
-                base_url=self.settings.openai_base_url,
+                api_key=api_key,
+                base_url=base_url,
                 default_headers=self._default_headers() or None,
             )
         return self._client
@@ -103,7 +145,7 @@ class AIService:
         return "Live monitoring context:\n" + json.dumps(monitoring_context, indent=2, default=str)
 
     async def chat(self, messages: list[dict], monitoring_context: dict | None = None) -> str:
-        client = self._get_client()
+        client = await self._get_client()
         context_block = self._build_context_block(monitoring_context)
 
         prompt_messages = [
@@ -117,7 +159,7 @@ class AIService:
 
         try:
             response = await client.chat.completions.create(
-                model=self.settings.openai_model,
+                model=(await self._resolve_provider_config())[2],
                 messages=prompt_messages,
                 max_tokens=2048,
                 temperature=0.4,
@@ -128,13 +170,13 @@ class AIService:
             return self._fallback_chat(messages[-1]["content"] if messages else "", monitoring_context)
 
     async def generate_transaction(self, prompt: str) -> dict:
-        client = self._get_client()
+        client = await self._get_client()
         if not client:
             return self._fallback_generate_transaction(prompt)
 
         try:
             response = await client.chat.completions.create(
-                model=self.settings.openai_model,
+                model=(await self._resolve_provider_config())[2],
                 messages=[
                     {"role": "system", "content": TRANSACTION_PROMPT},
                     {"role": "user", "content": prompt},
@@ -149,7 +191,7 @@ class AIService:
             return self._fallback_generate_transaction(prompt)
 
     async def explain_failure(self, run) -> str:
-        client = self._get_client()
+        client = await self._get_client()
 
         steps_info = []
         for s in run.step_results:
@@ -174,7 +216,7 @@ class AIService:
 
         try:
             response = await client.chat.completions.create(
-                model=self.settings.openai_model,
+                model=(await self._resolve_provider_config())[2],
                 messages=[
                     {"role": "system", "content": "You are a monitoring expert. Analyze this transaction run failure and provide root cause analysis and remediation steps."},
                     {"role": "user", "content": f"Transaction run status: {run.status}\nDuration: {run.duration_ms}ms\nSteps:\n{json.dumps(steps_info, indent=2)}"},

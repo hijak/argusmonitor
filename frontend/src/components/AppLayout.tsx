@@ -43,8 +43,8 @@ const navItems = [
   { label: "Reports", icon: BarChart3, path: "/reports" },
   { label: "On-call", icon: CalendarDays, path: "/oncall" },
   { label: "Users", icon: Users, path: "/users" },
-  { label: "Enterprise", icon: Building2, path: "/enterprise" },
-];
+  { label: "Enterprise", icon: Building2, path: "/enterprise", capability: "org.advanced_rbac" },
+] as const;
 
 const bottomItems = [
   { label: "AI Assistant", icon: Bot, path: "/ai" },
@@ -84,11 +84,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { meta } = useAppMeta();
 
   const collapsed = isMobile ? !mobileOpen : desktopCollapsed;
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => !item.capability || meta?.capabilities?.[item.capability]),
+    [meta],
+  );
 
   const currentSection = useMemo(() => {
-    const allItems = [...navItems, ...bottomItems];
+    const allItems = [...visibleNavItems, ...bottomItems];
     return allItems.find((item) => item.path === "/" ? location.pathname === "/" : location.pathname.startsWith(item.path));
-  }, [location.pathname]);
+  }, [location.pathname, visibleNavItems]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -202,6 +206,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
               <div className="min-w-0">
                 <span className="block text-sm font-bold tracking-tight text-foreground">Vordr</span>
+                <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{meta?.edition?.label || "Self-Hosted"}</span>
                 {meta?.demo_mode && (
                   <span className="block text-[10px] font-medium uppercase tracking-wide text-amber-500">Demo mode</span>
                 )}
@@ -235,7 +240,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <SideLink key={item.path} item={item} />
           ))}
         </nav>

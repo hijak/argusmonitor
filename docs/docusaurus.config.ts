@@ -9,7 +9,7 @@ const config: Config = {
   future: {
     v4: true,
   },
-  url: 'https://docs.vordr.com',
+  url: 'https://vordr.systems',
   baseUrl: '/',
   organizationName: 'hijak',
   projectName: 'vordr',

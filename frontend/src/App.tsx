@@ -1,13 +1,15 @@
-import { lazy, Suspense } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense, useEffect } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { AppMetaProvider } from "@/contexts/AppMetaContext";
+import { AppMetaProvider, useAppMeta } from "@/contexts/AppMetaContext";
 import { AppLayout } from "@/components/AppLayout";
 import { Activity } from "lucide-react";
+import { api } from "@/lib/api";
+import { trackAppStart } from "@/lib/telemetry";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const OIDCCallbackPage = lazy(() => import("./pages/OIDCCallbackPage"));
@@ -71,8 +73,15 @@ function RouteFallback() {
 
 function AuthenticatedRoutes() {
   const { user, loading } = useAuth();
+  const { meta, isLoading: metaLoading } = useAppMeta();
+  const { data: preferences } = useQuery({ queryKey: ["preferences"], queryFn: api.getPreferences, enabled: Boolean(user) });
 
-  if (loading) return <LoadingScreen />;
+  useEffect(() => {
+    if (!user || metaLoading) return;
+    trackAppStart(meta, preferences?.telemetry_enabled);
+  }, [user, metaLoading, meta, preferences?.telemetry_enabled]);
+
+  if (loading || metaLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
 
   return (
@@ -96,7 +105,10 @@ function AuthenticatedRoutes() {
           <Route path="/ai" element={<AIAssistantPage />} />
           <Route path="/oncall" element={<OnCallPage />} />
           <Route path="/users" element={<UsersPage />} />
-          <Route path="/enterprise" element={<EnterprisePage />} />
+          <Route
+            path="/enterprise"
+            element={meta?.capabilities?.["org.advanced_rbac"] ? <EnterprisePage /> : <Navigate to="/settings" replace />}
+          />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

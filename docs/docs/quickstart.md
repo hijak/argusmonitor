@@ -66,6 +66,12 @@ After the UI is up, validate these basics:
 3. Alerts, services, and dashboards render without API errors
 4. The backend health and database-dependent views load correctly
 
+## Agent binary distribution
+
+The supported public distribution path for node onboarding binaries is GitHub Releases for the main repository.
+Each tagged release publishes platform-specific agent archives and a `checksums-sha256.txt` file.
+If you are documenting or automating installs outside the app UI, use those release assets rather than inventing a second download channel.
+
 ## Recommended evaluation path
 
 Once the stack is running, work through the platform in this order:

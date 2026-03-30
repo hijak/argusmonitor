@@ -24,6 +24,7 @@ const sidebars: SidebarsConfig = {
         'monitoring/service-discovery',
         'monitoring/prometheus-compatibility',
         'monitoring/alerts',
+        'monitoring/kubernetes-operator',
         'monitoring/copilot',
         'monitoring/read-only-inspections',
       ],

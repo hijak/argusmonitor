@@ -182,7 +182,7 @@ export default function LoginPage() {
           </p>
 
           <p className="text-center text-xs text-muted-foreground/70">
-            Demo: admin@vordr.io / admin123
+            Demo: admin@vordr.systems / admin123
           </p>
         </motion.div>
       </div>

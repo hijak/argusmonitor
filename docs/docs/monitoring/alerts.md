@@ -46,6 +46,19 @@ The platform includes the foundations for real delivery rather than placeholder-
 
 That matters because a monitoring product is only credible when alerts can reach an actual human through a real path.
 
+## Kubernetes ownership routing
+
+For Kubernetes environments, Vordr also has an ownership operator path that can attach ownership metadata to workloads and carry that into alert ingestion.
+
+That gives alerts more than just severity and a message body. It gives them routing context such as:
+
+- primary owner
+- secondary owner
+- escalation policy reference
+- ownership source
+
+See [Kubernetes ownership operator](./kubernetes-operator) for the current prototype model and payload shape.
+
 ## Suppression controls
 
 Maintenance windows and alert silences exist to keep planned work and known-noisy conditions from turning into chaos.

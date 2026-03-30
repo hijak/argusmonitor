@@ -33,4 +33,4 @@ This docs site covers:
 ## Target
 
 Intended deployment target:
-- `docs.vordr.com`
+- `vordr.systems`

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { useAppMeta } from "@/contexts/AppMetaContext";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -25,7 +26,8 @@ const pageCommands = [
   { label: "Reports", icon: BarChart3, url: "/reports" },
   { label: "AI Assistant", icon: Bot, url: "/ai" },
   { label: "Settings", icon: Settings, url: "/settings" },
-];
+  { label: "Enterprise", icon: Shield, url: "/enterprise", capability: "org.advanced_rbac" },
+] as const;
 
 const settingsItems = [
   { label: "Profile", description: "Account details and password", icon: User, url: "/settings", section: "profile" },
@@ -59,6 +61,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const navigate = useNavigate();
+  const { meta } = useAppMeta();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -99,9 +102,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, doSearch]);
 
+  const availablePages = pageCommands.filter(c => !c.capability || meta?.capabilities?.[c.capability]);
+
   const filteredPages = query
-    ? pageCommands.filter(c => c.label.toLowerCase().includes(query.toLowerCase()))
-    : pageCommands;
+    ? availablePages.filter(c => c.label.toLowerCase().includes(query.toLowerCase()))
+    : availablePages;
 
   const filteredSettings = query
     ? settingsItems.filter(s =>

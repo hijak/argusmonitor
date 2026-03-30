@@ -1,4 +1,5 @@
 import { getWorkspaceId } from "@/lib/workspace";
+import type { AppMeta } from "@/contexts/AppMetaContext";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -65,7 +66,7 @@ export const api = {
     }),
 
   // Meta
-  getMeta: () => request<{ app_name: string; demo_mode: boolean }>("/meta"),
+  getMeta: () => request<AppMeta>("/meta"),
 
   // Overview
   overviewStats: () => request<any>("/overview/stats"),
@@ -348,6 +349,9 @@ export const api = {
   getPreferences: () => request<any>("/settings/preferences"),
   updatePreferences: (data: any) =>
     request<any>("/settings/preferences", { method: "PUT", body: JSON.stringify(data) }),
+  getAIProviderSettings: () => request<any>("/settings/ai-provider"),
+  updateAIProviderSettings: (data: any) =>
+    request<any>("/settings/ai-provider", { method: "PUT", body: JSON.stringify(data) }),
 
   // Settings - Retention
   getRetentionPolicy: () => request<any>("/settings/retention"),

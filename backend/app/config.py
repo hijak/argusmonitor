@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     monitoring_default_interval: int = 60
     monitoring_default_timeout: int = 30
     demo_mode: bool = False
+    edition_profile: str = "self_hosted"
 
     transaction_artifacts_dir: str = "/data/transactions"
     transaction_video_width: int = 640

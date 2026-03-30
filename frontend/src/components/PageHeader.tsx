@@ -16,6 +16,11 @@ export function PageHeader({ title, description, children, className }: PageHead
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight break-words text-foreground sm:text-3xl">{title}</h1>
+          {meta?.edition?.label && (
+            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {meta.edition.label}
+            </span>
+          )}
           {meta?.demo_mode && (
             <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600">
               Demo mode

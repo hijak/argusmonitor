@@ -537,33 +537,9 @@ export default function KubernetesPage() {
       <PageHeader title="Kubernetes" description="Lens-style read-only cluster views with compact operational focus">
         <button onClick={() => setShowAddCluster(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
           <Plus className="h-4 w-4" />
-
-      <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
-            <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
-          <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
-          <Link to={`/kubernetes?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
-          <Link to={`/kubernetes?tab=workloads${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Workloads</Link>
-          <Link to={`/kubernetes?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
-          <Link to={`/kubernetes?tab=events${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Events</Link>
-          <Link to="/proxmox?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Proxmox</Link>
-          <Link to="/swarm?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Swarm</Link>
-        </div>
-      </div> Add Cluster
+          Add Cluster
         </button>
+
       </PageHeader>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden 2xl:grid-cols-[minmax(0,1.45fr)_420px] xl:grid-cols-[minmax(0,1.25fr)_380px]">
@@ -597,6 +573,32 @@ export default function KubernetesPage() {
               </div>
             </div>
           )}
+
+          <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
+                <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
+              <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
+              <Link to={`/kubernetes?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
+              <Link to={`/kubernetes?tab=workloads${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Workloads</Link>
+              <Link to={`/kubernetes?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
+              <Link to={`/kubernetes?tab=events${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Events</Link>
+              <Link to="/proxmox?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Proxmox</Link>
+              <Link to="/swarm?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Swarm</Link>
+            </div>
+          </div>
 
           <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-card overflow-hidden">
             <div className="sticky top-0 z-20 border-b border-border bg-card px-3 py-3 sm:px-4">

@@ -748,6 +748,7 @@ class UserPreference(Base):
     ai_response_style = Column(String(50), default="balanced")
     ai_auto_summarize_incidents = Column(Boolean, default=True)
     ai_include_context = Column(Boolean, default=True)
+    telemetry_enabled = Column(Boolean, default=True)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 

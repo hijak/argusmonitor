@@ -47,6 +47,27 @@ Optional settings:
 - `VORDR_POSTGRES_DSN` enables richer PostgreSQL detection against a configured DSN (currently used for endpoint-aware probing)
 - `VORDR_POSTGRES_METRICS_URL` optional postgres-exporter `/metrics` endpoint; when set, the Postgres plugin reads richer health signals from exporter metrics
 
+## Public binary distribution
+
+The supported public distribution path for node onboarding binaries is **GitHub Releases for this repository**.
+
+Each tagged release publishes:
+
+- `vordr-agent_linux_amd64.tar.gz`
+- `vordr-agent_linux_arm64.tar.gz`
+- `vordr-agent_darwin_amd64.tar.gz`
+- `vordr-agent_darwin_arm64.tar.gz`
+- `vordr-agent_windows_amd64.zip`
+- `checksums-sha256.txt`
+
+Download pattern:
+
+```text
+https://github.com/<owner>/<repo>/releases/download/<tag>/<asset-name>
+```
+
+Linux release archives include the binary, this README, and the `systemd/` install files so operators can install directly from a release asset.
+
 ## Run
 
 ```bash
@@ -100,6 +121,20 @@ Example install on a Linux host after building the binary:
 ```bash
 cd agent
 sudo ./systemd/install-systemd.sh ./dist/vordr-agent ./systemd/vordr-agent.env.example ./systemd/vordr-agent.service
+sudoedit /etc/vordr-agent/vordr-agent.env
+sudo systemctl restart vordr-agent
+sudo systemctl status vordr-agent --no-pager
+```
+
+Example install from a GitHub release asset:
+
+```bash
+curl -fsSLO https://github.com/<owner>/<repo>/releases/download/<tag>/vordr-agent_linux_amd64.tar.gz
+curl -fsSLO https://github.com/<owner>/<repo>/releases/download/<tag>/checksums-sha256.txt
+grep ' vordr-agent_linux_amd64.tar.gz$' checksums-sha256.txt | sha256sum -c -
+tar -xzf vordr-agent_linux_amd64.tar.gz
+cd vordr-agent_linux_amd64
+sudo ./systemd/install-systemd.sh ./vordr-agent ./systemd/vordr-agent.env.example ./systemd/vordr-agent.service
 sudoedit /etc/vordr-agent/vordr-agent.env
 sudo systemctl restart vordr-agent
 sudo systemctl status vordr-agent --no-pager

@@ -561,34 +561,9 @@ export default function ProxmoxPage() {
           className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
-
-      <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
-            <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
-          <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
-          <Link to={`/proxmox?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
-          <Link to={`/proxmox?tab=guests${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Guests</Link>
-          <Link to={`/proxmox?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
-          <Link to={`/proxmox?tab=tasks${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Tasks</Link>
-          <Link to="/kubernetes?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Kubernetes</Link>
-          <Link to="/swarm?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Swarm</Link>
-        </div>
-      </div>
           Add Proxmox
         </button>
+
       </PageHeader>
 
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.45fr)_420px] xl:grid-cols-[minmax(0,1.25fr)_380px]">
@@ -688,6 +663,32 @@ export default function ProxmoxPage() {
               </div>
             </div>
           )}
+
+          <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
+                <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
+              <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
+              <Link to={`/proxmox?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
+              <Link to={`/proxmox?tab=guests${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Guests</Link>
+              <Link to={`/proxmox?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
+              <Link to={`/proxmox?tab=tasks${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Tasks</Link>
+              <Link to="/kubernetes?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Kubernetes</Link>
+              <Link to="/swarm?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Swarm</Link>
+            </div>
+          </div>
 
           <div className="rounded-xl border border-border bg-card">
             <div className="sticky top-0 z-20 border-b border-border bg-card px-4 py-3">

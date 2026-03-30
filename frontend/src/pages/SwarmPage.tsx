@@ -160,38 +160,39 @@ export default function SwarmPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader title="Docker Swarm" description="Lens-style read-only Swarm views for nodes, services, tasks, stacks, networks, volumes, and events.">
-        <button onClick={() => setShowAddCluster(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />
+        <button onClick={() => setShowAddCluster(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-4 w-4" />Add Swarm</button>
 
-      <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
-            <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
-          <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
-          <Link to={`/swarm?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
-          <Link to={`/swarm?tab=services${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Services</Link>
-          <Link to={`/swarm?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
-          <Link to={`/swarm?tab=tasks${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Tasks</Link>
-          <Link to="/kubernetes?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Kubernetes</Link>
-          <Link to="/proxmox?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Proxmox</Link>
-        </div>
-      </div>Add Swarm</button>
       </PageHeader>
 
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.4fr)_400px] xl:grid-cols-[minmax(0,1.2fr)_360px]">
         <div className="space-y-4">
           {selectedClusterData && <div className="rounded-xl border border-border bg-card p-4"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><h2 className="text-lg font-semibold">{selectedClusterData.name}</h2><StatusBadge variant={selectedClusterData.status}>{selectedClusterData.status}</StatusBadge></div><p className="mt-1 text-sm text-muted-foreground">Read-only Docker Swarm operator view.</p></div><div className="flex items-center gap-2"><button onClick={() => discoverMutation.mutate(selectedClusterData.id)} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-surface"><RefreshCw className={`h-4 w-4 ${discoverMutation.isPending ? "animate-spin" : ""}`} />Refresh</button><button onClick={() => deleteMutation.mutate(selectedClusterData.id)} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-surface hover:text-critical"><Trash2 className="h-4 w-4" /></button></div></div><div className="mt-4 grid grid-cols-2 gap-3 2xl:grid-cols-6 xl:grid-cols-3"><div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Managers</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.manager_count}</div></div><div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Workers</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.worker_count}</div></div><div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Services</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.service_count}</div></div><div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Tasks</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.task_count}</div></div><div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Stacks</div><div className="mt-1 text-xl font-semibold">{selectedClusterData.stack_count}</div></div><div className="rounded-lg bg-surface p-3"><div className="text-xs text-muted-foreground">Networks</div><div className="mt-1 text-xl font-semibold">{stats?.network_count ?? networks.length}</div></div></div></div>}
+
+          <div className="grid gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Selected cluster</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{selectedClusterData?.name || selectedClusterData?.cluster_name || selectedCluster || "No cluster selected"}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Cluster count</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{clusters.length}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-background/60 px-3 py-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Current view</div>
+                <div className="mt-1 text-sm font-medium capitalize text-foreground">{activeTab}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
+              <Link to={`/?`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Dashboard</Link>
+              <Link to={`/swarm?tab=overview${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Overview</Link>
+              <Link to={`/swarm?tab=services${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Services</Link>
+              <Link to={`/swarm?tab=nodes${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Nodes</Link>
+              <Link to={`/swarm?tab=tasks${selectedCluster ? `&cluster=${selectedCluster}` : ''}`} className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Tasks</Link>
+              <Link to="/kubernetes?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Kubernetes</Link>
+              <Link to="/proxmox?tab=overview" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-surface-hover hover:text-foreground">Proxmox</Link>
+            </div>
+          </div>
 
           <div className="rounded-xl border border-border bg-card">
             <div className="sticky top-0 z-20 border-b border-border bg-card px-4 py-3"><div className="flex flex-wrap items-center gap-2">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${activeTab === tab.key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}><Icon className="h-4 w-4" />{tab.label}</button>; })}</div>{activeTab !== "overview" && <div className="mt-3 relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${activeTab}...`} className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm outline-none" /></div>}</div>

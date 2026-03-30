@@ -15,6 +15,7 @@ from app.schemas import (
     NotificationChannelCreate, NotificationChannelUpdate, NotificationChannelOut,
     IntegrationCreate, IntegrationUpdate, IntegrationOut,
     UserPreferenceOut, UserPreferenceUpdate,
+    AIProviderConfigOut, AIProviderConfigUpdate,
     AgentOut, RetentionPolicyOut, RetentionPolicyUpdate,
 )
 from app.auth import get_current_user, hash_password, verify_password, hash_api_key
@@ -24,6 +25,61 @@ from app.services.workspace import get_current_workspace
 from app.services.rbac import ADMIN_ROLES, require_workspace_role
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+AI_PROVIDER_INTEGRATION_TYPE = "ai_provider"
+AI_PROVIDER_INTEGRATION_NAME = "AI Provider"
+AI_PROVIDER_DEFAULTS = {
+    "endpoint": "https://api.openai.com/v1",
+    "model": "gpt-4o-mini",
+}
+
+
+def _normalize_ai_endpoint(value: str | None) -> str:
+    endpoint = (value or "").strip()
+    return endpoint.rstrip("/") if endpoint else AI_PROVIDER_DEFAULTS["endpoint"]
+
+
+def _normalize_ai_model(value: str | None) -> str:
+    model = (value or "").strip()
+    return model or AI_PROVIDER_DEFAULTS["model"]
+
+
+def _mask_api_key(value: str | None) -> str | None:
+    token = (value or "").strip()
+    if not token:
+        return None
+    if len(token) <= 8:
+        return "*" * len(token)
+    return f"{token[:4]}{'*' * max(len(token) - 8, 4)}{token[-4:]}"
+
+
+async def _get_ai_provider_integration(db: AsyncSession, workspace_id) -> Integration | None:
+    result = await db.execute(
+        select(Integration)
+        .where(Integration.workspace_id == workspace_id, Integration.type == AI_PROVIDER_INTEGRATION_TYPE)
+        .order_by(Integration.created_at.asc())
+    )
+    return result.scalar_one_or_none()
+
+
+def _build_ai_provider_response(settings, integration: Integration | None, can_edit: bool, byok_enabled: bool) -> AIProviderConfigOut:
+    config = integration.config if integration and isinstance(integration.config, dict) else {}
+    endpoint = _normalize_ai_endpoint(config.get("endpoint") or settings.openai_base_url)
+    model = _normalize_ai_model(config.get("model") or settings.openai_model)
+    stored_key = (config.get("api_key") or "").strip()
+    env_key = (settings.openai_api_key or "").strip()
+    api_key = stored_key or env_key
+    source = "workspace" if stored_key or config.get("endpoint") or config.get("model") else "environment"
+    return AIProviderConfigOut(
+        source=source,
+        endpoint=endpoint,
+        model=model,
+        api_key_configured=bool(api_key),
+        api_key_masked=_mask_api_key(api_key),
+        can_edit=can_edit,
+        byok_enabled=byok_enabled,
+        supports_custom_endpoint=True,
+    )
 
 
 # --- Profile ---
@@ -282,6 +338,8 @@ def _ensure_user_preferences_schema_sync(sync_session):
         connection.execute(text("ALTER TABLE user_preferences ADD COLUMN ai_auto_summarize_incidents BOOLEAN DEFAULT TRUE"))
     if "ai_include_context" not in columns:
         connection.execute(text("ALTER TABLE user_preferences ADD COLUMN ai_include_context BOOLEAN DEFAULT TRUE"))
+    if "telemetry_enabled" not in columns:
+        connection.execute(text("ALTER TABLE user_preferences ADD COLUMN telemetry_enabled BOOLEAN DEFAULT TRUE"))
 
 
 async def _ensure_user_preferences_schema(db: AsyncSession) -> None:
@@ -311,6 +369,7 @@ async def get_preferences(
         ai_response_style=getattr(pref, 'ai_response_style', 'balanced') or 'balanced',
         ai_auto_summarize_incidents=bool(getattr(pref, 'ai_auto_summarize_incidents', True)),
         ai_include_context=bool(getattr(pref, 'ai_include_context', True)),
+        telemetry_enabled=bool(getattr(pref, 'telemetry_enabled', True)),
     )
 
 
@@ -342,6 +401,75 @@ async def update_preferences(
         ai_response_style=getattr(pref, 'ai_response_style', 'balanced') or 'balanced',
         ai_auto_summarize_incidents=bool(getattr(pref, 'ai_auto_summarize_incidents', True)),
         ai_include_context=bool(getattr(pref, 'ai_include_context', True)),
+        telemetry_enabled=bool(getattr(pref, 'telemetry_enabled', True)),
+    )
+
+
+@router.get("/ai-provider", response_model=AIProviderConfigOut)
+async def get_ai_provider_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
+):
+    settings = get_settings()
+    integration = await _get_ai_provider_integration(db, workspace.id)
+    can_edit = not bool(settings.demo_mode)
+    return _build_ai_provider_response(
+        settings,
+        integration,
+        can_edit=can_edit,
+        byok_enabled=True,
+    )
+
+
+@router.put("/ai-provider", response_model=AIProviderConfigOut)
+async def update_ai_provider_settings(
+    req: AIProviderConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
+):
+    settings = get_settings()
+    if settings.demo_mode:
+        raise HTTPException(status_code=403, detail="AI provider settings are read-only in demo mode")
+
+    await require_workspace_role(db, workspace_id=workspace.id, user_id=user.id, allowed_roles=ADMIN_ROLES)
+    integration = await _get_ai_provider_integration(db, workspace.id)
+    if not integration:
+        integration = Integration(
+            workspace_id=workspace.id,
+            name=AI_PROVIDER_INTEGRATION_NAME,
+            type=AI_PROVIDER_INTEGRATION_TYPE,
+            status="connected",
+            config={},
+        )
+        db.add(integration)
+        await db.flush()
+
+    config = dict(integration.config or {})
+    updates = req.model_dump(exclude_unset=True)
+
+    if "endpoint" in updates:
+        config["endpoint"] = _normalize_ai_endpoint(req.endpoint)
+    if "model" in updates:
+        config["model"] = _normalize_ai_model(req.model)
+    if req.clear_api_key:
+        config.pop("api_key", None)
+    elif "api_key" in updates and req.api_key is not None:
+        api_key = req.api_key.strip()
+        if api_key:
+            config["api_key"] = api_key
+
+    integration.config = config
+    integration.status = "connected" if (config.get("api_key") or settings.openai_api_key) else "disconnected"
+    await db.flush()
+    await db.refresh(integration)
+
+    return _build_ai_provider_response(
+        settings,
+        integration,
+        can_edit=True,
+        byok_enabled=True,
     )
 
 

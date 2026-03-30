@@ -21,7 +21,7 @@ It combines:
 Vordr fits best when you want:
 
 - a smaller operational footprint than a full enterprise monitoring stack
-- a cleaner path from self-hosted evaluation to buyer-facing demos
+- a clear path from self-hosted evaluation to managed adoption as needs change
 - practical monitoring for hosts, services, and transactions
 - AI assistance grounded in live monitoring context rather than generic chat output
 
@@ -43,12 +43,19 @@ The AI assistant is designed to answer against the monitoring data Vordr already
 
 ## Product shape
 
-Vordr supports two deployment models:
+Vordr is one product with multiple packaging modes:
 
-- **Hosted control plane** — Vordr runs the control plane and you deploy agents to your infrastructure.
-- **Self-hosted** — you run the control plane yourself and deploy the same lightweight agents to monitored nodes.
+- **Self-Hosted** — you run the control plane yourself.
+- **Cloud** — Vordr runs the control plane for you.
+- **Enterprise** — the same product with added identity, governance, support, and private deployment options.
 
-For a quick comparison, see [Hosted vs Self-Hosted](./hosted-vs-self-hosted).
+That split is meant to be easy to understand:
+
+- Self-Hosted gives you the product
+- Cloud removes the operational burden
+- Enterprise adds organizational control
+
+For a quick comparison, see [Cloud vs Self-Hosted](./hosted-vs-self-hosted).
 
 ## Core capabilities
 
@@ -72,7 +79,7 @@ If you are evaluating the product, this is the shortest useful path:
 
 1. Read [Quickstart](./quickstart)
 2. Read [Architecture](./architecture)
-3. Read [Hosted vs Self-Hosted](./hosted-vs-self-hosted)
+3. Read [Cloud vs Self-Hosted](./hosted-vs-self-hosted)
 4. Read [Agent Overview](./agents/overview)
 5. Read [Alerts](./monitoring/alerts)
 6. Read [AI Copilot](./monitoring/copilot)

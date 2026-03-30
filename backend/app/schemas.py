@@ -721,6 +721,7 @@ class UserPreferenceOut(BaseModel):
     ai_response_style: str = "balanced"
     ai_auto_summarize_incidents: bool = True
     ai_include_context: bool = True
+    telemetry_enabled: bool = True
 
 
 class UserPreferenceUpdate(BaseModel):
@@ -733,6 +734,26 @@ class UserPreferenceUpdate(BaseModel):
     ai_response_style: Optional[str] = None
     ai_auto_summarize_incidents: Optional[bool] = None
     ai_include_context: Optional[bool] = None
+    telemetry_enabled: Optional[bool] = None
+
+
+class AIProviderConfigOut(BaseModel):
+    provider: str = "openai-compatible"
+    source: str
+    endpoint: str
+    model: str
+    api_key_configured: bool = False
+    api_key_masked: Optional[str] = None
+    can_edit: bool = False
+    byok_enabled: bool = False
+    supports_custom_endpoint: bool = True
+
+
+class AIProviderConfigUpdate(BaseModel):
+    endpoint: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
+    clear_api_key: bool = False
 
 
 class AgentOut(BaseModel):

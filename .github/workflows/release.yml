@@ -60,28 +60,38 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact: vordr-agent-linux-amd64
             binary: vordr-agent
+            package_root: vordr-agent_linux_amd64
+            release_asset: vordr-agent_linux_amd64.tar.gz
+            archive_format: tar.gz
           - os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
-            artifact: vordr-agent-linux-arm64
             binary: vordr-agent
+            package_root: vordr-agent_linux_arm64
+            release_asset: vordr-agent_linux_arm64.tar.gz
+            archive_format: tar.gz
           - os: macos-15-intel
             goos: darwin
             goarch: amd64
-            artifact: vordr-agent-darwin-amd64
             binary: vordr-agent
+            package_root: vordr-agent_darwin_amd64
+            release_asset: vordr-agent_darwin_amd64.tar.gz
+            archive_format: tar.gz
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact: vordr-agent-darwin-arm64
             binary: vordr-agent
+            package_root: vordr-agent_darwin_arm64
+            release_asset: vordr-agent_darwin_arm64.tar.gz
+            archive_format: tar.gz
           - os: windows-latest
             goos: windows
             goarch: amd64
-            artifact: vordr-agent-windows-amd64
             binary: vordr-agent.exe
+            package_root: vordr-agent_windows_amd64
+            release_asset: vordr-agent_windows_amd64.zip
+            archive_format: zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -100,15 +110,40 @@ jobs:
           cd agent
           pyinstaller --clean --noconfirm vordr-agent.spec
 
-      - name: Rename binary
+      - name: Stage release package
         shell: bash
-        run: mv agent/dist/${{ matrix.binary }} agent/dist/${{ matrix.artifact }}
+        run: |
+          set -euo pipefail
+          PACKAGE_DIR="package/${{ matrix.package_root }}"
+          mkdir -p "$PACKAGE_DIR"
+          cp "agent/dist/${{ matrix.binary }}" "$PACKAGE_DIR/${{ matrix.binary }}"
+          cp agent/README.md "$PACKAGE_DIR/README.md"
+          if [ "${{ matrix.goos }}" = "linux" ]; then
+            cp -R agent/systemd "$PACKAGE_DIR/systemd"
+          fi
 
-      - name: Upload artifact
+      - name: Create tar.gz archive
+        if: matrix.archive_format == 'tar.gz'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-release
+          tar -C package -czf "dist-release/${{ matrix.release_asset }}" "${{ matrix.package_root }}"
+
+      - name: Create zip archive
+        if: matrix.archive_format == 'zip'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-release
+          cd package
+          7z a "../dist-release/${{ matrix.release_asset }}" "${{ matrix.package_root }}"
+
+      - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: agent/dist/${{ matrix.artifact }}
+          name: ${{ matrix.release_asset }}
+          path: dist-release/${{ matrix.release_asset }}
 
   create-release:
     runs-on: ubuntu-latest
@@ -118,19 +153,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download all agent artifacts
+      - name: Download all agent release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: vordr-agent-*
+          pattern: vordr-agent_*
           path: release-assets
           merge-multiple: true
 
-      - name: Make binaries executable
-        run: chmod +x release-assets/vordr-agent-linux-* release-assets/vordr-agent-darwin-* || true
-
       - name: Generate checksums
         working-directory: release-assets
-        run: sha256sum vordr-agent-* > checksums-sha256.txt
+        run: sha256sum vordr-agent_* > checksums-sha256.txt
 
       - name: Generate changelog
         run: |
@@ -152,26 +184,39 @@ jobs:
           docker pull ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}
           \`\`\`
 
-          ## Agent Downloads
+          ## Agent Distribution
 
-          | Platform | Architecture | Binary |
+          Canonical public distribution for node onboarding binaries is GitHub Releases for this repository.
+          Every tagged release publishes packaged agent assets plus a shared SHA-256 manifest.
+
+          ### Release Assets
+
+          | Platform | Architecture | Asset |
           |----------|-------------|--------|
-          | Linux | amd64 | \`vordr-agent-linux-amd64\` |
-          | Linux | arm64 | \`vordr-agent-linux-arm64\` |
-          | macOS | Intel | \`vordr-agent-darwin-amd64\` |
-          | macOS | Apple Silicon | \`vordr-agent-darwin-arm64\` |
-          | Windows | amd64 | \`vordr-agent-windows-amd64\` |
+          | Linux | amd64 | \`vordr-agent_linux_amd64.tar.gz\` |
+          | Linux | arm64 | \`vordr-agent_linux_arm64.tar.gz\` |
+          | macOS | Intel | \`vordr-agent_darwin_amd64.tar.gz\` |
+          | macOS | Apple Silicon | \`vordr-agent_darwin_arm64.tar.gz\` |
+          | Windows | amd64 | \`vordr-agent_windows_amd64.zip\` |
+          | All | checksum manifest | \`checksums-sha256.txt\` |
 
-          ### Quick Install
+          ### Download URL Pattern
+
+          \`\`\`text
+          https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/<asset-name>
+          \`\`\`
+
+          ### Linux Install Example
 
           \`\`\`bash
-          # Linux (amd64)
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/vordr-agent-linux-amd64 -o /usr/local/bin/vordr-agent
-          chmod +x /usr/local/bin/vordr-agent
-
-          # macOS (Apple Silicon)
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/vordr-agent-darwin-arm64 -o /usr/local/bin/vordr-agent
-          chmod +x /usr/local/bin/vordr-agent
+          curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/vordr-agent_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/checksums-sha256.txt
+          grep ' vordr-agent_linux_amd64.tar.gz$' checksums-sha256.txt | sha256sum -c -
+          tar -xzf vordr-agent_linux_amd64.tar.gz
+          sudo ./vordr-agent_linux_amd64/systemd/install-systemd.sh \
+            ./vordr-agent_linux_amd64/vordr-agent \
+            ./vordr-agent_linux_amd64/systemd/vordr-agent.env.example \
+            ./vordr-agent_linux_amd64/systemd/vordr-agent.service
           \`\`\`
           EOF
 

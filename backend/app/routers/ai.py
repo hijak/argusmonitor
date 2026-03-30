@@ -11,6 +11,7 @@ from app.models import AIChatMessage, AIChatSession, AgentAction, AlertInstance,
 from app.schemas import AIChatRequest, AIChatResponse, AIChatSessionCreate, AIChatSessionOut, AIGenerateTransactionRequest, AIExplainFailureRequest
 from app.auth import get_current_user
 from app.services.ai_service import AIService
+from app.services.workspace import get_current_workspace
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -351,6 +352,7 @@ async def _build_monitoring_context(db: AsyncSession) -> dict:
 async def list_sessions(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
 ):
     await _ensure_ai_chat_schema(db)
     result = await db.execute(
@@ -367,6 +369,7 @@ async def create_session(
     req: AIChatSessionCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
 ):
     await _ensure_ai_chat_schema(db)
     session = AIChatSession(user_id=user.id, title=(req.title or "New chat")[:80])
@@ -380,6 +383,7 @@ async def chat(
     req: AIChatRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
 ):
     session = await _get_or_create_session(db, user, req.session_id, req.message)
 
@@ -416,7 +420,7 @@ async def chat(
         else:
             response_text = f"I couldn't queue that inspection because **{host_name}** is not currently an agent-connected host."
     else:
-        ai = AIService()
+        ai = AIService(db=db, workspace_id=workspace.id)
         history_result = await db.execute(
             select(AIChatMessage)
             .where(AIChatMessage.user_id == user.id, AIChatMessage.session_id == session.id)
@@ -490,8 +494,9 @@ async def get_history(
 async def generate_transaction(
     req: AIGenerateTransactionRequest,
     user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
 ):
-    ai = AIService()
+    ai = AIService(db=db, workspace_id=workspace.id)
     result = await ai.generate_transaction(req.prompt)
     return result
 
@@ -511,6 +516,6 @@ async def explain_failure(
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    ai = AIService()
+    ai = AIService(db=db, workspace_id=workspace.id)
     explanation = await ai.explain_failure(run)
     return {"explanation": explanation}

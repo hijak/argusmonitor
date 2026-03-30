@@ -10,6 +10,7 @@ import {
   Plus, Trash2, Send, Key, Mail, MessageSquare, Webhook, Phone,
   Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor, Bot,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -23,8 +24,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
-type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "ai" | "retention" | "agents";
+type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "ai" | "telemetry" | "retention" | "agents";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -36,6 +38,7 @@ const sections = [
   { key: "integrations" as Section, label: "Integrations", description: "Connect Slack, PagerDuty, webhooks", icon: Plug },
   { key: "appearance" as Section, label: "Appearance", description: "Theme and display preferences", icon: Palette },
   { key: "ai" as Section, label: "AI Assistant", description: "Model, response style, and assistant defaults", icon: Bot },
+  { key: "telemetry" as Section, label: "Telemetry", description: "Privacy-first product telemetry controls", icon: Monitor, selfHostedOnly: true },
   { key: "retention" as Section, label: "Retention", description: "Control pruning windows for logs, metrics, alerts, and runs", icon: Shield },
   { key: "agents" as Section, label: "Agents", description: "Manage monitoring agents and endpoints", icon: Globe },
 ];
@@ -71,6 +74,7 @@ export default function SettingsPage() {
         {active === "integrations" && <IntegrationsSection />}
         {active === "appearance" && <AppearanceSection />}
         {active === "ai" && <AISettingsSection />}
+        {active === "telemetry" && <TelemetrySection />}
         {active === "retention" && <RetentionSection />}
         {active === "agents" && <AgentsSection />}
       </div>
@@ -83,7 +87,7 @@ export default function SettingsPage() {
         <PageHeader title="Settings" description="Manage your Vordr configuration" />
       </motion.div>
 
-      <motion.div variants={item} className="rounded-lg border border-border bg-card p-5">
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-5 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-medium">Runtime Mode</p>
@@ -93,8 +97,18 @@ export default function SettingsPage() {
           </div>
           <StatusBadge variant={meta?.demo_mode ? "warning" : "healthy"}>{meta?.demo_mode ? "Demo" : "Live"}</StatusBadge>
         </div>
-        <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Toggle with <span className="font-mono">VORDR_DEMO_MODE=true</span> before starting the backend.
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Edition Profile</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {meta?.edition?.is_managed ? "Managed-control-plane conveniences are enabled for this deployment." : "This deployment is running without managed-control-plane conveniences."}
+            </p>
+          </div>
+          <StatusBadge variant={meta?.edition?.is_enterprise ? "info" : "neutral"}>{meta?.edition?.label || "Self-Hosted"}</StatusBadge>
+        </div>
+        <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
+          <div>Toggle demo mode with <span className="font-mono">VORDR_DEMO_MODE=true</span> before starting the backend.</div>
+          <div>Set the edition with <span className="font-mono">VORDR_EDITION_PROFILE=self_hosted|cloud|enterprise</span>.</div>
         </div>
       </motion.div>
 
@@ -114,7 +128,9 @@ export default function SettingsPage() {
       )}
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card divide-y divide-border">
-        {sections.map(s => (
+        {sections
+          .filter((s: any) => !s.selfHostedOnly || meta?.edition?.profile === "self_hosted")
+          .map(s => (
           <button
             key={s.key}
             onClick={() => setActive(s.key)}
@@ -647,28 +663,125 @@ function IntegrationsSection() {
 
 function AISettingsSection() {
   const qc = useQueryClient();
+  const { meta } = useAppMeta();
   const { data: prefs, isLoading } = useQuery({ queryKey: ["preferences"], queryFn: api.getPreferences });
+  const { data: provider, isLoading: providerLoading } = useQuery({ queryKey: ["ai-provider-settings"], queryFn: api.getAIProviderSettings });
+  const [providerForm, setProviderForm] = useState({ endpoint: "", model: "", api_key: "" });
+
+  useEffect(() => {
+    if (provider) {
+      setProviderForm({
+        endpoint: provider.endpoint || "",
+        model: provider.model || "",
+        api_key: "",
+      });
+    }
+  }, [provider]);
 
   const updateMut = useMutation({
     mutationFn: (data: any) => api.updatePreferences(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["preferences"] });
-      toast.success("AI assistant settings saved");
+      toast.success("AI assistant defaults saved");
     },
-    onError: (e: any) => toast.error(e.message || "Failed to update AI assistant settings"),
+    onError: (e: any) => toast.error(e.message || "Failed to update AI assistant defaults"),
   });
 
-  if (isLoading || !prefs) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>;
+  const providerMut = useMutation({
+    mutationFn: (data: any) => api.updateAIProviderSettings(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ai-provider-settings"] });
+      setProviderForm((current) => ({ ...current, api_key: "" }));
+      toast.success("AI provider settings saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update AI provider settings"),
+  });
+
+  if (isLoading || providerLoading || !prefs || !provider) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>;
+
+  const byokAvailable = meta?.capabilities?.["ai.byok"] ?? provider.byok_enabled;
+  const providerLocked = !provider.can_edit;
 
   return (
     <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
-      <motion.div variants={item}><PageHeader title="AI Assistant" description="Tune how Vordr Co-pilot responds and what context it should lean on" /></motion.div>
+      <motion.div variants={item}><PageHeader title="AI Assistant" description="Tune how Vordr Co-pilot responds and configure the provider used for self-hosted inference" /></motion.div>
+
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Provider configuration</p>
+            <p className="mt-1 text-xs text-muted-foreground">Set the API endpoint, model, and key Vordr should use for AI features. Self-hosted installs can point this at OpenAI-compatible providers.</p>
+          </div>
+          <StatusBadge variant={provider.api_key_configured ? "healthy" : "warning"}>{provider.api_key_configured ? "Configured" : "Missing key"}</StatusBadge>
+        </div>
+
+        <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
+          <div>Edition support: {byokAvailable ? "BYOK is enabled for this deployment." : "BYOK is currently unavailable for this deployment."}</div>
+          <div>Config source: {provider.source === "workspace" ? "Saved in workspace settings" : "Inherited from backend environment variables"}.</div>
+          {provider.api_key_masked ? <div>Current key: <span className="font-mono">{provider.api_key_masked}</span></div> : null}
+        </div>
+
+        <div className="grid gap-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">API endpoint</label>
+            <Input
+              value={providerForm.endpoint}
+              onChange={(e) => setProviderForm((f) => ({ ...f, endpoint: e.target.value }))}
+              placeholder="https://api.openai.com/v1"
+              disabled={providerLocked || !byokAvailable || providerMut.isPending}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Use the provider base URL, including the <span className="font-mono">/v1</span> path when required.</p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Model</label>
+            <Input
+              value={providerForm.model}
+              onChange={(e) => setProviderForm((f) => ({ ...f, model: e.target.value }))}
+              placeholder="gpt-4o-mini"
+              disabled={providerLocked || !byokAvailable || providerMut.isPending}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">API key</label>
+            <Input
+              type="password"
+              value={providerForm.api_key}
+              onChange={(e) => setProviderForm((f) => ({ ...f, api_key: e.target.value }))}
+              placeholder={provider.api_key_configured ? "Leave blank to keep current key" : "sk-..."}
+              disabled={providerLocked || !byokAvailable || providerMut.isPending}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Leave blank to keep the current key. Use clear only if you want to remove the saved workspace key and fall back to environment config.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => providerMut.mutate({ endpoint: providerForm.endpoint, model: providerForm.model, ...(providerForm.api_key.trim() ? { api_key: providerForm.api_key } : {}) })}
+            disabled={providerLocked || !byokAvailable || providerMut.isPending}
+            className="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {providerMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Save provider settings
+          </button>
+          <button
+            onClick={() => providerMut.mutate({ clear_api_key: true, endpoint: providerForm.endpoint, model: providerForm.model })}
+            disabled={providerLocked || !byokAvailable || providerMut.isPending || !provider.api_key_configured}
+            className="inline-flex items-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Clear saved key
+          </button>
+        </div>
+
+        {providerLocked ? <p className="text-xs text-warning">Provider settings are read-only in this deployment mode.</p> : null}
+      </motion.div>
 
       <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-5">
         <div>
-          <label className="mb-1.5 block text-sm font-medium">Model preference</label>
+          <label className="mb-1.5 block text-sm font-medium">Assistant behaviour profile</label>
           <Select value={prefs.ai_model || "default"} onValueChange={(value) => updateMut.mutate({ ai_model: value })}>
-            <SelectTrigger className="w-full"><SelectValue placeholder="Select model" /></SelectTrigger>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Select profile" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="default">Default routing</SelectItem>
               <SelectItem value="fast">Fast / lighter</SelectItem>
@@ -722,6 +835,64 @@ function AISettingsSection() {
           </div>
         </div>
       </motion.div>
+    </motion.div>
+  );
+}
+
+// ===================== TELEMETRY =====================
+function TelemetrySection() {
+  const qc = useQueryClient();
+  const { meta } = useAppMeta();
+  const { data: prefs, isLoading } = useQuery({ queryKey: ["preferences"], queryFn: api.getPreferences });
+
+  const updateMut = useMutation({
+    mutationFn: (data: any) => api.updatePreferences(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["preferences"] });
+      toast.success("Telemetry preference saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update telemetry preference"),
+  });
+
+  if (isLoading || !prefs) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>;
+
+  const isSelfHosted = meta?.edition?.profile === "self_hosted";
+
+  return (
+    <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
+      <motion.div variants={item}><PageHeader title="Telemetry" description="Privacy-first product telemetry controls" /></motion.div>
+
+      {!isSelfHosted ? (
+        <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-2">
+          <p className="text-sm font-medium">Not available in this edition</p>
+          <p className="text-xs text-muted-foreground">Telemetry controls are not available in this edition.</p>
+        </motion.div>
+      ) : (
+        <>
+          <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Anonymous install telemetry</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Send a small startup event so free self-hosted installs can be counted as active. No auto-captured clicks, no session replay, no surprise tracking.
+                </p>
+              </div>
+              <Switch
+                checked={Boolean(prefs.telemetry_enabled ?? true)}
+                disabled={updateMut.isPending}
+                onCheckedChange={(checked) => updateMut.mutate({ telemetry_enabled: checked })}
+              />
+            </div>
+
+            <div className="rounded-lg bg-muted/40 px-3 py-3 text-xs text-muted-foreground space-y-1">
+              <div>Provider: Aptabase</div>
+              <div>Host: <span className="font-mono">https://aptabase.exnet.systems</span></div>
+              <div>Collection style: one explicit app-start event only</div>
+              <div>Current state: {Boolean(prefs.telemetry_enabled ?? true) ? "enabled" : "disabled"}</div>
+            </div>
+          </motion.div>
+        </>
+      )}
     </motion.div>
   );
 }

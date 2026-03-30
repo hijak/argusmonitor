@@ -1,5 +1,114 @@
 # Errors
 
+## [ERR-20260330-003] paperclip-followup-issueid-truncation
+
+**Logged**: 2026-03-30T14:15:30Z
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A Paperclip follow-up comment/close retry returned 500 because the issue ID in the mutating request path was accidentally truncated by one character.
+
+### Error
+```
+POST /api/issues/0dc02c6b-dfa0-4119-888c-3ffdcffab1c/comments -> 500
+PATCH /api/issues/0dc02c6b-dfa0-4119-888c-3ffdcffab1c -> 500
+```
+
+### Context
+- Command/operation attempted: POST `/api/issues/{issueId}/comments`, PATCH `/api/issues/{issueId}`
+- Repo/task context: Paperclip wake follow-up for Vordr issue `JAC-25`
+- Cause: the retry script used a truncated issue UUID (`...ab1c` instead of `...ab1c4`) in the request path
+
+### Suggested Fix
+Copy the issue UUID directly from the wake payload or prior GET response before mutating calls, and log the exact path on retries when a 500 appears unexpectedly.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+- See Also: ERR-20260330-001, ERR-20260330-002
+
+### Resolution
+- **Resolved**: 2026-03-30T14:15:30Z
+- **Commit/PR**: local working tree
+- **Notes**: Verified the typo, corrected the issue UUID, and retried the Paperclip follow-up flow against the documented endpoint.
+
+---
+
+## [ERR-20260330-002] paperclip-comment-close-env-payload
+
+**Logged**: 2026-03-30T08:45:48Z
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A Paperclip issue comment POST and status PATCH were first attempted with Python serializers reading non-exported shell variables, causing the comment write to fail and the issue PATCH to send an incomplete payload.
+
+### Error
+```
+KeyError: 'COMMENT'
+KeyError: 'PATCH_COMMENT'
+POST /api/issues/{issueId}/comments -> validation error (body required)
+```
+
+### Context
+- Command/operation attempted: POST `/api/issues/{issueId}/comments`, PATCH `/api/issues/{issueId}`
+- Repo/task context: Paperclip wake run for Vordr issue `JAC-8`
+- Cause: shell heredoc variables were defined locally but not exported before Python read `os.environ[...]`
+
+### Suggested Fix
+For mutating Paperclip API calls, write JSON payloads directly to temp files (or export env vars explicitly) before invoking curl. Avoid relying on subprocess environment inheritance for multi-line comment bodies.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+- See Also: ERR-20260330-001
+
+### Resolution
+- **Resolved**: 2026-03-30T08:45:48Z
+- **Commit/PR**: local working tree
+- **Notes**: Logged the failure pattern and retried using temp JSON files written directly by Python before the curl calls.
+
+---
+
+## [ERR-20260330-001] paperclip-comment-payload-shell-env
+
+**Logged**: 2026-03-30T09:31:00Z
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A Paperclip issue comment POST failed because a shell variable used for JSON serialization was defined locally but not exported into the Python subprocess environment.
+
+### Error
+```
+KeyError: 'COMMENT_BODY'
+curl: (22) The requested URL returned error: 400
+```
+
+### Context
+- Command/operation attempted: POST `/api/issues/{issueId}/comments`
+- Repo/task context: Paperclip wake run for Vordr issue `JAC-4`
+- Cause: Python serializer read `os.environ['COMMENT_BODY']`, but `COMMENT_BODY` was not exported from the shell before invocation
+
+### Suggested Fix
+When shelling out to Python for JSON payload generation, either `export` the variable first or write the payload to a temp file directly to avoid environment coupling.
+
+### Metadata
+- Reproducible: yes
+- Related Files: strategy/release-packaging-pipeline.md, .learnings/ERRORS.md
+
+### Resolution
+- **Resolved**: 2026-03-30T09:32:00Z
+- **Commit/PR**: local working tree
+- **Notes**: Retried the Paperclip write flow using temp JSON files generated directly by Python, avoiding reliance on a non-exported environment variable.
+
+---
+
+
 ## [ERR-20260320-005] host-detail-modal-duplicated-jsx-tail
 
 **Logged**: 2026-03-20T21:59:00Z
@@ -536,5 +645,96 @@ from old bundle hash AlertsPage-DCho3UO6.js
 ### Metadata
 - Reproducible: yes
 - Related Files: frontend/nginx.conf, frontend/src/pages/AlertsPage.tsx
+
+---
+
+
+## [ERR-20260330-001] paperclip-comment-body-shell-env-miss
+
+**Logged**: 2026-03-30T08:24:40+00:00
+**Priority**: medium
+**Status**: pending
+**Area**: infra
+
+### Summary
+A Paperclip issue comment POST failed because a shell heredoc value was referenced via `os.environ` without being exported, resulting in an empty JSON body.
+
+### Error
+```
+KeyError: 'COMMENT_BODY'
+Validation error: body Required
+```
+
+### Context
+- Command/operation attempted: `POST /api/issues/{issueId}/comments`
+- Integration: local Paperclip API at `http://10.13.37.9:3100`
+- Cause: `comment_body=$(cat <<EOF ...)` created a shell variable, but the Python subprocess tried to read `COMMENT_BODY` from the environment.
+- Outcome: standalone comment POST failed, but `PATCH /api/issues/{issueId}` with `comment` still succeeded and created the completion comment.
+
+### Suggested Fix
+When building JSON via a Python subprocess, either `export COMMENT_BODY` first or pass the string directly to Python/stdin. For simple Paperclip completions, the `PATCH` `comment` field is sufficient and more robust.
+
+### Metadata
+- Reproducible: yes
+- Related Files: strategy/edition-capability-model.md
+
+---
+
+## [ERR-20260330-001] exec-shell-quoting
+
+**Logged**: 2026-03-30T09:22:15Z
+**Priority**: low
+**Status**: pending
+**Area**: infra
+
+### Summary
+Inline exec command failed because nested quoting in a zsh rg pattern produced an unmatched quote error
+
+### Error
+```
+zsh:1: unmatched "
+```
+
+### Context
+- Command/operation attempted: `git pull --rebase && rg ...` from OpenClaw exec
+- Input or parameters used: single-line shell with nested quote escapes around an rg regex containing both single and double quotes
+- Environment details if relevant: macOS zsh in `/Users/jack/clawd/projects/vordr`
+
+### Suggested Fix
+Prefer multiline shell scripts or Python helpers for regex-heavy search commands instead of deeply nested single-line quoting.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+
+---
+## [ERR-20260330-001] git-pull-rebase-dirty-worktree
+
+**Logged**: 2026-03-30T13:59:44Z
+**Priority**: medium
+**Status**: pending
+**Area**: config
+
+### Summary
+Repo hygiene rule says to pull before work, but git pull --rebase was blocked by an already-dirty worktree.
+
+### Error
+```
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+```
+
+### Context
+- Command attempted: `git -C /Users/jack/clawd/projects/vordr pull --rebase`
+- The repository already contained many modified and untracked files from in-progress work.
+- To avoid trampling user or prior-agent changes, the task was completed by reviewing existing docs in the current working tree instead of forcing a stash/reset.
+
+### Suggested Fix
+Before enforcing the pull-first rule in active repos, inspect `git status --short`. If the tree is already dirty, avoid pull/rebase until ownership of the local changes is clear, or use a dedicated clean worktree.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+- See Also: none
 
 ---
