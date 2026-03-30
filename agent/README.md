@@ -1,57 +1,98 @@
 # Vordr Agent
 
-Standalone host agent for Vordr. It collects local system metrics, optionally tails log files, and sends data to the backend.
+**The standalone host agent for Vordr.**
 
-## Features
+The Vordr Agent collects host telemetry, optionally tails logs, and reports back to the Vordr backend. It is designed for simple deployment on Linux servers, local test boxes, and packaged binary distribution.
 
-- Registers or updates a host record through `/api/agent/heartbeat`
-- Sends CPU, memory, disk, uptime, and network counters
-- Ships new log lines to `/api/logs/ingest/batch` (starts at EOF on first run to avoid replaying old logs)
-- Runs as a simple polling daemon
-- Can be bundled into a single-file binary with PyInstaller
+## What it does
+
+- registers or updates a host via `/api/agent/heartbeat`
+- sends CPU, memory, disk, uptime, and network counters
+- can ship appended log lines to the backend
+- runs as a lightweight polling daemon
+- can be bundled into a single-file binary with PyInstaller
+
+## Typical use cases
+
+- onboard a server into Vordr without installing the full product stack on that machine
+- report host health from edge nodes or small VMs
+- collect operational telemetry in a self-hosted environment
+- package a simple downloadable binary for operators
 
 ## Configuration
 
-Set these environment variables before starting the agent:
+Set the basics before starting the agent:
 
 ```bash
 export VORDR_AGENT_SERVER_URL=http://localhost:8000
 export VORDR_AGENT_TOKEN=vordr-agent-dev-token
 export VORDR_AGENT_HOSTNAME=$(hostname)
 export VORDR_AGENT_LOG_FILES=/var/log/syslog,/var/log/auth.log
-# Optional separate plugins repo checkout
-# export VORDR_AGENT_PLUGINS_REPO=/opt/vordr-plugins
-# Optional richer collectors
-# export VORDR_POSTGRES_DSN=postgresql://argus:arguspass@127.0.0.1:5432/appdb
-# export VORDR_MYSQL_DSN=mysql://argus:arguspass@127.0.0.1:3306/appdb
-# export VORDR_REDIS_URL=redis://127.0.0.1:6379/0
-# export VORDR_RABBITMQ_API_URL=http://127.0.0.1:15672
-# export VORDR_RABBITMQ_API_USERNAME=argus
-# export VORDR_RABBITMQ_API_PASSWORD=arguspass
-# export VORDR_PROMETHEUS_URL=http://127.0.0.1:9090
-# export VORDR_KUBERNETES_API=https://127.0.0.1:6443
-# export VORDR_KUBERNETES_BEARER_TOKEN=optional
-# export VORDR_KUBERNETES_VERIFY_SSL=false
 ```
 
-Optional settings:
+### Optional settings
 
-- `VORDR_AGENT_INTERVAL_SECONDS` default `30`
-- `VORDR_AGENT_SERVICE_NAME` default `host-agent`
-- `VORDR_AGENT_HOST_TYPE` default `server`
-- `VORDR_AGENT_TAGS` comma-separated tags
-- `VORDR_AGENT_VERIFY_TLS` default `true`
-- `VORDR_AGENT_DISK_PATH` default `/` (set this to a host root bind mount like `/hostfs` when running in Docker)
-- `VORDR_AGENT_IP_ADDRESS` explicit IPv4 address to report to Vordr; useful for Docker/bridge deployments where auto-detection sees the container namespace instead of the host LAN IP
-- `VORDR_AGENT_PLUGINS_REPO` path to a local checkout of the separate `vordr-plugins` repo; when set, external collector manifests/implementations override built-ins by matching `plugin_id`
-- `VORDR_POSTGRES_DSN` enables richer PostgreSQL detection against a configured DSN (currently used for endpoint-aware probing)
-- `VORDR_POSTGRES_METRICS_URL` optional postgres-exporter `/metrics` endpoint; when set, the Postgres plugin reads richer health signals from exporter metrics
+| Variable | Description |
+|----------|-------------|
+| `VORDR_AGENT_INTERVAL_SECONDS` | Polling interval. Default: `30` |
+| `VORDR_AGENT_SERVICE_NAME` | Service name reported to Vordr. Default: `host-agent` |
+| `VORDR_AGENT_HOST_TYPE` | Host type label. Default: `server` |
+| `VORDR_AGENT_TAGS` | Comma-separated host tags |
+| `VORDR_AGENT_VERIFY_TLS` | TLS verification toggle. Default: `true` |
+| `VORDR_AGENT_DISK_PATH` | Disk path to inspect. Default: `/` |
+| `VORDR_AGENT_IP_ADDRESS` | Explicit IPv4 address to report |
+| `VORDR_AGENT_PLUGINS_REPO` | Optional local plugins checkout |
+| `VORDR_POSTGRES_DSN` | Enables PostgreSQL-aware discovery |
+| `VORDR_POSTGRES_METRICS_URL` | Optional postgres-exporter metrics endpoint |
+| `VORDR_MYSQL_DSN` | Enables MySQL-aware discovery |
+| `VORDR_REDIS_URL` | Enables Redis-aware discovery |
+| `VORDR_RABBITMQ_API_URL` | Enables RabbitMQ-aware discovery |
+| `VORDR_RABBITMQ_API_USERNAME` | RabbitMQ API username |
+| `VORDR_RABBITMQ_API_PASSWORD` | RabbitMQ API password |
+| `VORDR_PROMETHEUS_URL` | Optional Prometheus endpoint |
+| `VORDR_KUBERNETES_API` | Optional Kubernetes API endpoint |
+| `VORDR_KUBERNETES_BEARER_TOKEN` | Kubernetes bearer token |
+| `VORDR_KUBERNETES_VERIFY_SSL` | Kubernetes SSL verification toggle |
 
-## Public binary distribution
+## Run from source
 
-The supported public distribution path for node onboarding binaries is **GitHub Releases for this repository**.
+```bash
+cd agent
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m vordr_agent.main
+```
 
-Each tagged release publishes:
+## Build a single binary
+
+Build on the same OS and architecture you plan to ship.
+
+```bash
+cd agent
+chmod +x build.sh
+./build.sh
+```
+
+Output:
+
+```bash
+agent/dist/vordr-agent
+```
+
+Run the packaged binary:
+
+```bash
+export VORDR_AGENT_SERVER_URL=http://localhost:8000
+export VORDR_AGENT_TOKEN=vordr-agent-dev-token
+./dist/vordr-agent
+```
+
+## Public release assets
+
+The intended public distribution path is **GitHub Releases**.
+
+Expected assets per tagged release:
 
 - `vordr-agent_linux_amd64.tar.gz`
 - `vordr-agent_linux_arm64.tar.gz`
@@ -66,57 +107,21 @@ Download pattern:
 https://github.com/<owner>/<repo>/releases/download/<tag>/<asset-name>
 ```
 
-Linux release archives include the binary, this README, and the `systemd/` install files so operators can install directly from a release asset.
+Linux archives are expected to include:
 
-## Run
-
-```bash
-cd agent
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m vordr_agent.main
-```
-
-## Build A Single Binary
-
-Build on the same OS/architecture you plan to run. For example, build on Linux for a Linux binary.
-
-```bash
-cd agent
-chmod +x build.sh
-./build.sh
-```
-
-Output:
-
-```bash
-agent/dist/vordr-agent
-```
-
-Run the binary:
-
-```bash
-export VORDR_AGENT_SERVER_URL=http://localhost:8000
-export VORDR_AGENT_TOKEN=vordr-agent-dev-token
-./dist/vordr-agent
-```
-
-Notes:
-
-- PyInstaller produces a single executable, but it is still platform-specific.
-- Build separate artifacts for `linux-amd64`, `linux-arm64`, `windows-amd64`, and so on.
-- If you disable TLS verification for internal testing, set `VORDR_AGENT_VERIFY_TLS=false`.
+- the agent binary
+- this README
+- the `systemd/` install files
 
 ## systemd deployment
 
-Files:
+Included files:
 
 - `systemd/vordr-agent.service`
 - `systemd/vordr-agent.env.example`
 - `systemd/install-systemd.sh`
 
-Example install on a Linux host after building the binary:
+### Install after building locally
 
 ```bash
 cd agent
@@ -126,7 +131,7 @@ sudo systemctl restart vordr-agent
 sudo systemctl status vordr-agent --no-pager
 ```
 
-Example install from a GitHub release asset:
+### Install from a GitHub release asset
 
 ```bash
 curl -fsSLO https://github.com/<owner>/<repo>/releases/download/<tag>/vordr-agent_linux_amd64.tar.gz
@@ -140,18 +145,17 @@ sudo systemctl restart vordr-agent
 sudo systemctl status vordr-agent --no-pager
 ```
 
-Notes:
+## Backend requirement
 
-- The service uses `/etc/vordr-agent/vordr-agent.env` for configuration.
-- `VORDR_AGENT_LOG_FILES` may require root-readable paths, so a system service is the preferred deployment.
-- When running natively on the host, leave `VORDR_AGENT_DISK_PATH=/`.
-- When running in Docker, set `VORDR_AGENT_DISK_PATH` to the host root bind mount (for example `/hostfs`).
-- For containerized agents, prefer setting `VORDR_AGENT_IP_ADDRESS` to the host LAN IP if you are not using `--network host`.
-
-## Backend
-
-The backend must have the same shared token configured:
+The backend must be configured with the same shared token:
 
 ```bash
 export VORDR_AGENT_SHARED_TOKEN=vordr-agent-dev-token
 ```
+
+## Notes
+
+- Keep `VORDR_AGENT_VERIFY_TLS=true` in normal deployments.
+- For Dockerised agents, set `VORDR_AGENT_DISK_PATH` to a host root bind mount such as `/hostfs`.
+- If the detected IP is wrong inside containers, set `VORDR_AGENT_IP_ADDRESS` explicitly.
+- If you ship logs from privileged paths, a system service is usually the cleanest deployment mode.

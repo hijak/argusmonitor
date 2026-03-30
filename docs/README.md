@@ -1,6 +1,20 @@
 # Vordr Docs
 
-Self-hosted documentation site for Vordr using **Docusaurus**.
+This directory contains the **Docusaurus documentation site** for Vordr.
+
+It is the public-facing home for installation, product explanation, self-hosting guidance, and operator documentation.
+
+## Covers
+
+- product overview
+- quick start
+- hosted vs self-hosted positioning
+- pricing, AI credits, and BYOK guidance
+- agent installation and systemd deployment
+- service discovery
+- alerts and monitoring workflows
+- AI copilot behaviour
+- read-only host inspections
 
 ## Local development
 
@@ -17,20 +31,17 @@ cd docs
 npm run build
 ```
 
-## Purpose
+## Deployment target
 
-This docs site covers:
-- product overview
-- quick start
-- hosted vs self-hosted
-- pricing / AI credits / BYOK
-- agent install + systemd deployment
-- service discovery
-- alerts
-- AI copilot
-- read-only host inspections
+Intended public deployment target:
 
-## Target
-
-Intended deployment target:
 - `vordr.systems`
+
+## Notes
+
+The goal of this docs site is simple:
+
+- explain what Vordr is
+- make self-hosting approachable
+- document the agent cleanly
+- keep product packaging honest and understandable
