@@ -55,7 +55,7 @@ Vordr is aimed at operators and small teams who want:
 | `backend/` | FastAPI API, auth, alerts, incidents, AI routes, persistence |
 | `frontend/` | Main product UI |
 | `agent/` | Standalone host agent and packaging scripts |
-| `docs/` | Docusaurus documentation site |
+| `docs-site` | Standalone Docusaurus docs repo (`../vordr-docs` locally, `hijak/vordr-docs` remotely) |
 | `strategy/` | Product, packaging, and release planning notes |
 
 ## Quick start
@@ -146,7 +146,8 @@ See `.env.example` and `docker-compose.yml` for a complete working baseline.
 
 ## Docs
 
-- Product and self-hosting docs: [`docs/README.md`](./docs/README.md)
+- Product and self-hosting docs repo: [`hijak/vordr-docs`](https://github.com/hijak/vordr-docs)
+- Local compose preview builds docs from sibling checkout: `../vordr-docs`
 - Frontend app notes: [`frontend/README.md`](./frontend/README.md)
 - Host agent docs: [`agent/README.md`](./agent/README.md)
 
