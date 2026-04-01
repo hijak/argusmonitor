@@ -108,7 +108,7 @@ services:
 
   docs-site:
     build:
-      context: ./docs
+      context: ../vordr-docs
       dockerfile: Dockerfile
     ports:
       - "8789:8080"
