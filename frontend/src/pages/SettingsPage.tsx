@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   User, Bell, Shield, Plug, Palette, Globe, ChevronLeft, LogOut,
   Plus, Trash2, Send, Key, Mail, MessageSquare, Webhook, Phone,
-  Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor, Bot,
+  Check, X, Copy, Eye, EyeOff, Loader2, ChevronRight, Monitor, Bot, BadgeCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
@@ -26,7 +26,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
-type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "ai" | "telemetry" | "retention" | "agents";
+type Section = null | "profile" | "notifications" | "security" | "integrations" | "appearance" | "ai" | "licensing" | "telemetry" | "retention" | "agents";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.03 } } };
 const item = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0, transition: { duration: 0.15 } } };
@@ -38,6 +38,7 @@ const sections = [
   { key: "integrations" as Section, label: "Integrations", description: "Connect Slack, PagerDuty, webhooks", icon: Plug },
   { key: "appearance" as Section, label: "Appearance", description: "Theme and display preferences", icon: Palette },
   { key: "ai" as Section, label: "AI Assistant", description: "Model, response style, and assistant defaults", icon: Bot },
+  { key: "licensing" as Section, label: "Licensing", description: "Activate and inspect the current license key", icon: BadgeCheck },
   { key: "telemetry" as Section, label: "Telemetry", description: "Privacy-first product telemetry controls", icon: Monitor, selfHostedOnly: true },
   { key: "retention" as Section, label: "Retention", description: "Control pruning windows for logs, metrics, alerts, and runs", icon: Shield },
   { key: "agents" as Section, label: "Agents", description: "Manage monitoring agents and endpoints", icon: Globe },
@@ -74,6 +75,7 @@ export default function SettingsPage() {
         {active === "integrations" && <IntegrationsSection />}
         {active === "appearance" && <AppearanceSection />}
         {active === "ai" && <AISettingsSection />}
+        {active === "licensing" && <LicensingSection />}
         {active === "telemetry" && <TelemetrySection />}
         {active === "retention" && <RetentionSection />}
         {active === "agents" && <AgentsSection />}
@@ -109,6 +111,7 @@ export default function SettingsPage() {
         <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
           <div>Toggle demo mode with <span className="font-mono">VORDR_DEMO_MODE=true</span> before starting the backend.</div>
           <div>Set the edition with <span className="font-mono">VORDR_EDITION_PROFILE=self_hosted|cloud|enterprise</span>.</div>
+          <div>Preload a deployment-wide license with <span className="font-mono">VORDR_LICENSE_KEY=...</span>.</div>
         </div>
       </motion.div>
 
@@ -833,6 +836,86 @@ function AISettingsSection() {
               <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" style={{ transform: `translateX(${prefs.ai_include_context ? "22px" : "2px"})` }} />
             </button>
           </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ===================== LICENSING =====================
+function LicensingSection() {
+  const qc = useQueryClient();
+  const { meta } = useAppMeta();
+  const { data, isLoading } = useQuery({ queryKey: ["license-status"], queryFn: api.getLicenseStatus });
+  const [licenseKey, setLicenseKey] = useState("");
+
+  const activateMut = useMutation({
+    mutationFn: (value: string) => api.activateLicense(value),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["license-status"] });
+      qc.invalidateQueries({ queryKey: ["app-meta"] });
+      setLicenseKey("");
+      toast.success("License key saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save license key"),
+  });
+
+  if (isLoading || !data) return <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>;
+
+  const submit = () => {
+    const trimmed = licenseKey.trim();
+    if (!trimmed) return;
+    activateMut.mutate(trimmed);
+  };
+
+  return (
+    <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
+      <motion.div variants={item}>
+        <PageHeader title="Licensing" description="Activate a license key locally and inspect the current activation state." />
+      </motion.div>
+
+      <motion.div variants={item} className="rounded-lg border border-border bg-card p-6 space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Current status</p>
+            <p className="mt-1 text-xs text-muted-foreground">This first pass stores the active key inside the workspace settings layer or reads it from <span className="font-mono">VORDR_LICENSE_KEY</span> if preloaded by the deployment.</p>
+          </div>
+          <StatusBadge variant={data.status === "active" ? "healthy" : "neutral"}>{data.status === "active" ? "Active" : "Inactive"}</StatusBadge>
+        </div>
+
+        <div className="rounded-lg bg-muted/40 px-3 py-3 text-xs text-muted-foreground space-y-1">
+          <div>Configured source: <span className="font-medium text-foreground">{data.source}</span></div>
+          <div>Key present: {data.key_configured ? "yes" : "no"}</div>
+          <div>Masked key: <span className="font-mono">{data.key_masked || "—"}</span></div>
+          <div>Edition hint: {data.edition_hint || meta?.edition?.license_hint || "unknown"}</div>
+          <div>Activated by: {data.activated_by || "—"}</div>
+          <div>Activated at: {data.activated_at || "—"}</div>
+          <div>Last validated: {data.last_validated_at || "—"}</div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Activate or replace license key</label>
+          <Input
+            value={licenseKey}
+            onChange={(e) => setLicenseKey(e.target.value)}
+            placeholder="Paste license key"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <p className="text-xs text-muted-foreground">No external validation call yet. This records the key for local activation and future enforcement work.</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={submit}
+            disabled={activateMut.isPending || !licenseKey.trim()}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity disabled:opacity-60"
+          >
+            {activateMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+            Save license key
+          </button>
+          <span className="text-xs text-muted-foreground">{data.message}</span>
         </div>
       </motion.div>
     </motion.div>

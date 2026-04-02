@@ -10,6 +10,8 @@ export interface AppMeta {
     label: string;
     is_managed: boolean;
     is_enterprise: boolean;
+    license_hint?: "self_hosted" | "cloud" | "enterprise" | string | null;
+    license_key_configured?: boolean;
   };
   capabilities: Record<string, boolean>;
 }

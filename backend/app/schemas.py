@@ -756,6 +756,22 @@ class AIProviderConfigUpdate(BaseModel):
     clear_api_key: bool = False
 
 
+class LicenseStatusOut(BaseModel):
+    source: str
+    key_configured: bool = False
+    key_masked: Optional[str] = None
+    last_validated_at: Optional[datetime] = None
+    activated_at: Optional[datetime] = None
+    activated_by: Optional[str] = None
+    edition_hint: Optional[str] = None
+    status: str = "inactive"
+    message: str = ""
+
+
+class LicenseActivateRequest(BaseModel):
+    license_key: str = Field(min_length=1)
+
+
 class AgentOut(BaseModel):
     id: UUID
     name: str

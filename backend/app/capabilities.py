@@ -86,9 +86,23 @@ def resolve_capabilities(profile: str) -> dict[str, bool]:
     return {key: key in enabled for key in CAPABILITY_KEYS}
 
 
+def _license_edition_hint(value: str | None) -> str | None:
+    token = (value or "").strip().upper()
+    if not token:
+        return None
+    if token.startswith("VORDR-ENT") or "ENTERPRISE" in token:
+        return "enterprise"
+    if token.startswith("VORDR-CLD") or token.startswith("VORDR-CLOUD") or "CLOUD" in token:
+        return "cloud"
+    if token.startswith("VORDR-SH") or token.startswith("VORDR-SELF") or "SELF" in token:
+        return "self_hosted"
+    return None
+
+
 def build_meta_payload(settings: Settings) -> dict[str, Any]:
     profile = normalize_edition_profile(settings.edition_profile)
     capabilities = resolve_capabilities(profile)
+    license_hint = _license_edition_hint(getattr(settings, "license_key", ""))
     return {
         "app_name": settings.app_name,
         "demo_mode": settings.demo_mode,
@@ -97,6 +111,8 @@ def build_meta_payload(settings: Settings) -> dict[str, Any]:
             "label": PROFILE_LABELS[profile],
             "is_managed": capabilities["platform.managed_control_plane"],
             "is_enterprise": profile == "enterprise",
+            "license_hint": license_hint,
+            "license_key_configured": bool((getattr(settings, "license_key", "") or "").strip()),
         },
         "capabilities": capabilities,
     }

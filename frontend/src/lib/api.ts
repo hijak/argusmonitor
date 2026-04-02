@@ -352,6 +352,10 @@ export const api = {
   getAIProviderSettings: () => request<any>("/settings/ai-provider"),
   updateAIProviderSettings: (data: any) =>
     request<any>("/settings/ai-provider", { method: "PUT", body: JSON.stringify(data) }),
+  getLicenseStatus: () =>
+    request<any>("/settings/license"),
+  activateLicense: (license_key: string) =>
+    request<any>("/settings/license", { method: "POST", body: JSON.stringify({ license_key }) }),
 
   // Settings - Retention
   getRetentionPolicy: () => request<any>("/settings/retention"),

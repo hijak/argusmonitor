@@ -16,6 +16,7 @@ from app.schemas import (
     IntegrationCreate, IntegrationUpdate, IntegrationOut,
     UserPreferenceOut, UserPreferenceUpdate,
     AIProviderConfigOut, AIProviderConfigUpdate,
+    LicenseStatusOut, LicenseActivateRequest,
     AgentOut, RetentionPolicyOut, RetentionPolicyUpdate,
 )
 from app.auth import get_current_user, hash_password, verify_password, hash_api_key
@@ -32,6 +33,8 @@ AI_PROVIDER_DEFAULTS = {
     "endpoint": "https://api.openai.com/v1",
     "model": "gpt-4o-mini",
 }
+LICENSE_INTEGRATION_TYPE = "license_activation"
+LICENSE_INTEGRATION_NAME = "License Activation"
 
 
 def _normalize_ai_endpoint(value: str | None) -> str:
@@ -60,6 +63,55 @@ async def _get_ai_provider_integration(db: AsyncSession, workspace_id) -> Integr
         .order_by(Integration.created_at.asc())
     )
     return result.scalar_one_or_none()
+
+
+async def _get_license_integration(db: AsyncSession, workspace_id) -> Integration | None:
+    result = await db.execute(
+        select(Integration)
+        .where(Integration.workspace_id == workspace_id, Integration.type == LICENSE_INTEGRATION_TYPE)
+        .order_by(Integration.created_at.asc())
+    )
+    return result.scalar_one_or_none()
+
+
+def _normalize_license_key(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _license_edition_hint(value: str | None) -> str | None:
+    token = _normalize_license_key(value).upper()
+    if not token:
+        return None
+    if token.startswith("VORDR-ENT") or "ENTERPRISE" in token:
+        return "enterprise"
+    if token.startswith("VORDR-CLD") or token.startswith("VORDR-CLOUD") or "CLOUD" in token:
+        return "cloud"
+    if token.startswith("VORDR-SH") or token.startswith("VORDR-SELF") or "SELF" in token:
+        return "self_hosted"
+    return None
+
+
+def _build_license_response(settings, integration: Integration | None) -> LicenseStatusOut:
+    config = integration.config if integration and isinstance(integration.config, dict) else {}
+    stored_key = _normalize_license_key(config.get("license_key"))
+    env_key = _normalize_license_key(settings.license_key)
+    effective_key = stored_key or env_key
+    status = "active" if effective_key else "inactive"
+    source = "workspace" if stored_key else ("environment" if env_key else "none")
+    activated_at = config.get("activated_at")
+    last_validated_at = config.get("last_validated_at")
+    message = "License key is active for this workspace." if effective_key else "No license key has been activated for this workspace yet."
+    return LicenseStatusOut(
+        source=source,
+        key_configured=bool(effective_key),
+        key_masked=_mask_api_key(effective_key),
+        last_validated_at=last_validated_at,
+        activated_at=activated_at,
+        activated_by=config.get("activated_by"),
+        edition_hint=config.get("edition_hint") or _license_edition_hint(effective_key),
+        status=status,
+        message=message,
+    )
 
 
 def _build_ai_provider_response(settings, integration: Integration | None, can_edit: bool, byok_enabled: bool) -> AIProviderConfigOut:
@@ -471,6 +523,74 @@ async def update_ai_provider_settings(
         can_edit=True,
         byok_enabled=True,
     )
+
+
+@router.get("/license", response_model=LicenseStatusOut)
+async def get_license_status(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
+):
+    settings = get_settings()
+    integration = await _get_license_integration(db, workspace.id)
+    return _build_license_response(settings, integration)
+
+
+@router.post("/license", response_model=LicenseStatusOut)
+async def activate_license(
+    req: LicenseActivateRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    workspace = Depends(get_current_workspace),
+):
+    settings = get_settings()
+    await require_workspace_role(db, workspace_id=workspace.id, user_id=user.id, allowed_roles=ADMIN_ROLES)
+
+    integration = await _get_license_integration(db, workspace.id)
+    if not integration:
+        integration = Integration(
+            workspace_id=workspace.id,
+            name=LICENSE_INTEGRATION_NAME,
+            type=LICENSE_INTEGRATION_TYPE,
+            status="connected",
+            config={},
+        )
+        db.add(integration)
+        await db.flush()
+
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    license_key = _normalize_license_key(req.license_key)
+    config = dict(integration.config or {})
+    config.update({
+        "license_key": license_key,
+        "last_validated_at": now_iso,
+        "activated_at": config.get("activated_at") or now_iso,
+        "activated_by": user.email,
+        "edition_hint": _license_edition_hint(license_key),
+    })
+    integration.config = config
+    integration.status = "connected"
+    await db.flush()
+    await db.refresh(integration)
+
+    await record_audit_event(
+        db,
+        action="settings.license.activate",
+        resource_type="integration",
+        resource_id=str(integration.id),
+        actor=user,
+        detail={
+            "source": "workspace",
+            "key_masked": _mask_api_key(license_key),
+            "edition_hint": config.get("edition_hint"),
+        },
+        workspace_id=workspace.id,
+        ip_address=request.client.host if request.client else None,
+    )
+
+    return _build_license_response(settings, integration)
 
 
 def _default_retention_values() -> dict:
