@@ -89,12 +89,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build all services
-        run: docker compose build
+      - name: Build runtime services
+        run: docker compose build backend worker frontend
 
-      - name: Start services
+      - name: Start runtime services
         run: |
-          docker compose up -d
+          docker compose up -d postgres redis backend worker frontend
           sleep 30
 
       - name: Health check
