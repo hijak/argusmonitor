@@ -1,0 +1,24 @@
+services:
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    ports:
+      - "8788:8080"
+    restart: unless-stopped
+
+  docs-site:
+    build:
+      context: ../vordr-docs
+      dockerfile: Dockerfile
+    ports:
+      - "8789:8080"
+    restart: unless-stopped
+
+  plugin-directory:
+    build:
+      context: ./plugin-directory
+      dockerfile: Dockerfile
+    ports:
+      - "8790:8080"
+    restart: unless-stopped

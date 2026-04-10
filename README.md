@@ -62,9 +62,17 @@ Vordr is aimed at operators and small teams who want:
 
 ### Docker Compose
 
+Core app stack only:
+
 ```bash
 cp .env.example .env
 docker compose up --build
+```
+
+Optional extra web surfaces (marketing site, docs preview, plugin directory):
+
+```bash
+docker compose -f docker-compose.surfaces.yml up --build
 ```
 
 Then open:
